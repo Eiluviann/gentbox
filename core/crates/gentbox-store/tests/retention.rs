@@ -316,7 +316,7 @@ fn a_closed_thread_goes_but_its_open_topic_stays() {
 }
 
 #[test]
-fn implicit_empty_groups_are_deleted_after_the_retention_period() {
+fn an_unmuted_implicit_empty_thread_is_deleted_but_the_general_topic_stays() {
     let store = memory_store();
     let repository = store.repository();
     let mut general = general_topic("general", "claude-code");
@@ -329,13 +329,127 @@ fn implicit_empty_groups_are_deleted_after_the_retention_period() {
     repository.insert_thread(&implicit).unwrap();
 
     let report = repository.sweep(NOW, &RetentionPolicy::default()).unwrap();
-    assert_eq!((report.threads, report.topics), (1, 1));
-    assert_eq!(group_names(&store), (vec![], vec![]));
+    assert_eq!((report.threads, report.topics), (1, 0));
+    assert_eq!(
+        group_names(&store),
+        (vec!["topic-general".to_owned()], vec![])
+    );
     assert!(repository.default_links().unwrap().is_empty());
-    // The agent's General topic is created again on first use.
+}
+
+#[test]
+fn a_general_topic_survives_empty_past_the_cutoff_even_when_closed() {
+    let store = memory_store();
+    let repository = store.repository();
+    let mut general = general_topic("general", "claude-code");
+    general.updated_at = NOW - days(400);
+    general.created_at = NOW - days(400);
+    repository.insert_topic(&general).unwrap();
     repository
-        .insert_topic(&general_topic("general-again", "claude-code"))
+        .close_topic(&topic_id("general"), NOW - days(300))
         .unwrap();
+
+    assert_eq!(
+        repository.sweep(NOW, &RetentionPolicy::default()).unwrap(),
+        SweepReport::default()
+    );
+    assert!(repository.topic(&topic_id("general")).is_ok());
+}
+
+#[test]
+fn a_muted_empty_topic_and_thread_survive_past_the_cutoff() {
+    let store = memory_store();
+    let repository = store.repository();
+    for name in ["muted-closed", "muted-implicit-thread"] {
+        let mut muted_topic = topic(name);
+        muted_topic.muted = true;
+        repository.insert_topic(&muted_topic).unwrap();
+    }
+    repository
+        .close_topic(&topic_id("muted-closed"), NOW - days(100))
+        .unwrap();
+
+    let mut muted_closed_thread = thread("muted-closed-thread", "muted-implicit-thread");
+    muted_closed_thread.muted = true;
+    repository.insert_thread(&muted_closed_thread).unwrap();
+    repository
+        .close_thread(&thread_id("muted-closed-thread"), NOW - days(100))
+        .unwrap();
+    let mut muted_implicit = implicit_thread("muted-implicit", "muted-implicit-thread", "c1");
+    muted_implicit.muted = true;
+    muted_implicit.updated_at = NOW - days(100);
+    repository.insert_thread(&muted_implicit).unwrap();
+
+    assert_eq!(
+        repository.sweep(NOW, &RetentionPolicy::default()).unwrap(),
+        SweepReport::default()
+    );
+    assert!(repository.topic(&topic_id("muted-closed")).unwrap().muted);
+    assert!(
+        repository
+            .thread(&thread_id("muted-implicit"))
+            .unwrap()
+            .muted
+    );
+    assert!(
+        repository
+            .thread(&thread_id("muted-closed-thread"))
+            .unwrap()
+            .muted
+    );
+}
+
+#[test]
+fn unmuting_makes_a_group_deletable_again() {
+    let store = memory_store();
+    let repository = store.repository();
+    let mut muted = topic("one");
+    muted.muted = true;
+    repository.insert_topic(&muted).unwrap();
+    repository
+        .close_topic(&topic_id("one"), NOW - days(100))
+        .unwrap();
+    assert_eq!(
+        repository
+            .sweep(NOW, &RetentionPolicy::default())
+            .unwrap()
+            .topics,
+        0
+    );
+    let mut unmuted = repository.topic(&topic_id("one")).unwrap();
+    unmuted.muted = false;
+    repository.update_topic(&unmuted).unwrap();
+    assert_eq!(
+        repository
+            .sweep(NOW, &RetentionPolicy::default())
+            .unwrap()
+            .topics,
+        1
+    );
+}
+
+#[test]
+fn unmuted_empty_closed_and_implicit_groups_are_still_deleted() {
+    let store = memory_store();
+    let repository = store.repository();
+    repository.insert_topic(&topic("closed")).unwrap();
+    repository
+        .close_topic(&topic_id("closed"), NOW - days(60))
+        .unwrap();
+    repository.insert_topic(&topic("host")).unwrap();
+    let mut implicit = implicit_thread("implicit", "host", "conversation-1");
+    implicit.updated_at = NOW - days(60);
+    repository.insert_thread(&implicit).unwrap();
+    repository
+        .insert_thread(&thread("closed-thread", "host"))
+        .unwrap();
+    repository
+        .close_thread(&thread_id("closed-thread"), NOW - days(60))
+        .unwrap();
+
+    let report = repository.sweep(NOW, &RetentionPolicy::default()).unwrap();
+    assert_eq!((report.threads, report.topics), (2, 1));
+    assert_eq!(group_names(&store), (vec!["topic-host".to_owned()], vec![]));
 }
 
 #[test]

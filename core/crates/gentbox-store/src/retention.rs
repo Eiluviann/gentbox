@@ -58,8 +58,11 @@ impl Repository<'_> {
     ///    clears nothing else, deleting the successor clears the link.
     /// 2. **Threads** with no messages that are closed, or implicit, and whose
     ///    last change (closing, for a closed one) is before
-    ///    `now - group_retention`.
-    /// 3. **Topics** under the same rules that also have no threads left.
+    ///    `now - group_retention`. A thread you muted is never deleted, so the
+    ///    mute survives.
+    /// 3. **Topics** under the same rules that also have no threads left. A
+    ///    topic you muted is never deleted, and neither is an agent's General
+    ///    topic.
     /// 4. **Conversations** no message and no default thread refers to, last
     ///    seen before `now - message_retention`.
     ///
@@ -84,6 +87,7 @@ impl Repository<'_> {
                 .connection
                 .prepare_cached(
                     "DELETE FROM threads WHERE (status = 'closed' OR implicit = 1) \
+                 AND muted = 0 \
                  AND COALESCE(closed_at, updated_at) < ?1 \
                  AND NOT EXISTS (SELECT 1 FROM messages WHERE messages.thread_id = threads.id)",
                 )?
@@ -92,6 +96,7 @@ impl Repository<'_> {
                 .connection
                 .prepare_cached(
                     "DELETE FROM topics WHERE (status = 'closed' OR implicit = 1) \
+                 AND muted = 0 AND NOT (implicit = 1 AND kind = 'general') \
                  AND COALESCE(closed_at, updated_at) < ?1 \
                  AND NOT EXISTS (SELECT 1 FROM messages WHERE messages.topic_id = topics.id) \
                  AND NOT EXISTS (SELECT 1 FROM threads WHERE threads.topic_id = topics.id)",
