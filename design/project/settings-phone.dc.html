@@ -12,14 +12,12 @@
 <helmet>
 <style>
 body{margin:0}
-.sp-board{height:820px}
-.win{height:760px}
+.sp-board{height:1140px}
+.win{height:1080px}
 .lbl{width:130px;flex:none}
-.prev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 14px 14px}
-.prev > div{border-radius:10px;background:var(--track);padding:8px 10px;font-size:12px;line-height:16px}
-.prev > div.on{background:#eaf2ff;box-shadow:inset 0 0 0 1.5px var(--accent)}
-.prev b{display:block;font-size:12px}
-.ntfy{width:16px;height:16px;border-radius:4px;background:#317f6f;color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
+.masked{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:.06em}
+.ntfy{width:16px;height:16px;border-radius:4px;background:#317f6f;color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.qr{width:96px;height:96px;border-radius:10px;border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none}
 </style>
 </helmet>
 <div class="board desk set-board sp-board">
@@ -33,7 +31,6 @@ body{margin:0}
 			<a class="side-item" href="settings-sources.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></a>
 			<a class="side-item" href="settings-rules.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></a>
 			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span></div>
-			<a class="side-item" href="settings-keys.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.key}}"></path></svg><span class="grow">Keys</span></a>
 			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
 		</nav>
 		<main class="content">
@@ -42,39 +39,63 @@ body{margin:0}
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.paperplane_fill}}"></path></svg>Send a test notification</button>
 			</div>
 			<div class="set-pane">
-				<p class="lede">The Agent Notifier iPhone app shows notifications with Approve, Deny and Reply on the lock screen and the Watch, and keeps the inbox and history</p>
-
-				<div class="card">
-					<div class="card-head">
-						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg>
-						<div><div class="headline">Paired iPhone</div><div class="tags"><span class="tag">Notifications allowed</span><span class="tag">Time Sensitive on</span><span class="tag plain">paired 21 Oct · last answer 18:43</span></div></div>
-						<a class="btn sm" href="settings-phone-pairing.dc.html" style="text-decoration: none"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.qrcode}}"></path></svg>Pair an iPhone</a>
-					</div>
-					<div class="card-row"><span class="lbl">iPhone</span><span class="grow caption">Agent Notifier 1.0</span><button class="btn sm danger">Remove</button></div>
-				</div>
+				<p class="lede">Notifications go straight from this Mac to your iPhone with your own Apple keys; answers come back through your own ntfy topic. No server of ours sits in between</p>
 
 				<div class="card">
 					<div class="card-head">
 						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.paperplane_fill}}"></path></svg>
-						<div><div class="headline">Delivery</div><div class="tags"><span class="tag">Apple push · delivering</span><span class="tag plain">last push 18:43</span></div></div>
-						<a class="link" href="settings-keys.dc.html" style="font-size: 13px">Keys</a>
+						<div><div class="headline">Deliver with</div><div class="tags"><span class="tag">Delivering</span><span class="tag plain">last push 18:43</span></div></div>
+						<span class="seg"><span class="on">Agent Notifier app</span><span>ntfy app</span></span>
 					</div>
-					<div class="card-row">
+					<div class="card-row" style="border-top: none; padding-top: 0; min-height: 0"><span class="grow caption">The ntfy app is the fallback without a paid Apple team; if Apple push fails for good, delivery falls back to it and the menu bar says so</span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg>
+						<div><div class="headline">Paired iPhones</div><div class="caption">Scan the code in the Agent Notifier iPhone app; it works once</div></div>
+						<a class="btn sm" href="settings-phone-pairing.dc.html" style="text-decoration: none"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.qrcode}}"></path></svg>Pair an iPhone</a>
+					</div>
+					<div class="card-row"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><div class="grow"><div>iPhone</div><div class="caption">Production · TestFlight build 1.0 · paired 21 Oct · last answer 18:43</div></div><button class="btn sm danger">Revoke</button></div>
+					<div class="card-row"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><div class="grow"><div>iPhone (test)</div><div class="caption">Development · Xcode build · paired 22 Oct</div></div><button class="btn sm danger">Revoke</button></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.key}}"></path></svg>
+						<div><div class="headline">Apple push key</div><div class="caption">From your own Apple Developer team; kept in the Keychain and masked once stored</div></div>
+						<button class="btn sm">Replace</button>
+					</div>
+					<div class="card-row"><span class="lbl">Key file (.p8)</span><span class="grow masked">AuthKey_••••••••••.p8</span><span class="caption">imported 23 Oct</span></div>
+					<div class="card-row"><span class="lbl">Key ID</span><span class="grow masked">••••••••••</span></div>
+					<div class="card-row"><span class="lbl">Team ID</span><span class="grow masked">••••••••••</span><span class="caption">sandbox or production follows each device</span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
 						<span class="ntfy">ntfy</span>
-						<div class="grow"><div>ntfy</div><div class="caption">Carries answers back to this Mac; also delivers through the ntfy app while Apple push is not set up</div></div>
-						<span class="caption">Answers only</span>
+						<div><div class="headline">ntfy</div><div class="caption">Carries answers and pairing in every setup, and delivery when the ntfy app is chosen</div></div>
+						<span></span>
 					</div>
+					<div class="card-row"><span class="lbl">Server</span><span class="grow mono" style="color: var(--ink-2)">https://ntfy.sh</span><button class="btn sm">Change</button></div>
+					<div class="card-row"><span class="lbl">Account token</span><div class="grow"><div class="masked">tk_••••••••••••••••••••</div><div class="caption">Optional; for a server with access control</div></div><button class="btn sm">Replace</button><button class="btn sm danger">Remove</button></div>
 				</div>
 
 				<div class="card">
 					<div class="card-head">
 						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.eye_slash}}"></path></svg>
-						<div><div class="headline">What the notification shows</div><div class="caption">The long-press view adds the full question and command</div></div>
+						<div><div class="headline">Notification content</div><div class="caption">Summary shows what is needed; Minimal shows only the title phrase on the lock screen</div></div>
 						<span class="seg"><span class="on">Summary</span><span>Minimal</span></span>
 					</div>
-					<div class="prev">
-						<div class="on"><b>URGENT: Action required</b>Claude Code wants to run a command in api<span class="c-ink3" style="display: block">Project or agent icon · Approve, Deny, Reply</span></div>
-						<div><b>URGENT: Action required</b><span class="c-ink3">No summary on the lock screen; long press or open the app to read and answer</span></div>
+					<div class="card-row"><div class="grow"><div>End-to-end encrypted content</div><div class="caption">Apple then sees only the title phrase; the encrypted payload leaves less room for the excerpt</div></div><span class="toggle"></span></div>
+					<div class="card-row"><div class="grow"><div>Project icon as the big icon</div><div class="caption">Communication Notifications style: the project icon replaces the app icon, which shrinks to a badge</div></div><span class="toggle"></span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_down_circle}}"></path></svg>
+						<div><div class="headline">Load full messages</div><div class="caption">Optional: with Tailscale on the iPhone and this Mac, the app loads full bodies and older history from this Mac</div></div>
+						<span class="toggle"></span>
 					</div>
 				</div>
 			</div>
@@ -82,7 +103,7 @@ body{margin:0}
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":820}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1140}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {} };

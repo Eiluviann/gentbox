@@ -15,18 +15,21 @@ body{margin:0}
 .notif{grid-template-columns:38px minmax(0,1fr) 36px}
 .thumb{width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;align-self:center}
 .legend{position:absolute;left:20px;right:20px;bottom:40px;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
+.step{position:absolute;left:20px;top:20px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.7)}
 </style>
 </helmet>
 <div class="lock">
+	<div class="step">2 · 18:44 · rings</div>
 	<div class="lock-date">Friday 23 October</div>
 	<div class="lock-time">18:44</div>
-	<div style="height: 110px"></div>
+	<div style="height: 96px"></div>
 
 	<div class="notif">
 		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
 			<div class="notif-title">URGENT: Action required<span class="when">now</span></div>
+			<div class="notif-sub">api · fix flaky test</div>
 			<div class="notif-body">Claude Code wants to run a command in api</div>
 		</div>
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
@@ -35,7 +38,8 @@ body{margin:0}
 		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-title">Your input is needed<span class="when">2m ago</span></div>
-			<div class="notif-body">Pick a title for the 2.4 release notes; I used “Faster inbox” for now</div>
+			<div class="notif-sub">docs · release notes</div>
+			<div class="notif-body">Pick a title for the 2.4 notes; I used “Faster inbox” for now</div>
 		</div>
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
 	</div>
@@ -43,12 +47,13 @@ body{margin:0}
 		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-title">Task complete<span class="when">4m ago</span></div>
+			<div class="notif-sub">web · WEB-142 checkout</div>
 			<div class="notif-body">Cart totals round once at checkout; 31 tests pass</div>
 		</div>
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg></div>
 	</div>
 
-	<div class="legend">Agent Notifier's own notifications over Apple push: our app icon, a fixed title per class, the summary, and the project icon or else the agent's as the thumbnail. Blocked is Time Sensitive. While you use the Mac these arrive silently and ring only if still unaddressed after 2 min</div>
+	<div class="legend">Still unaddressed 2 min after it arrived silently, the blocked item is replaced in place by its Time Sensitive version with a sound. Our app icon, the title phrase, project · conversation, the summary, and the project or agent icon as the thumbnail</div>
 	<div class="home" style="background: #fff"></div>
 </div>
 </x-dc>

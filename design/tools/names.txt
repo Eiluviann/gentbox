@@ -89,3 +89,6 @@ bubble.left.fill
 apple.terminal
 exclamationmark.bubble
 exclamationmark.bubble.fill
+faceid
+qrcode.viewfinder
+arrow.down.circle

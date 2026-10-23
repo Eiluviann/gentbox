@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>iPhone notification expanded</title>
+<title>iPhone long press approval</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="./an.css">
 <script src="./sf-symbols.js"></script>
@@ -18,7 +18,7 @@ body{margin:0}
 </helmet>
 <div class="lock">
 	<div class="blur"></div>
-	<div style="height: 120px"></div>
+	<div style="height: 110px"></div>
 
 	<div class="xcard">
 		<div class="xhead">
@@ -41,9 +41,8 @@ body{margin:0}
 		<div><span>Approve</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg></div>
 		<div style="color: var(--danger)"><span>Deny</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></div>
 		<div><span>Reply</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg></div>
-		<div><span>Snooze 15 min</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></div>
 	</div>
-	<div class="legend">Long press opens our Notification Content Extension: the full question and command above real actions. Deny asks for Face ID when it is destructive; Reply opens an inline text field</div>
+	<div class="legend">Long press opens our Content Extension: the body excerpt as markdown, project and conversation. Approval category: Approve asks for Face ID first; Deny and Reply do not</div>
 	<div class="home" style="background: #fff"></div>
 </div>
 </x-dc>

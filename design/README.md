@@ -2,7 +2,7 @@
 
 Visual design for every surface, as a Design canvas: <https://claude.ai/artifact/MnphbLb4m2WCubpkVWg9cu> (private; share it from the page's Share menu). `project/` holds the canvas sources; the published canvas also carries `project/sf-symbols.js`, which is generated (see Tools) and kept out of git because it holds Apple's SF Symbols outlines and third-party brand marks.
 
-The canvas reads left to right in three groups: Mac, Settings (inside the main window), iPhone and Watch. Consecutive screens sit in a row, alternative states 120 px below their screen. It follows `docs/architecture.md` as of `d4a4b61`.
+The canvas reads left to right in three groups: Mac, Settings (inside the main window), iPhone and Watch. Consecutive screens sit in a row, alternative states 120 px below their screen. It follows `docs/architecture.md` and ADR 0006 as of `f5b3ccf`.
 
 ## Foundations
 
@@ -38,13 +38,15 @@ The canvas reads left to right in three groups: Mac, Settings (inside the main w
 | | `mac-generic-row` silent inbox rows | |
 | | `mac-conversation` detail: pending action, timeline, markdown body | |
 | Settings | `settings-notifications` per-class matrix, silent-then-ping, presence | |
-| | `settings-quiet-focus` Focus through Apple's Focus status API | |
+| | `settings-quiet-focus` Focus status permission (`INFocusStatusCenter`); Full Disk Access only as a note for builds without the paid team | |
 | | `settings-sources` | |
 | | `settings-rules` | `settings-rules-error` |
-| | `settings-phone` paired iPhone, delivery (Apple push, ntfy for answers and fallback), summary or minimal | `settings-phone-pairing` |
-| | `settings-keys` bring your own keys: Apple push (`.p8`, Key ID, Team ID, sandbox or production), ntfy server and account token, Pushover (Planned), Tailscale; Keychain only, always masked | |
-| iPhone and Watch | `ios-lock-screen` our notifications | `ios-lock-screen-expanded` (long press, permission), `ios-lock-screen-reply` (choices and inline reply) |
-| | `watch` | |
+| | `settings-phone` delivery (our app or the ntfy app), paired iPhones with Revoke, Apple push key (`.p8`, Key ID, Team ID, masked), ntfy server and token, Summary or Minimal, end-to-end encryption and project icon as big icon (both off), Load full messages over Tailscale (off) | `settings-phone-pairing` |
+| iPhone and Watch | `ios-escalation-silent` 1: passive arrival in Notification Centre | |
+| | `ios-lock-screen` 2: the Time Sensitive ping 2 min later | `ios-lock-screen-expanded` (long press, approval: Approve, Deny, Reply), `ios-faceid` (Approve asks for Face ID), `ios-lock-screen-choices` (one button per choice, plus Reply and Open), `ios-lock-screen-reply` (text reply field) |
+| | `ios-escalation-handled` 3: replaced by "Approved from phone" or "Handled on Mac" | |
+| | `watch` mirrored notifications with buttons; reply by dictation, Scribble or keyboard | |
+| | `ios-pairing` scan the Mac's QR code; the ntfy app only as a fallback link | |
 | | `ios-inbox` | |
 | | `ios-detail` | `ios-detail-answered` |
 | | `ios-history` | |
@@ -55,7 +57,8 @@ The canvas reads left to right in three groups: Mac, Settings (inside the main w
 2. **Permission as its own kind.** The hand marks messages with approve or deny actions, which matches the title rule in §10. If permission should become a fifth class or a schema field, that is a schema change; asked in the canvas comments.
 3. **Per-source on/off switch** (Sources): not in the architecture, where per-source policy is Planned.
 4. **Rules edited in the UI** write `rules.toml`, and the **Try a message** tester classifies without ingesting: both are additions for PR 1/3.
-5. **Wait for answers from Agent Notifier** (Sources › Claude Code) is a plugin setting with no home in `config.toml` yet.
+5. **Snooze on the phone.** ADR 0006's categories give approvals Approve, Deny and Reply and questions Reply and Open, and the push carries only answer actions. So the phone notification has no Snooze, although the user wants Snooze to tell the agent to keep working. The iPhone app's detail still shows Snooze; it needs an action token for a non-answer.
+6. **Wait for answers from Agent Notifier** (Sources › Claude Code) is a plugin setting with no home in `config.toml` yet.
 
 ## Open design questions
 

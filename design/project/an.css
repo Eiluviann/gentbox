@@ -987,3 +987,7 @@ a.side-item { text-decoration: none; }
 .ios .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; padding-top: 8px; background: rgba(249, 249, 249, 0.94); border-top: 0.5px solid #d1d1d6; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ios .tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 10px; line-height: 12px; font-weight: 500; color: #8e8e93; text-decoration: none; }
 .ios .tab.on { color: var(--accent); }
+.notif-sub { font-size: 15px; line-height: 20px; font-weight: 500; color: #000; }
+.notif.passive { opacity: 0.92; }
+.nc-head { position: relative; margin: 0 22px 8px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.85); display: flex; justify-content: space-between; }
+.faceid { position: absolute; left: 50%; top: 300px; width: 160px; height: 160px; margin-left: -80px; border-radius: 32px; background: rgba(40, 40, 44, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: 15px; font-weight: 500; }

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone pairing</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.cam{margin:16px;height:360px;border-radius:20px;background:#1c1c1e;position:relative;display:flex;align-items:center;justify-content:center}
+.cam-frame{width:200px;height:200px;color:#fff}
+.steps-ios{margin:0 16px;background:#fff;border-radius:12px;padding:4px 0}
+.steps-ios div{display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:10px;padding:10px 16px;font-size:15px;line-height:20px}
+.steps-ios span.n{width:24px;height:24px;border-radius:50%;background:var(--track);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--ink-2)}
+</style>
+</helmet>
+<div class="ios">
+	<div style="height: 54px"></div>
+	<div class="large" style="font-size: 28px; line-height: 34px">Pair with your Mac</div>
+	<div class="cam">
+		<svg class="i cam-frame" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.qrcode_viewfinder}}"></path></svg>
+		<span style="position: absolute; bottom: 14px; color: rgba(255,255,255,.7); font-size: 13px">[Camera]</span>
+	</div>
+	<div class="steps-ios">
+		<div><span class="n">1</span><span>On the Mac, open Agent Notifier › Settings › iPhone</span></div>
+		<div><span class="n">2</span><span>Scan the code shown there</span></div>
+		<div><span class="n">3</span><span>Allow notifications, including Time Sensitive</span></div>
+	</div>
+	<div class="caption" style="padding: 14px 32px; font-size: 13px; text-align: center">Nothing goes through a server of ours; the code carries your own answer channel</div>
+	<a href="#ntfy-fallback" style="position: absolute; left: 0; right: 0; bottom: 40px; text-align: center; font-size: 15px; color: var(--accent); text-decoration: none">No paid Apple team? Use the ntfy app instead</a>
+	<div class="home"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>
