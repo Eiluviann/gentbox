@@ -63,7 +63,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** `cargo test -p gentbox-core` green; the examples deserialise; `decide` and `classify` are free of `std::time::SystemTime::now`, IO and `unsafe` (a test greps the crate source).
 
-**Topics (ADR 0008).** The `topic` model (`kind` hint, `implicit`) and topic resolution (named → rule-assigned → conversation default; id, key, inline create, title fallback, reopen on a closed topic); the implicit conversation topic and the takeover by the first explicit `kind: "conversation"` topic (messages and mute move, later topicless messages follow, a second one stays ordinary); rule-assigned topics with `{project}` substitution, only when the message names none; the policy's muted-topic row (non-urgent → inbox only, `shouldWait: false`; urgent unaffected); topics never coalesce. Tests: each `topicRef` form, an invalid ref, rule assignment and its precedence over the default topic, implicit-topic creation and renaming with the conversation, takeover (idempotent, only once), `kind` never changing a decision, every `(type, urgent, blocking)` combination in a muted and an unmuted topic.
+**Topics and threads (ADRs 0008, 0009).** The topic and thread models (`kind` hints, `implicit`) and the resolution order: `thread.id` fixes both (conflicting `topic` → error); topic: named → rule → the conversation's latest default thread's topic → the agent's General topic; thread: named key (create on first use) → rule → the conversation's default thread in that topic (implicit, created on first use); the thread takeover by the first explicit `kind: "conversation"` thread; rule templates with `{project}`, `{agent}`, `{conversation}`; effective mute (topic or thread) in the policy (non-urgent → inbox only, `shouldWait: false`; urgent unaffected); topics and threads never coalesce. Tests: every resolution branch, a thread spanning two conversations, a conversation posting into two topics (one default thread per topic), implicit General per agent, takeover (idempotent, only once, never by the inline form), rule precedence, `kind` never changing a decision, every `(type, urgent, blocking)` combination muted by topic, by thread, and not muted.
 
 ## PR 2a · `gentbox-store`
 
@@ -77,7 +77,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Model note.** Sonnet: the first migration has no user data to lose. Later migrations that transform data go to Opus.
 
-**Topics (ADR 0008).** A `topics` table (nullable unique key, kind, implicit, status, style, mute flag, mark-read time, created-by), `default_topic_id` on conversations and a non-null `topic_id` on messages, in the first migration. Tests: upsert by key returns the existing row; the takeover moves messages and deletes the implicit topic in one transaction; move a message between topics and back to the default; mark all read acknowledges only that topic's open messages; retention keeps topics that still have messages and deletes closed or implicit empty ones after the retention period.
+**Topics and threads (ADRs 0008, 0009).** Tables `topics` (nullable unique key, kind, implicit, status, style, mute, mark-read, created-by) and `threads` (topic id, nullable key unique per topic, kind, implicit, status, closed-by-topic, mute, mark-read, created-by), `conversation_default_threads (conversation, topic) → thread`, and on messages a non-null `thread_id` plus a denormalised `topic_id`, all in the first migration. Tests: upserts by key; the takeover moves messages and deletes the implicit thread in one transaction; moving a thread moves its messages' `topic_id`; mark read per topic and per thread; closing a topic closes its threads and reopening reopens only those; retention keeps anything with messages and deletes closed or implicit empty topics and threads after the retention period.
 
 ## PR 2b · `gentbox-hub` + `gentbox-ingest` + `gentboxd`
 
@@ -101,7 +101,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** `gentboxd` runs on macOS and Linux CI; the `curl` script in the plan's verification section posts one message per type and blocking level and gets the expected fields back.
 
-**Topics (ADR 0008).** Routes `POST /v1/topics`, `GET /v1/topics`, `GET`/`PATCH /v1/topics/{id}`, `POST /v1/topics/{id}/close|reopen|rescind`, `PUT /v1/messages/{id}/topic`, and the inline-create path in `POST /v1/messages`. Tests: concurrent upserts of one key create one topic; 201 vs 200 on upsert; listing returns no messages; close with and without `rescindOpenMessages` (waiters get `rescinded`); a message to a closed topic reopens it; `topicId` in the 201 response; `PATCH` on an implicit topic answers 409; a takeover reported as `defaultFor` in the response.
+**Topics and threads (ADRs 0008, 0009).** Topic routes (`POST /v1/topics`, `GET /v1/topics`, `GET`/`PATCH /v1/topics/{id}`, `POST /v1/topics/{id}/close|reopen|rescind`), thread routes (`POST /v1/threads`, `GET /v1/threads`, `GET`/`PATCH /v1/threads/{id}`, `POST /v1/threads/{id}/close|reopen|rescind`, `PUT /v1/threads/{id}/topic`), `PUT /v1/messages/{id}/thread`, and inline resolution in `POST /v1/messages`. Tests: concurrent upserts of one key create one topic or thread; 201 vs 200; listings return no messages; close with and without `rescindOpenMessages` (waiters get `rescinded`); a message to a closed thread reopens it and its topic; `topicId` and `threadId` in the 201 response; `PATCH` on implicit topics and threads answers 409; a thread move into a topic with the same key answers 409.
 
 ## PR 3 · `gentbox-ffi` + macOS app shell
 
@@ -120,7 +120,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** A paid-team build runs from the login item, receives a `curl`-posted message and lists it, and its embedded profile grants Time Sensitive and Communication Notifications; a Personal Team build (`Signing.personal-team.xcconfig`) still builds and runs without them.
 
-**Topics (ADR 0008).** FFI inbox queries grouped topic → messages (conversation as row metadata), topic mute, mark all read, close, reopen and move; the menu-bar inbox groups by topic with a header row (mute, mark read) and a Closed section. Tests: XCUITest for grouping and mute.
+**Topics and threads (ADRs 0008, 0009).** FFI inbox queries grouped topic → thread → messages (conversation as row metadata); mute, mark read, close and reopen at both levels; move a thread or a message. The menu-bar inbox shows topic and thread header rows and a Closed section. Tests: XCUITest for grouping, General, and muting by topic and by thread.
 
 ## PR 4 · Popups, native notifications, round-trip
 
@@ -134,7 +134,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** The plan's Mac verification items pass; answering from a native notification and from the popup both reach the waiting sender; late second answer shows "Already answered".
 
-**Topics (ADR 0008).** Topic chips on popups and toasts; native notifications use the topic as thread identifier and in the subtitle; topic detail view. Tests: a muted topic shows no popup for a non-urgent blocking message and still shows an urgent one.
+**Topics and threads (ADRs 0008, 0009).** Topic and thread chips on popups and toasts; native notifications use the thread as thread identifier and "topic · thread" in the subtitle; topic and thread detail views. Tests: a muted topic or thread shows no popup for a non-urgent blocking message and still shows an urgent one.
 
 ## PR 5 · `gentbox-relay`: APNs, ntfy answers and fallback
 
@@ -183,7 +183,7 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 - Replaying the token does nothing.
 - With the ntfy fallback selected, the same flow works through the ntfy app.
 
-**Topics (ADR 0008).** APNs `thread-id` = the message's topic id (implicit included); subtitle topic · conversation, without the conversation when it equals the topic; on the ntfy fallback the topic title leads the body. Tests: payload thread id and subtitle with and without a topic; muted topics produce no push.
+**Topics and threads (ADRs 0008, 0009).** APNs `thread-id` = the message's thread id (implicit included); subtitle topic · thread without repeats and without "General"; on the ntfy fallback "topic · thread" leads the body. Tests: payload thread id and subtitle across explicit, implicit and General cases; a muted topic or thread produces no push.
 
 ## PR 6 · iOS app (core)
 
@@ -208,7 +208,7 @@ XCUITest smoke for inbox and detail.
 
 **Acceptance.** The PR 5 acceptance flows pass on the user's iPhone and Watch, including text reply from the lock screen, choices from the expanded view, and the project icon as the thumbnail.
 
-**Topics (ADR 0008).** Inbox and detail grouped by topic, notifications grouped by `thread-id`, topic mute and mark read in the app. Tests: XCTest for grouping from payload fixtures.
+**Topics and threads (ADRs 0008, 0009).** Inbox and detail grouped topic → thread, notifications grouped by `thread-id`, mute and mark read at both levels in the app. Tests: XCTest for grouping from payload fixtures.
 
 ## PR 7 · `gentbox` CLI + `gentbox-mcp` stdio MCP server
 
@@ -220,7 +220,7 @@ XCUITest smoke for inbox and detail.
 
 **Acceptance.** `gentbox send --type task_completed --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
 
-**Topics (ADR 0008).** MCP tools `create_topic` (with `kind` and a flag to stand for the current conversation) and `close_topic` and a `topic` parameter on `notify` and `ask`; CLI `gentbox topic create|close|reopen|list` and `--topic` on `send` and `ask`. Tests: Vitest for request building and the inline-topic shortcut.
+**Topics and threads (ADRs 0008, 0009).** MCP tools `create_topic`, `close_topic`, `create_thread` (with `kind` and a flag to stand for the current conversation) and `close_thread`, and `topic` and `thread` parameters on `notify` and `ask`; CLI `gentbox topic …`, `gentbox thread create|close|reopen|list|move`, and `--topic`/`--thread` on `send` and `ask`. Tests: Vitest for request building and the inline shortcuts.
 
 ## PR 8 · Optional: Tailscale remote listener
 

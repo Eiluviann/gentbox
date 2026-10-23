@@ -1,0 +1,42 @@
+{
+	"version": 1,
+	"source": {
+		"agent": "claude-code",
+		"displayName": "Claude Code"
+	},
+	"conversation": {
+		"id": "5d0c7a92-3e41-4b8f-a6d2-9f1e0b7c4a33",
+		"title": "Ingest: long-poll",
+		"cwd": "/Users/me/Developer/gentbox"
+	},
+	"topic": {
+		"key": "project:gentbox",
+		"title": "gentbox",
+		"kind": "project"
+	},
+	"thread": {
+		"key": "phase-3-ingest",
+		"title": "Phase 3 · ingest",
+		"kind": "phase"
+	},
+	"type": "decision_required",
+	"urgent": false,
+	"blocking": "blocking",
+	"event": "claude-code.permission_request",
+	"title": "Allow Bash: cargo test -p gentbox-ingest?",
+	"summary": "Run the ingest tests in gentbox",
+	"actions": [
+		{
+			"id": "allow",
+			"label": "Allow",
+			"kind": "approve"
+		},
+		{
+			"id": "deny",
+			"label": "Deny",
+			"kind": "deny"
+		}
+	],
+	"awaitsResponse": true,
+	"correlationKey": "permission:main:8c2e41f0a9d3"
+}

@@ -25,7 +25,7 @@ Defaults `generic`, `false`, `non_blocking`. `task_completed` and `generic` are 
 
 The sender may declare any of the fields; deterministic rules fill the rest. No model is involved (§5.3).
 
-A message also belongs to its **conversation** (one agent session, kept as metadata for Open, focus and coalescing) and to exactly one **topic**: whatever grouping the agent chooses, such as a project, a conversation, or "Release 1.4" across an API and a web session. A message that names none lands in its conversation's implicit topic, so the inbox groups one level deep, topic → messages (§5.4, ADR [0008](adr/0008-topics.md)). Gentbox topics are unrelated to ntfy topics, which the docs always call "ntfy topic".
+A message also belongs to its **conversation** (one agent session, kept as metadata for Open, focus and coalescing) and to exactly one **thread** within exactly one **topic**. A topic is a project, a bigger undertaking, or a category for simple conversations; a thread is a version, a phase, or simply a conversation, and may span several conversations and agents. A message that names neither lands in its conversation's implicit thread under the agent's implicit General topic, so the inbox groups topic → thread → messages (§5.4, ADRs [0008](adr/0008-topics.md) and [0009](adr/0009-threads.md)). Gentbox topics are unrelated to ntfy topics, which the docs always call "ntfy topic".
 
 ## 2. System overview
 
@@ -81,7 +81,7 @@ The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/
 | Crate | Status | Responsibility | Depends on |
 | --- | --- | --- | --- |
 | `gentbox-core` | Now (PR 1) | Domain types (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
-| `gentbox-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, topics, the single-use action-token ledger | `gentbox-core` |
+| `gentbox-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, topics and threads, the single-use action-token ledger | `gentbox-core` |
 | `gentbox-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the ntfy answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `gentbox-core` |
 | `gentbox-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `gentbox-core`, `gentbox-store`, `gentbox-relay` (trait only) |
 | `gentbox-ingest` | Now (PR 2b; optional remote routes for the iOS app in PR 8) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `gentbox-hub` |
@@ -107,7 +107,7 @@ POST /v1/messages
   → validate against message-v1.json        422 with the failing JSON pointer
   → idempotency (source.agent, idempotencyKey)  200 with the stored message
   → classify, per field                     declared → user rules → built-in rules → defaults → normalize
-  → resolve topic                           declared → rule-assigned → conversation default; create on first use; reopen if closed (§5.4)
+  → resolve topic and thread                topic: named → rule → conversation's latest → General; thread: named → rule → conversation default (§5.4)
   → coalesce / dedupe / supersede / rescind (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
@@ -117,7 +117,7 @@ POST /v1/messages
 Response body of `POST /v1/messages`:
 
 ```json
-{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD", "state": "open", "shouldWait": true }
+{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD", "threadId": "01JBM9P3H4S5E6J7N8G9E0S1TQ", "state": "open", "shouldWait": true }
 ```
 
 `id` is a ULID the hub assigns. It is the only message id in URLs and in `actionResponse.messageId`; the sender's `idempotencyKey` only deduplicates retries.
@@ -209,7 +209,7 @@ match = { event = "claude-code.notification.auth_success" }
 mute = true          # stored as generic, never shown outside the inbox history
 ```
 
-Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute` and `topic` (`topic = { key = "project:{project}", title = "{project}", kind = "project" }`, where `{project}` is the working-directory name; only when the message names no topic, and ahead of the conversation's default topic). Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
+Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute`, `topic` and `thread`, the last two as templates with `{project}` (working-directory name), `{agent}` and `{conversation}` placeholders, e.g. `topic = { key = "project:{project}", title = "{project}", kind = "project" }`; only for what the message did not name. Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
 
 **Built-in Claude Code mapping** (the Phase 4 hook sends `event` and, where it is certain, the fields; `urgent` is false unless a user rule says otherwise):
 
@@ -233,17 +233,20 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 
 The MCP `ask` tool (PR 7) declares the fields itself: `decision_required` by default, with `blocking` chosen by the agent, `deferrable` when it can continue with other work.
 
-### 5.4 Topics
+### 5.4 Topics and threads
 
-ADR: [0008](adr/0008-topics.md).
+ADRs: [0008](adr/0008-topics.md) (topics), [0009](adr/0009-threads.md) (threads, defaults).
 
-- **A topic is whatever grouping the agent decides on:** a project, a conversation, or anything else. It has a hub `id`, a stable agent-chosen `key` (unique per hub, across agents; none for implicit topics), `title`, optional `summary`, a free-form `kind` hint the UI may show (`project`, `conversation`, `other`, or any short string; never changes behaviour), `style` (SF Symbol and colour hints), `implicit`, `status` `open` or `closed`, `createdBy` and timestamps. Topics are flat.
-- **Every message has exactly one topic:** the one it names, else one a rule assigns, else its conversation's **default topic**. That default is an **implicit topic** the hub creates on the conversation's first topicless message (`kind: "conversation"`, no key, titled and renamed with the conversation), until an agent creates an explicit `kind: "conversation"` topic linked to that conversation (`conversation.id` in `POST /v1/topics`). The explicit one **takes over**: the implicit topic's messages and mute state move into it, the implicit topic is deleted, and later topicless messages land in it. Only the first such topic takes over; later ones are ordinary topics.
-- **Created and changed by agents:** `POST /v1/topics` upserts by key; `PATCH /v1/topics/{id}` renames or edits (implicit topics: 409, they are hub-managed); close, reopen and list (§8). A message joins with `topic: { "id": … }`, or `topic: { "key": …, "title": …, "kind": … }`, which creates the topic on first use; a message to a closed topic reopens it. `PUT /v1/messages/{id}/topic` moves a message, or back to its conversation's default topic with `null`.
+- **Hierarchy:** topic → thread → messages. Every message is in exactly one thread, every thread in exactly one topic. The conversation stays metadata on each message. Threads and topics may span several conversations and agents.
+- **Topic:** hub `id`, stable agent-chosen `key` (unique per hub, across agents), `title`, optional `summary`, a free-form `kind` hint (`project`, `category`, `other`, …), `style` (SF Symbol and colour hints, also used by its threads), `implicit`, `status`, `createdBy`, timestamps. The only implicit topic is each agent's **General** topic (`kind: "general"`, no key).
+- **Thread:** hub `id`, `topicId`, optional `key` (unique within its topic), `title`, optional `summary`, a free-form `kind` hint (`version`, `phase`, `conversation`, `other`, …), `implicit`, `status`, `defaultFor`, `createdBy`, timestamps. `kind` never changes behaviour.
+- **Resolution:** `thread: { "id": … }` fixes both (a conflicting `topic` is a 422). Otherwise the **topic** is the named one → a rule-assigned one → the topic of the conversation's latest default thread → the agent's General topic; then the **thread** within it is the named one (`{ "key": … }`, created on first use) → a rule-assigned one → the conversation's **default thread** in that topic: an implicit thread (`kind: "conversation"`, no key, titled and renamed with the conversation) created on first use.
+- **Takeover:** an explicit thread created with `kind: "conversation"` and `conversation.id` takes over that conversation's implicit thread in its topic (messages and mute move in, the implicit thread goes, later default messages follow). Only the first; the inline `thread` form never takes over. Topics have no takeover.
+- **API:** topics as in ADR 0008; threads with `POST /v1/threads` (upsert by key within the topic), `GET`, `PATCH`, close, reopen, rescind-all, `PUT /v1/threads/{id}/topic` (move a thread), and `PUT /v1/messages/{id}/thread` (move a message, `null` to re-resolve). Implicit topics and threads answer 409 to agent PATCHes.
 - **Grouping only.** A message keeps its own `type`, `urgent` and `blocking`; coalescing and implicit rescinds stay per conversation (§7). The one delivery effect is mute (§6.2).
-- **Closing** leaves the topic's open messages alone, unless `rescindOpenMessages: true` (then they are rescinded, default reason `obsolete`); `POST /v1/topics/{id}/rescind` withdraws them without closing.
-- **For you:** mute and unmute (implicit topics too), mark all read (acknowledges every open message, answers nothing), close and reopen, move a message.
-- **Inbox:** one level, topic → messages; each message row shows its conversation. Closed topics move to a Closed section.
+- **Close:** closing a topic closes its open threads (and reopening it reopens those); open messages stay unless `rescindOpenMessages: true`. A message to a closed thread reopens it and its topic.
+- **For you:** mute, mark read, close and reopen at both levels (a muted topic mutes its threads); move a thread or a message.
+- **Inbox:** topic → thread → messages; each message row shows its conversation. A simple conversation shows as General → its thread. Closed topics and threads move to a Closed section.
 
 ## 6. Noise-policy engine
 
@@ -255,7 +258,7 @@ ADR: [0004](adr/0004-policy-engine.md).
 fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> DeliveryPlan
 ```
 
-- `PolicyContext`: presence (`away` = screen locked or idle ≥ `awayAfter`, frontmost bundle id), Focus on/off, quiet hours active, whether the message's topic is muted, the conversation's open items, the clock.
+- `PolicyContext`: presence (`away` = screen locked or idle ≥ `awayAfter`, frontmost bundle id), Focus on/off, quiet hours active, whether the message's topic or thread is muted, the conversation's open items, the clock.
 - `Policy`: settings from `config.toml` keyed on `(type, urgent, blocking)`, defaults below.
 - `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (`none`, `active`, `time_sensitive`), `sound` (bool), `phone` (`now(level)`, `silentThenPing { level, after }`, `silent`, `none`), `reping` (`after`, `max`) and `offerDefer` (bool).
 
@@ -274,7 +277,7 @@ By blocking level (for `decision_required` and `action_required`) and type:
 | `non_blocking` | Native banner and inbox, no re-ping | Silent-then-ping |
 | `task_completed` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Silent-then-ping |
 | `generic` | Inbox only, silent | Never |
-| Any non-urgent message in a muted topic | Inbox only, silent, no re-ping; `shouldWait: false` for its sender | Never |
+| Any non-urgent message in a muted topic or thread | Inbox only, silent, no re-ping; `shouldWait: false` for its sender | Never |
 
 `urgent` modifies every row above:
 
@@ -316,7 +319,7 @@ All within one conversation (`source.agent` + `conversation.id`). Rules are appl
 5. **Completion rescinds what waited on it.** A `task_completed` message rescinds, as `obsolete`, the conversation's `open`/`acknowledged` `blocking` and `deferrable` messages that have no live waiter. A message with a live waiter stays open (the agent cannot have finished while it waits); `non_blocking` messages survive the end of the turn.
 6. **Progress rescinds.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) rescinds, as `resolved_elsewhere`, the conversation's `idle` item and its `blocking` and `deferrable` items without a live waiter: something happened, so whatever they asked for was handled in the session. This covers a permission answered or denied in the terminal.
 7. **Explicit rescind.** `DELETE /v1/messages/{id}`, `POST /v1/conversations/{agent}/{id}/rescind`, or the `rescinds` field on a new message, with a reason (ADR 0007). Effects in every channel: popup and toast removed; Mac native notification removed; inbox row kept and marked "Withdrawn" with the reason in words (superseded rows fold into their successor instead); the own iPhone app removes the delivered notification through a background push and `removeDeliveredNotifications`, falling back after 60 s to a passive "Withdrawn" replacement under the same collapse id; the ntfy fallback cannot remove or update a delivered notification, so the hub publishes a min-priority "Withdrawn" notice only when the original had pinged, and ignores taps on the stale buttons.
-8. **Topics never coalesce.** Two conversations in one topic keep separate slots, popups and rescinds; only the inbox and the lock screen group them (§5.4).
+8. **Topics and threads never coalesce.** Two conversations in one thread keep separate slots, popups and rescinds; only the inbox and the lock screen group them (§5.4).
 9. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest `blocking` or `deferrable` item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
 
 ## 8. Ingest API and transport
@@ -346,8 +349,13 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `POST /v1/topics` | Create a topic, upsert by `key` (§5.4) |
 | `GET /v1/topics?status=open` | List topics (no messages) |
 | `GET /v1/topics/{id}` · `PATCH /v1/topics/{id}` | Read one; rename or edit it |
-| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
-| `PUT /v1/messages/{id}/topic` | Move a message to another topic, or back to its conversation's default topic with `null` |
+| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close (and its open threads; optionally withdrawing open messages), reopen, or withdraw its open messages |
+| `POST /v1/threads` | Create a thread, upsert by `key` within its topic (§5.4) |
+| `GET /v1/threads?topic={id}&status=open` | List threads (no messages) |
+| `GET /v1/threads/{id}` · `PATCH /v1/threads/{id}` | Read one; rename or edit it |
+| `POST /v1/threads/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
+| `PUT /v1/threads/{id}/topic` | Move a thread with its messages to another topic |
+| `PUT /v1/messages/{id}/thread` | Move a message to another thread, or back to its default resolution with `null` |
 
 **No answer route for senders.** The sender token can post, wait, rescind and report progress, but cannot answer or list messages (rescinding never answers): an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
 
@@ -428,9 +436,9 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the user, 2026-10-23). The blocking level never changes the title; it shows as its own badge (below).
 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
-- **Subtitle:** topic title · conversation title, leaving out the conversation title when it equals the topic title (implicit and `kind: "conversation"` topics); Mac and the own iOS app. On the ntfy fallback the topic title leads the body instead.
-- **Grouping:** APNs `thread-id` is the message's topic id (implicit topics included), so the lock screen and Notification Centre group a topic's notifications; Mac native notifications use the same thread identifier. Notifications already delivered keep their thread after a takeover or a move.
-- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · topic · conversation"); the ntfy fallback leads the body with it.
+- **Subtitle:** topic title · thread title, leaving out a part that repeats the previous one and leaving out "General"; Mac and the own iOS app. On the ntfy fallback "topic · thread" leads the body instead. The topic cannot be shown on a stacked group: `summary-arg` is ignored since iOS 15, and a category summary format can only show a count (ADR 0009).
+- **Grouping:** APNs `thread-id` is the message's thread id (implicit threads included), so the lock screen and Notification Centre group a thread's notifications; Mac native notifications use the same thread identifier. Notifications already delivered keep their group after a takeover or a move.
+- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · topic · thread"); the ntfy fallback leads the body with it.
 - **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.gentbox/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).
@@ -522,7 +530,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 | A locked or picked-up phone approves | Approve requires Face ID or the passcode (`.authenticationRequired`); deny and snooze do not |
 | Someone replays or forges a phone action | HMAC-signed, single-use, 30-min tokens bound to message and action, so a token seen by a push service is worth at most the one answer it encodes, and only before you give yours; no secrets in URLs; destructive actions never one-tap; no inbound port on the Mac |
 | A stolen phone answers | Revoke the device in Settings (its token is deleted and the pairing secret rotated) and rotate the ntfy topics; answers are logged with channel and device |
-| An agent reads other sessions through topics | Topic listing returns titles and counts only, never messages; titles are agent-chosen |
+| An agent reads other sessions through topics or threads | Topic and thread listings return titles and counts only, never messages; titles are agent-chosen |
 | Secrets leak into logs or the store | Logs never contain bodies, tokens or `tool_input`; `metadata` is documented as non-secret; the token file is regenerated on demand from Settings |
 
 ## 13. Future paths

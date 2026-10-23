@@ -1,11 +1,12 @@
 {
+	"topic": {
+		"key": "project:gentbox",
+		"title": "gentbox",
+		"kind": "project"
+	},
 	"key": "session:web-release-notes",
 	"title": "Release notes page",
 	"kind": "conversation",
-	"style": {
-		"symbol": "doc.text",
-		"color": "teal"
-	},
 	"conversation": {
 		"id": "9b1e4f70-2c8d-4a35-b6e9-0d7c3a5f8e21"
 	}

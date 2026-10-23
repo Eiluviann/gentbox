@@ -1,0 +1,17 @@
+{
+	"id": "01JBM9P3H4S5E6J7N8G9E0S1TQ",
+	"topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD",
+	"key": "phase-3-ingest",
+	"title": "Phase 3 · ingest",
+	"kind": "phase",
+	"implicit": false,
+	"status": "open",
+	"createdBy": {
+		"agent": "claude-code",
+		"conversationId": "5d0c7a92-3e41-4b8f-a6d2-9f1e0b7c4a33"
+	},
+	"createdAt": "2026-10-23T19:10:00Z",
+	"updatedAt": "2026-10-23T19:31:00Z",
+	"openMessages": 1,
+	"conversations": 2
+}

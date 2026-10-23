@@ -1,6 +1,6 @@
 # 0008 Topics
 
-Status: Accepted, 2026-10-23 (revised the same day: topics are any grouping the agent chooses, and the inbox has one grouping level).
+Status: Accepted, 2026-10-23 (revised the same day: topics are any grouping the agent chooses). Superseded in part by [0009](0009-threads.md): threads now sit under topics, a conversation's default is an implicit thread under an implicit per-agent General topic, topics no longer take over conversations, and `thread-id` follows the thread.
 
 ## Context
 

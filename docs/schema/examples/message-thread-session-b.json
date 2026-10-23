@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"source": {
+		"agent": "claude-code",
+		"displayName": "Claude Code"
+	},
+	"conversation": {
+		"id": "e4a7b2c9-1f6d-4e83-9a05-6c2d8f3b7e14",
+		"title": "Ingest: rate limits",
+		"cwd": "/Users/me/Developer/gentbox"
+	},
+	"topic": {
+		"key": "project:gentbox"
+	},
+	"thread": {
+		"key": "phase-3-ingest"
+	},
+	"type": "task_completed",
+	"scope": "task",
+	"event": "claude-code.stop",
+	"title": "Done: rate limits per agent",
+	"summary": "Token buckets per agent and per conversation, 429 with Retry-After; 18 tests pass"
+}

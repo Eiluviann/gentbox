@@ -11,4 +11,5 @@ One file per decision: context, decision, consequences, alternatives. A supersed
 | [0005](0005-ios-transport.md) | Phone push through ntfy now (ntfy.sh default, answers via an ntfy answer topic), APNs adapter later | Superseded by 0006 |
 | [0006](0006-phone-apns.md) | Own iOS app over APNs from the Mac with the user's key; ntfy as answer channel and fallback | Accepted |
 | [0007](0007-message-type-urgency-blocking.md) | `type` + `urgent` + `blocking` replace the class; Defer and rescind | Accepted |
-| [0008](0008-topics.md) | Topics: agent-created groups of messages across conversations and agents | Accepted |
+| [0008](0008-topics.md) | Topics: agent-created groups of messages across conversations and agents | Superseded in part by 0009 |
+| [0009](0009-threads.md) | Threads under topics; implicit conversation threads under a per-agent General topic | Accepted |

@@ -1,5 +1,6 @@
 {
-	"id": "01JBM7A1B2C3D4E5F6G7H8J9KM",
+	"id": "01JBM8T7H6G5F4E3D2C1B0A9ZY",
+	"topicId": "01JBM8G1N2R3K4A5B6C7D8E9FH",
 	"title": "Fix flaky ingest test",
 	"kind": "conversation",
 	"implicit": true,
@@ -14,5 +15,6 @@
 	},
 	"createdAt": "2026-10-23T18:40:00Z",
 	"updatedAt": "2026-10-23T18:47:31Z",
-	"openMessages": 1
+	"openMessages": 1,
+	"conversations": 1
 }

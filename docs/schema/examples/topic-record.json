@@ -16,5 +16,6 @@
 	},
 	"createdAt": "2026-10-23T18:30:00Z",
 	"updatedAt": "2026-10-23T18:30:00Z",
-	"openMessages": 2
+	"openMessages": 2,
+	"openThreads": 2
 }

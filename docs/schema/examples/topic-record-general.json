@@ -1,0 +1,14 @@
+{
+	"id": "01JBM8G1N2R3K4A5B6C7D8E9FH",
+	"title": "General",
+	"kind": "general",
+	"implicit": true,
+	"status": "open",
+	"createdBy": {
+		"agent": "claude-code"
+	},
+	"createdAt": "2026-10-23T09:12:00Z",
+	"updatedAt": "2026-10-23T18:47:31Z",
+	"openMessages": 3,
+	"openThreads": 2
+}
