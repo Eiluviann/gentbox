@@ -74,13 +74,12 @@ Open: the undo window. `architecture.md` has the UI send answers straight to the
 ## Open design questions
 
 1. Is the agent mark (speech bubble with `>_`) right?
-2. The popover now answers only from the top card. One-click Approve on collapsed stacked panels: keep, or require the full panel?
-3. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
-4. Dark-mode boards for popups and windows before Phase 3?
-5. Popups say "Action required" without "URGENT:"; should they use the exact notification phrase?
-6. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
-7. Should Mac popups and the Watch get the same 3 s undo window?
-8. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
+2. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
+3. Dark-mode boards for popups and windows before Phase 3?
+4. Popups say "Action required" without "URGENT:"; should they use the exact notification phrase?
+5. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
+6. Should Mac popups and the Watch get the same 3 s undo window?
+7. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
 
 ## Tools
 
