@@ -1106,3 +1106,45 @@ fn a_unix_timestamp_survives_the_round_trip() {
     let stored = round_trip(&store, &message);
     assert_eq!(stored.received_at.unix_timestamp(), 1_800_000_000);
 }
+
+#[test]
+fn a_message_state_and_its_resolution_must_agree() {
+    let store = store_with_group();
+    let repository = store.repository();
+
+    let mut closed_without_resolution = plain("no-resolution", "one", "one");
+    closed_without_resolution.lifecycle.state = LifecycleState::Answered;
+    assert!(matches!(
+        repository
+            .insert_message(&closed_without_resolution, NOW)
+            .unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+
+    let mut mismatched = closed(plain("mismatch", "one", "one"), LifecycleState::Answered);
+    mismatched.lifecycle.resolution = Some(ResolutionReason::Dismissed);
+    assert!(matches!(
+        repository.insert_message(&mismatched, NOW).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+
+    let mut live_with_resolution = plain("live-resolved", "one", "one");
+    live_with_resolution.lifecycle.resolution = Some(ResolutionReason::Expired);
+    assert!(matches!(
+        repository
+            .insert_message(&live_with_resolution, NOW)
+            .unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+
+    let live = plain("live", "one", "one");
+    repository.insert_message(&live, NOW).unwrap();
+    let mut wrongly_closed = live.clone();
+    wrongly_closed.lifecycle.state = LifecycleState::Expired;
+    wrongly_closed.lifecycle.resolution = Some(ResolutionReason::Answered);
+    assert!(matches!(
+        repository.update_message(&wrongly_closed, NOW).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+    assert_eq!(repository.message(&live.id).unwrap(), live);
+}

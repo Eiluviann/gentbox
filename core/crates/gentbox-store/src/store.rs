@@ -23,6 +23,11 @@ impl Store {
     /// Opens (creating when missing) the database at `path` in WAL mode with
     /// foreign keys enforced, and migrates it to the newest schema.
     ///
+    /// Several processes may open the same file at once: the migration takes
+    /// the write lock and the busy timeout (5 s) applies. All the same, the hub
+    /// is the only writer by design, and `gentboxd` (PR 2b) takes the hub lock
+    /// on the state folder before it opens the store.
+    ///
     /// # Errors
     ///
     /// [`StoreError::SchemaTooNew`] when the file was written by a newer
@@ -41,11 +46,12 @@ impl Store {
     fn prepare(mut connection: Connection) -> Result<Self, StoreError> {
         connection.busy_timeout(BUSY_TIMEOUT)?;
         connection.pragma_update(None, "foreign_keys", true)?;
-        connection.query_row("PRAGMA journal_mode = WAL", [], |row| {
-            row.get::<_, String>(0)
-        })?;
-        connection.pragma_update(None, "synchronous", "NORMAL")?;
+        // Migrate first: it takes the write lock with `BEGIN IMMEDIATE`, so
+        // concurrent first opens take turns instead of deadlocking on the
+        // switch to WAL, which needs an exclusive lock.
         migrations::migrate(&mut connection)?;
+        enable_wal(&connection)?;
+        connection.pragma_update(None, "synchronous", "NORMAL")?;
         Ok(Self { connection })
     }
 
@@ -76,6 +82,34 @@ impl Store {
     }
 }
 
+/// How many times a switch to WAL that lost a lock race is tried again.
+const WAL_ATTEMPTS: u32 = 1_000;
+
+/// Switches the file to WAL. Two connections switching at the same moment can
+/// deadlock, and SQLite then reports "busy" without waiting; whoever lost
+/// finds the file already in WAL mode on the next look.
+fn enable_wal(connection: &Connection) -> Result<(), StoreError> {
+    for _ in 0..WAL_ATTEMPTS {
+        match connection.query_row("PRAGMA journal_mode = WAL", [], |row| {
+            row.get::<_, String>(0)
+        }) {
+            Ok(_) => return Ok(()),
+            Err(rusqlite::Error::SqliteFailure(failure, _))
+                if failure.code == rusqlite::ErrorCode::DatabaseBusy =>
+            {
+                std::thread::yield_now();
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    connection
+        .query_row("PRAGMA journal_mode = WAL", [], |row| {
+            row.get::<_, String>(0)
+        })
+        .map(|_| ())
+        .map_err(StoreError::from)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,6 +127,38 @@ mod tests {
             [],
         );
         assert!(orphan.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_default_thread_link_cannot_name_a_thread_of_another_topic() -> Result<(), StoreError> {
+        let store = Store::open_in_memory()?;
+        let connection = &store.connection;
+        for topic in ["one", "two"] {
+            connection.execute(
+                "INSERT INTO topics (id, title, implicit, status, created_by_agent, created_at, \
+                 updated_at) VALUES (?1, 'x', 0, 'open', 'a', 0, 0)",
+                [topic],
+            )?;
+        }
+        connection.execute(
+            "INSERT INTO threads (id, topic_id, title, implicit, status, created_by_agent, \
+             created_at, updated_at) VALUES ('t', 'one', 'x', 0, 'open', 'a', 0, 0)",
+            [],
+        )?;
+        let link = |topic: &str| {
+            connection.execute(
+                "INSERT INTO conversation_default_threads \
+                 (agent, conversation_id, topic_id, thread_id, last_used) \
+                 VALUES ('a', 'c', ?1, 't', 0)",
+                [topic],
+            )
+        };
+        assert!(
+            link("two").is_err(),
+            "the link's topic must be the thread's"
+        );
+        assert!(link("one").is_ok());
         Ok(())
     }
 }

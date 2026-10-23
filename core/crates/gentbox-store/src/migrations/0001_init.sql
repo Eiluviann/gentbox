@@ -24,7 +24,8 @@ CREATE TABLE topics (
 	created_at                 INTEGER NOT NULL,
 	updated_at                 INTEGER NOT NULL,
 	closed_at                  INTEGER,
-	CHECK (implicit = 0 OR key IS NULL)
+	CHECK (implicit = 0 OR key IS NULL),
+	CHECK ((closed_at IS NOT NULL) = (status = 'closed'))
 ) STRICT;
 
 -- At most one implicit General topic per agent.
@@ -53,7 +54,9 @@ CREATE TABLE threads (
 	UNIQUE (topic_id, key),
 	-- The target of messages' composite foreign key.
 	UNIQUE (id, topic_id),
-	CHECK (implicit = 0 OR key IS NULL)
+	CHECK (implicit = 0 OR key IS NULL),
+	CHECK ((closed_at IS NOT NULL) = (status = 'closed')),
+	CHECK (closed_by_topic = 0 OR status = 'closed')
 ) STRICT;
 
 CREATE INDEX threads_by_topic ON threads (topic_id, status);
@@ -76,7 +79,11 @@ CREATE TABLE conversation_default_threads (
 	topic_id        TEXT NOT NULL REFERENCES topics (id) ON DELETE CASCADE,
 	thread_id       TEXT NOT NULL UNIQUE REFERENCES threads (id) ON DELETE CASCADE,
 	last_used       INTEGER NOT NULL,
-	PRIMARY KEY (agent, conversation_id, topic_id)
+	PRIMARY KEY (agent, conversation_id, topic_id),
+	-- The link's topic is always the thread's topic; a moved thread carries
+	-- its link along.
+	FOREIGN KEY (thread_id, topic_id)
+		REFERENCES threads (id, topic_id) ON UPDATE CASCADE ON DELETE CASCADE
 ) STRICT;
 
 CREATE TABLE messages (
@@ -130,6 +137,14 @@ CREATE TABLE messages (
 		REFERENCES threads (id, topic_id) ON UPDATE CASCADE,
 	CHECK (rescind_reason IS NULL OR resolution = 'rescinded'),
 	CHECK (resolution IS NOT 'rescinded' OR rescind_reason IS NOT NULL),
+	-- A live message has no resolution; a closed one has the matching one.
+	CHECK (CASE state
+		WHEN 'answered' THEN resolution IS 'answered'
+		WHEN 'dismissed' THEN resolution IS 'dismissed'
+		WHEN 'rescinded' THEN resolution IS 'rescinded'
+		WHEN 'expired' THEN resolution IS 'expired'
+		ELSE resolution IS NULL
+	END),
 	CHECK ((closed_at IS NOT NULL) = (state IN ('answered', 'dismissed', 'rescinded', 'expired')))
 ) STRICT;
 

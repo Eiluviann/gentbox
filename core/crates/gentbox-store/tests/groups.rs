@@ -9,8 +9,8 @@ use gentbox_core::resolve::Takeover;
 use gentbox_core::topic::{GroupStatus, ThreadRecord, TopicColor, TopicRecord, TopicStyle};
 use gentbox_store::{Conflict, EntityKind, MessageFilter, Store, StoreError, Upserted};
 use support::{
-    NOW, closed, created_by, general_topic, implicit_thread, memory_store, message_id, plain,
-    thread, thread_id, topic, topic_id,
+    NOW, closed, created_by, explicit_default, general_topic, implicit_thread, memory_store,
+    message_id, plain, thread, thread_id, topic, topic_id,
 };
 use time::Duration;
 
@@ -487,13 +487,6 @@ fn updating_a_thread_saves_title_mute_and_status() {
 }
 
 // --- takeover ---------------------------------------------------------------------
-
-fn explicit_default(name: &str, topic: &str, conversation: &str) -> gentbox_core::topic::Thread {
-    let mut explicit = thread(name, topic);
-    explicit.kind = Some("conversation".to_owned());
-    explicit.default_for = implicit_thread("x", topic, conversation).default_for;
-    explicit
-}
 
 #[test]
 fn the_takeover_moves_messages_and_deletes_the_implicit_thread() {
@@ -1165,4 +1158,73 @@ fn records_carry_the_live_counts() {
         []
     );
     assert_eq!(repository.list_topic_records(None).unwrap().len(), 1);
+}
+
+#[test]
+fn a_moved_thread_is_no_longer_held_closed_by_its_old_topic() {
+    let store = store_with_topics(&["a", "b"]);
+    let repository = store.repository();
+    repository.insert_thread(&thread("t", "a")).unwrap();
+    repository.close_topic(&topic_id("a"), later(1)).unwrap();
+    assert!(repository.thread(&thread_id("t")).unwrap().closed_by_topic);
+
+    repository
+        .move_thread(&thread_id("t"), &topic_id("b"), later(2))
+        .unwrap();
+    assert!(!repository.thread(&thread_id("t")).unwrap().closed_by_topic);
+
+    // Closing and reopening the new topic must not reopen it, and nor does
+    // reopening the old one.
+    repository.close_topic(&topic_id("b"), later(3)).unwrap();
+    assert_eq!(
+        repository.reopen_topic(&topic_id("b"), later(4)).unwrap(),
+        []
+    );
+    assert_eq!(
+        repository.reopen_topic(&topic_id("a"), later(5)).unwrap(),
+        []
+    );
+    assert_eq!(
+        repository.thread(&thread_id("t")).unwrap().status,
+        GroupStatus::Closed
+    );
+}
+
+#[test]
+fn a_closed_group_must_carry_its_closing_time_and_an_open_one_must_not() {
+    let store = store_with_topics(&["one"]);
+    let repository = store.repository();
+
+    let mut closed_without_time = topic("bad-closed");
+    closed_without_time.status = GroupStatus::Closed;
+    assert!(matches!(
+        repository.insert_topic(&closed_without_time).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+    let mut open_with_time = topic("bad-open");
+    open_with_time.closed_at = Some(later(1));
+    assert!(matches!(
+        repository.insert_topic(&open_with_time).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+    let mut updated = topic("one");
+    updated.status = GroupStatus::Closed;
+    assert!(matches!(
+        repository.update_topic(&updated).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+
+    let mut bad_thread = thread("bad", "one");
+    bad_thread.status = GroupStatus::Closed;
+    assert!(matches!(
+        repository.insert_thread(&bad_thread).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
+    repository.insert_thread(&thread("fine", "one")).unwrap();
+    let mut reopened_wrongly = thread("fine", "one");
+    reopened_wrongly.closed_at = Some(later(1));
+    assert!(matches!(
+        repository.update_thread(&reopened_wrongly).unwrap_err(),
+        StoreError::Constraint(_)
+    ));
 }

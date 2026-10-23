@@ -452,20 +452,21 @@ impl Repository<'_> {
         takeover: &Takeover,
         now: OffsetDateTime,
     ) -> Result<u32, StoreError> {
+        // The preconditions are checked before anything is opened or written.
+        let replaced = self.thread(&takeover.replaces)?;
+        assert!(
+            replaced.implicit,
+            "only an implicit thread can be taken over"
+        );
+        assert!(
+            replaced.topic_id == thread.topic_id,
+            "a takeover stays within one topic"
+        );
+        assert!(
+            replaced.default_for.is_some() && replaced.default_for == thread.default_for,
+            "the new thread must be the default of the conversation whose default it takes over"
+        );
         self.atomically(|| {
-            let replaced = self.thread(&takeover.replaces)?;
-            assert!(
-                replaced.implicit,
-                "only an implicit thread can be taken over"
-            );
-            assert!(
-                replaced.topic_id == thread.topic_id,
-                "a takeover stays within one topic"
-            );
-            assert!(
-                replaced.default_for.is_some() && replaced.default_for == thread.default_for,
-                "the new thread must be the default of the conversation whose default it takes over"
-            );
             let last_used = self.last_used_of_default(&takeover.replaces)?;
             self.connection
                 .prepare_cached("DELETE FROM conversation_default_threads WHERE thread_id = ?1")?
@@ -725,14 +726,14 @@ impl Repository<'_> {
                 }
                 .into());
             }
+            // The composite foreign keys of the messages and of the default-thread
+            // link cascade the new topic id. A thread that moves is no longer held
+            // closed by the topic it left.
             self.connection
                 .prepare_cached(
-                    "UPDATE conversation_default_threads SET topic_id = ?2 WHERE thread_id = ?1",
+                    "UPDATE threads SET topic_id = ?2, closed_by_topic = 0, updated_at = ?3 \
+                     WHERE id = ?1",
                 )?
-                .execute(params![id.as_str(), target.as_str()])?;
-            // The messages' composite foreign key cascades the new topic id.
-            self.connection
-                .prepare_cached("UPDATE threads SET topic_id = ?2, updated_at = ?3 WHERE id = ?1")?
                 .execute(params![id.as_str(), target.as_str(), to_nanos(now)?])?;
             Ok(())
         })

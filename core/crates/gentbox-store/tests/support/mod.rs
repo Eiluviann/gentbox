@@ -113,6 +113,14 @@ pub fn implicit_thread(name: &str, topic: &str, conversation_id: &str) -> Thread
     }
 }
 
+/// An explicit thread that is `conversation`'s default thread in `topic`.
+pub fn explicit_default(name: &str, topic: &str, conversation: &str) -> Thread {
+    let mut explicit = thread(name, topic);
+    explicit.kind = Some("conversation".to_owned());
+    explicit.default_for = implicit_thread("x", topic, conversation).default_for;
+    explicit
+}
+
 /// Inserts topic `name` and one thread `name` in it.
 pub fn seed_group(repository: &Repository<'_>, name: &str) {
     repository.insert_topic(&topic(name)).unwrap();

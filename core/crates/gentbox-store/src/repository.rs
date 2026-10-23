@@ -98,24 +98,20 @@ impl<'connection> Repository<'connection> {
         Self { connection }
     }
 
-    /// Runs `work` inside a savepoint: everything it wrote is kept when it
-    /// returns `Ok` and undone when it returns `Err`.
+    /// Runs `work` atomically: everything it wrote is kept when it returns
+    /// `Ok` and undone when it returns `Err` or panics.
+    ///
+    /// Outside a transaction this opens one with `BEGIN IMMEDIATE`, so a
+    /// competing writer is waited for (the busy timeout applies) instead of
+    /// failing at the read-to-write upgrade; inside one it opens a savepoint.
     pub(crate) fn atomically<T>(
         &self,
         work: impl FnOnce() -> Result<T, StoreError>,
     ) -> Result<T, StoreError> {
-        self.connection.execute_batch("SAVEPOINT gentbox_atomic")?;
-        match work() {
-            Ok(value) => {
-                self.connection.execute_batch("RELEASE gentbox_atomic")?;
-                Ok(value)
-            }
-            Err(error) => {
-                self.connection
-                    .execute_batch("ROLLBACK TO gentbox_atomic; RELEASE gentbox_atomic")?;
-                Err(error)
-            }
-        }
+        let guard = AtomicScope::begin(self.connection)?;
+        let value = work()?;
+        guard.commit()?;
+        Ok(value)
     }
 
     pub(crate) fn exists(
@@ -147,9 +143,10 @@ impl<'connection> Repository<'connection> {
     /// When `message.topic_id` is not the topic of `message.thread_id`: the
     /// hub resolves both together, so a mismatch is a bug.
     pub fn insert_message(&self, message: &Message, now: OffsetDateTime) -> Result<(), StoreError> {
+        // The precondition is checked before anything is opened or written.
+        self.check_message_grouping(message)?;
         self.atomically(|| {
             self.check_message_is_new(message)?;
-            self.check_message_grouping(message)?;
             self.upsert_conversation(&message.conversation_key(), &message.conversation, now)?;
             self.write_message_row(message, now)?;
             self.write_actions(message)?;
@@ -838,6 +835,56 @@ cwd = COALESCE(excluded.cwd, cwd), \
 focus = COALESCE(excluded.focus, focus), \
 updated_at = excluded.updated_at";
 
+/// An open transaction or savepoint that rolls back when dropped, so an early
+/// return or a panic can never leave one open on the connection.
+struct AtomicScope<'connection> {
+    connection: &'connection Connection,
+    owns_transaction: bool,
+    is_finished: bool,
+}
+
+impl<'connection> AtomicScope<'connection> {
+    fn begin(connection: &'connection Connection) -> Result<Self, StoreError> {
+        let owns_transaction = connection.is_autocommit();
+        connection.execute_batch(if owns_transaction {
+            "BEGIN IMMEDIATE"
+        } else {
+            "SAVEPOINT gentbox_atomic"
+        })?;
+        Ok(Self {
+            connection,
+            owns_transaction,
+            is_finished: false,
+        })
+    }
+
+    fn commit(mut self) -> Result<(), StoreError> {
+        let statement = if self.owns_transaction {
+            "COMMIT"
+        } else {
+            "RELEASE gentbox_atomic"
+        };
+        self.connection.execute_batch(statement)?;
+        self.is_finished = true;
+        Ok(())
+    }
+}
+
+impl Drop for AtomicScope<'_> {
+    fn drop(&mut self) {
+        if self.is_finished {
+            return;
+        }
+        // Nothing useful can be done with a failed rollback here; SQLite
+        // rolls the transaction back itself when the connection closes.
+        let _ = self.connection.execute_batch(if self.owns_transaction {
+            "ROLLBACK"
+        } else {
+            "ROLLBACK TO gentbox_atomic; RELEASE gentbox_atomic"
+        });
+    }
+}
+
 /// A `WHERE` clause built from bound parameters only: no value is ever
 /// spliced into the SQL text.
 #[derive(Default)]
@@ -876,5 +923,42 @@ impl WhereClause {
         } else {
             format!(" WHERE {}", self.conditions.join(" AND "))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    use super::*;
+    use crate::Store;
+
+    #[test]
+    fn a_panic_inside_a_write_rolls_it_back_and_leaves_no_transaction_open()
+    -> Result<(), StoreError> {
+        let mut store = Store::open_in_memory()?;
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            let repository = store.repository();
+            let _ = repository.atomically(|| {
+                repository.connection.execute(
+                    "INSERT INTO conversations (agent, conversation_id, updated_at) \
+                     VALUES ('a', 'c', 0)",
+                    [],
+                )?;
+                panic!("a broken precondition");
+                #[allow(unreachable_code)]
+                Ok(())
+            });
+        }));
+        assert!(outcome.is_err());
+
+        assert!(store.repository().connection.is_autocommit());
+        let leftovers: i64 = store.repository().connection.query_row(
+            "SELECT COUNT(*) FROM conversations",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(leftovers, 0);
+        store.transaction(|_| Ok(()))
     }
 }
