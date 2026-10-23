@@ -43,7 +43,8 @@
 			"y": 0,
 			"w": 520,
 			"h": 540,
-			"title": "Popup · decision, waiting, urgent"
+			"title": "Popup · decision, waiting, urgent",
+			"is_interactive": true
 		},
 		"mac-blocking-stacked.dc.html": {
 			"x": 2060,
