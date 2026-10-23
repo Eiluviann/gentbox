@@ -28,12 +28,12 @@
 			"x": 1520,
 			"y": 0,
 			"w": 460,
-			"h": 900,
+			"h": 1160,
 			"title": "Menu-bar inbox popover"
 		},
 		"mac-popover-empty.dc.html": {
 			"x": 1520,
-			"y": 1020,
+			"y": 1920,
 			"w": 460,
 			"h": 440,
 			"title": "Popover · all clear, quiet hours"
@@ -96,7 +96,7 @@
 		},
 		"mac-conversation.dc.html": {
 			"x": 4400,
-			"y": 0,
+			"y": 1020,
 			"w": 1180,
 			"h": 880,
 			"title": "Conversation detail"
@@ -105,7 +105,7 @@
 			"x": 5900,
 			"y": 0,
 			"w": 1100,
-			"h": 900,
+			"h": 1080,
 			"title": "Settings · policy by type, blocking level, urgent"
 		},
 		"settings-quiet-focus.dc.html": {
@@ -257,16 +257,38 @@
 		},
 		"mac-outcomes.dc.html": {
 			"x": 4400,
-			"y": 1000,
+			"y": 2020,
 			"w": 1180,
 			"h": 600,
 			"title": "Outcomes afterwards · inbox and conversation"
+		},
+		"mac-popover-topic-menu.dc.html": {
+			"x": 1520,
+			"y": 1280,
+			"w": 460,
+			"h": 520,
+			"title": "Popover · topic menu, muted and closed topics"
+		},
+		"mac-topic.dc.html": {
+			"x": 4400,
+			"y": 0,
+			"w": 1180,
+			"h": 900,
+			"title": "Topic detail · Release 1.4 across three sessions"
+		},
+		"ios-lock-screen-stacked.dc.html": {
+			"x": 12510,
+			"y": 4820,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · stacked by topic"
 		}
 	},
 	"order": [
 		"Main.dc.html",
 		"mac-menubar-icons.dc.html",
 		"mac-popover.dc.html",
+		"mac-popover-topic-menu.dc.html",
 		"mac-popover-empty.dc.html",
 		"mac-blocking-popup.dc.html",
 		"mac-blocking-stacked.dc.html",
@@ -278,6 +300,7 @@
 		"mac-native-banner.dc.html",
 		"mac-native-banner-expanded.dc.html",
 		"mac-generic-row.dc.html",
+		"mac-topic.dc.html",
 		"mac-conversation.dc.html",
 		"mac-outcomes.dc.html",
 		"settings-notifications.dc.html",
@@ -293,6 +316,7 @@
 		"ios-faceid.dc.html",
 		"ios-lock-screen-choices.dc.html",
 		"ios-lock-screen-reply.dc.html",
+		"ios-lock-screen-stacked.dc.html",
 		"ios-escalation-handled.dc.html",
 		"watch.dc.html",
 		"ios-pairing.dc.html",

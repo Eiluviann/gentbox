@@ -13,8 +13,10 @@
 <style>
 body{margin:0}
 .conn{display:flex;align-items:center;gap:6px;padding:2px 16px 0;font-size:13px;line-height:18px;color:var(--ink-3)}
-.ios .group-head{padding-top:14px}
 .ios .irow{padding:9px 16px}
+.thead{display:flex;align-items:center;gap:8px;padding:16px 32px 6px;font-size:15px;font-weight:600}
+.thead .k{font-size:13px;font-weight:400;color:var(--ink-3)}
+.thead .grow{flex:1;display:flex;align-items:center;gap:6px}
 </style>
 </helmet>
 <div class="ios">
@@ -22,34 +24,36 @@ body{margin:0}
 	<div class="large" style="margin-top: 10px">Inbox</div>
 	<div class="conn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.laptopcomputer}}"></path></svg>From your notifications · mac-mini</div>
 
-	<div style="height: 14px"></div>
+	<div class="thead"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox_fill}}"></path></svg><span class="grow">Release 1.4<span class="k">Project · 3 sessions</span></span><svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg></div>
 	<div class="group">
 		<a class="irow" href="ios-detail.dc.html" style="color: inherit; text-decoration: none">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
-			<div><div class="irow-title clamp2">Allow Bash: cargo test -p ingest -- --nocapture?</div><div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait">Agent waiting</span><span class="tag urgent">Urgent</span><span class="tag plain" style="font-size: 12px">2 min</span></div></div>
+			<div><div class="irow-title clamp2">Allow Bash: cargo test -p ingest?</div><div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait">Agent waiting</span><span class="tag urgent">Urgent</span></div></div>
 			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
 		</a>
 		<div class="irow">
-			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
-			<div><div class="irow-title clamp2">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag paused">Paused · can defer</span><span class="tag plain" style="font-size: 12px">6 min</span></div></div>
-			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
-		</div>
-		<div class="irow">
 			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
-			<div><div class="irow-title clamp2">Sign in to the payments sandbox</div><div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag paused">Paused · can defer</span><span class="tag plain" style="font-size: 12px">9 min</span></div></div>
+			<div><div class="irow-title clamp2">Sign in to the payments sandbox</div><div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag paused">Paused · can defer</span></div></div>
 			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
 		</div>
 		<div class="irow">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
-			<div><div class="irow-title" style="font-weight: 500">Which title for the 2.4 release notes?</div><div class="tags"><span class="tag">docs · release notes</span><span class="tag working">Agent working</span><span class="tag plain" style="font-size: 12px">12 min</span></div></div>
-			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
-		</div>
-		<div class="irow">
-			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
-			<div><div class="irow-title" style="font-weight: 500">Search filters persist in the URL</div><div class="tags"><span class="tag">web · WEB-139 search filters</span><span class="tag plain" style="font-size: 12px">20 min</span></div></div>
+			<div><div class="irow-title" style="font-weight: 500">Which title for the 1.4 release notes?</div><div class="tags"><span class="tag">docs · release notes</span><span class="tag working">Agent working</span></div></div>
 			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
 		</div>
 	</div>
+
+	<div class="thead"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bubble_left_and_bubble_right_fill}}"></path></svg><span class="grow">infra · rotate staging certs<span class="k">Conversation</span></span><svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg></div>
+	<div class="group">
+		<div class="irow">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+			<div><div class="irow-title clamp2">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag paused">Paused · can defer</span><span class="tag plain" style="font-size: 12px">Codex · 6 min</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+	</div>
+
+	<div class="thead" style="color: var(--ink-3)"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-deps)"><path d="{{ic.wrench_and_screwdriver_fill}}"></path></svg><span class="grow" style="color: var(--ink)">Dependency upgrades<span class="tag muted">Muted</span></span><span class="k">3</span><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_right}}"></path></svg></div>
+	<div class="thead" style="color: var(--ink-3); padding-top: 8px"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg><span class="grow" style="font-weight: 500">Release 1.3 · closed</span><span class="k">14</span><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_right}}"></path></svg></div>
 
 	<nav class="tabbar" aria-label="Tabs">
 		<span class="tab on"><svg class="i i24" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray_full}}"></path></svg>Inbox</span>

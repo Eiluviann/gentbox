@@ -12,12 +12,13 @@
 <helmet>
 <style>
 body{margin:0}
-.pop-board{width:460px;height:900px}
+.pop-board{width:460px;height:1160px}
 .pop{position:absolute;top:30px;left:40px;width:380px}
 .pop-head{display:flex;align-items:center;gap:8px;padding:12px 12px 8px 14px}
 .pop-foot{display:flex;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-top:1px solid var(--line);background:#fafafa}
 .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .mark{width:10px;height:10px}
+.tmenu{display:flex;align-items:center;gap:2px;color:var(--ink-3)}
 </style>
 </helmet>
 <div class="board desk pop-board">
@@ -31,17 +32,25 @@ body{margin:0}
 		<div class="pop-head">
 			<div style="flex: 1">
 				<div class="title">Inbox</div>
-				<div class="caption">1 waiting · 2 paused · 1 working · 2 completed</div>
+				<div class="caption">1 waiting · 2 paused · 2 working · 2 completed</div>
 			</div>
 			<button class="btn plain icon" aria-label="Filter"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.line_3_horizontal_decrease_circle}}"></path></svg></button>
 			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
 		</div>
 
-		<div class="row">
+		<div class="topic-row">
+			<svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox_fill}}"></path></svg>
+			<div>
+				<div class="topic-title">Release 1.4<span class="tag kind">Project</span></div>
+				<div class="topic-counts" style="margin-top: 2px"><span><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>2</span><span><svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>1</span><span><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>1</span><span>3 sessions</span></div>
+			</div>
+			<div class="tmenu"><button class="btn plain sm icon" aria-label="Collapse"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_down}}"></path></svg></button><button class="btn plain sm icon" aria-label="Topic menu"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button></div>
+		</div>
+		<div class="row in-topic">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Allow Bash: cargo test -p ingest -- --nocapture?</div>
-				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Agent waiting</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code</span><span class="tag plain">2 min</span></div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Agent waiting</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain">2 min</span></div>
 				<div class="acts">
 					<button class="btn sm primary"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve</button>
 					<button class="btn sm danger"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
@@ -50,21 +59,7 @@ body{margin:0}
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
-
-		<div class="row">
-			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
-			<div>
-				<div class="headline clamp2">Which cluster gets the new certificates first?</div>
-				<div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Paused · can defer</span><span class="tag plain">6 min · +1 earlier</span></div>
-				<div class="acts">
-					<button class="btn sm">staging-eu</button>
-					<button class="btn sm">staging-us</button>
-					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
-				</div>
-			</div>
-			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
-		</div>
-		<div class="row">
+		<div class="row in-topic">
 			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Sign in to the payments sandbox so the end-to-end tests can run</div>
@@ -76,26 +71,15 @@ body{margin:0}
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
-
-		<div class="row">
+		<div class="row in-topic">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
-				<div class="headline clamp2">Which title for the 2.4 release notes?</div>
+				<div class="headline clamp2">Which title for the 1.4 release notes?</div>
 				<div class="tags"><span class="tag">docs · release notes</span><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.play_circle_fill}}"></path></svg>Agent working</span><span class="tag plain">12 min</span></div>
-				<div class="body" style="margin-top: 4px">I used “Faster inbox” for now and kept going</div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
-
-		<div class="row">
-			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
-			<div>
-				<div class="headline clamp2">Search filters persist in the URL; 18 tests pass</div>
-				<div class="tags"><span class="tag">web · WEB-139 search filters</span><span class="tag plain">20 min</span></div>
-			</div>
-			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
-		</div>
-		<div class="row">
+		<div class="row in-topic">
 			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Long-poll test waits on a notify; 42 tests pass</div>
@@ -104,7 +88,71 @@ body{margin:0}
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 
-		<div class="row" style="border-top: 1px solid var(--line-faint)">
+		<div class="topic-row topic-sep">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bubble_left_and_bubble_right_fill}}"></path></svg>
+			<div>
+				<div class="topic-title">infra · rotate staging certs<span class="tag kind">Conversation</span></div>
+				<div class="topic-counts" style="margin-top: 2px"><span><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>1</span><span><svg class="i" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>Codex</span></div>
+			</div>
+			<div class="tmenu"><button class="btn plain sm icon" aria-label="Collapse"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_down}}"></path></svg></button><button class="btn plain sm icon" aria-label="Topic menu"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button></div>
+		</div>
+		<div class="row in-topic">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Which cluster gets the new certificates first?</div>
+				<div class="tags"><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Paused · can defer</span><span class="tag plain">6 min · +1 earlier</span></div>
+				<div class="acts">
+					<button class="btn sm">staging-eu</button>
+					<button class="btn sm">staging-us</button>
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
+				</div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+
+		<div class="topic-row topic-sep">
+			<svg class="i c-deps" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wrench_and_screwdriver_fill}}"></path></svg>
+			<div>
+				<div class="topic-title">Dependency upgrades<span class="tag kind">Other</span><span class="tag muted"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash_fill}}"></path></svg>Muted</span></div>
+				<div class="topic-counts" style="margin-top: 2px"><span><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>1</span><span><svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>2</span><span>inbox only</span></div>
+			</div>
+			<div class="tmenu"><button class="btn plain sm icon" aria-label="Collapse"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_down}}"></path></svg></button><button class="btn plain sm icon" aria-label="Topic menu"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button></div>
+		</div>
+		<div class="row in-topic">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+			<div>
+				<div class="headline clamp2" style="font-weight: 500">Approve the React 19 upgrade plan?</div>
+				<div class="tags"><span class="tag">web · bump deps</span><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.play_circle_fill}}"></path></svg>Agent working</span><span class="tag plain">Codex · 25 min</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+
+		<div class="topic-row topic-sep">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bubble_left_and_bubble_right_fill}}"></path></svg>
+			<div>
+				<div class="topic-title">web · WEB-139 search filters<span class="tag kind">Conversation</span></div>
+			</div>
+			<div class="tmenu"><button class="btn plain sm icon" aria-label="Topic menu"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button></div>
+		</div>
+		<div class="row in-topic">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Search filters persist in the URL; 18 tests pass</div>
+				<div class="tags"><span class="tag plain">Claude Code · 20 min</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+
+		<div class="topic-row topic-sep closed">
+			<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>
+			<div>
+				<div class="topic-title">Release 1.3</div>
+				<div class="topic-counts" style="margin-top: 2px"><span>Project · closed 21 Oct · 14 messages</span></div>
+			</div>
+			<div class="tmenu"><a class="link" href="mac-topic.dc.html" style="font-size: 12px">History</a><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_right}}"></path></svg></div>
+		</div>
+
+		<div class="row" style="border-top: 1px solid var(--line)">
 			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
 			<div>
 				<div class="headline" style="font-weight: 500">4 silent updates, 1 withdrawn</div>
@@ -116,12 +164,12 @@ body{margin:0}
 		<div class="pop-foot">
 			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg>
 			<span class="caption" style="flex: 1">iPhone stays silent while you are here, rings after 2 min</span>
-			<a class="link" href="mac-conversation.dc.html" style="font-size: 12px">Open Gentbox</a>
+			<a class="link" href="mac-topic.dc.html" style="font-size: 12px">Open Gentbox</a>
 		</div>
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":1160}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };

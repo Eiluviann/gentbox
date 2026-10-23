@@ -1021,3 +1021,26 @@ a.side-item { text-decoration: none; }
 .ripple-panel::after { animation-delay: 1.2s; }
 @keyframes panel-ripple { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.06, 1.12); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ripple-panel::before { animation: none; opacity: 0.5; } .ripple-panel::after { display: none; } }
+
+/* Topics: one grouping level; a header row, then its messages indented under it */
+:root { --topic-release: #a2845e; --topic-deps: #5e6e82; }
+.topic-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 10px 12px 6px; }
+.topic-row > .i { margin-top: 1px; width: 18px; height: 18px; }
+.topic-row + .row { border-top: none; }
+.topic-title { font-size: 13px; line-height: 18px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.topic-counts { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.topic-counts span { display: inline-flex; align-items: center; gap: 3px; }
+.topic-counts .i { width: 11px; height: 11px; }
+.row.in-topic { padding-left: 26px; }
+.topic-sep { border-top: 1px solid var(--line); }
+.topic-row.closed { color: var(--ink-3); padding-bottom: 10px; }
+.topic-row.closed .topic-title { color: var(--ink-3); font-weight: 600; }
+.tag.topic { background: #fff; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); }
+.tag.kind { background: none; padding: 0; color: var(--ink-3); font-weight: 400; }
+.tag.muted { background: var(--track); color: var(--ink-3); }
+.c-release { color: var(--topic-release); }
+.c-deps { color: var(--topic-deps); }
+.menu-pop { position: absolute; width: 220px; background: rgba(250, 250, 250, 0.98); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-panel); padding: 5px; font-size: 13px; }
+.menu-pop div { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 6px; }
+.menu-pop div.hl { background: var(--accent); color: #fff; }
+.menu-pop hr { border: none; border-top: 1px solid var(--line); margin: 4px 6px; }
