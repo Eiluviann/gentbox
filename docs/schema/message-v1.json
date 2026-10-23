@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://github.com/Eiluviann/agent-notifier/docs/schema/message-v1.json",
 	"title": "Agent Notifier message v1",
-	"description": "What a sender POSTs to /v1/messages. Field names are camelCase. Unknown top-level fields are rejected so a typo never passes silently; `metadata` is the open extension point. See docs/architecture.md and docs/adr/0003-message-schema.md.",
+	"description": "What a sender POSTs to /v1/messages. Field names are camelCase. Unknown top-level fields are rejected so a typo never passes silently; `metadata` is the open extension point. Each message carries three independent fields, `type`, `urgent` and `blocking` (docs/adr/0007-message-type-urgency-blocking.md); any of them may be left to the rules. See docs/architecture.md.",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["version", "source", "conversation", "title"],
@@ -21,9 +21,17 @@
 		"conversation": {
 			"$ref": "#/$defs/conversation"
 		},
-		"class": {
-			"description": "Declared class. When present it wins over the rules, except a user rule with `override = true`. When absent: user rules, then built-in rules, then `generic`.",
-			"$ref": "#/$defs/messageClass"
+		"type": {
+			"description": "What the message asks of you. `decision_required`: the agent needs your answer (approve or deny, pick a choice, reply). `action_required`: you must do something yourself outside the conversation (sign in, add a key, review a pull request), then tell the agent it is done. `task_completed`: work finished. `generic`: everything else, kept for reference. Declared fields win over the rules (except a user rule with `override = true`); missing ones are filled by user rules, then built-in rules, then the default `generic`.",
+			"$ref": "#/$defs/messageType"
+		},
+		"urgent": {
+			"description": "True when the message should reach you now: Time Sensitive on the Mac and the phone, breaks through quiet hours and Focus, title prefixed with \"URGENT:\". Default false. Never true for `generic`.",
+			"type": "boolean"
+		},
+		"blocking": {
+			"description": "What the agent does meanwhile. `non_blocking`: it keeps working and has planned for the answer to come later. `deferrable`: it has paused, but you may answer Defer to let it continue with work that needs no input. `blocking`: work cannot continue until you decide. Default `non_blocking`; always `non_blocking` for `task_completed` and `generic`.",
+			"$ref": "#/$defs/blockingLevel"
 		},
 		"event": {
 			"description": "The sender's own event name, dotted, for rules to match (e.g. `claude-code.notification.idle_prompt`). Never shown to the user.",
@@ -55,12 +63,12 @@
 			}
 		},
 		"scope": {
-			"description": "For completions: `task` (default) for one finished task, `goal` when the agent reached its overall objective. Picks the notification title (Task complete / Goal complete).",
+			"description": "For `task_completed`: `task` (default) for one finished task, `goal` when the agent reached its overall objective. Picks the notification title (Task complete / Goal complete).",
 			"type": "string",
 			"enum": ["task", "goal"]
 		},
 		"awaitsResponse": {
-			"description": "True when the sender intends to long-poll /v1/messages/{id}/response. What counts is the live waiter (a poll in flight or ended under 10 s ago): answer buttons (approve, deny, choice, reply) are offered only while one exists.",
+			"description": "True when the sender intends to long-poll /v1/messages/{id}/response. What counts is the live waiter (a poll in flight or ended under 10 s ago): answer buttons (approve, deny, choice, reply, done, defer) are offered only while one exists.",
 			"type": "boolean",
 			"default": false
 		},
@@ -68,16 +76,12 @@
 			"description": "The slot this message occupies in its conversation. A new message with the key of an open message takes its slot in place (same notification, updated content) instead of pinging again, unless the open one has a live waiter and the new one has not; then it only counts as a repeat (docs/architecture.md §7).",
 			"$ref": "#/$defs/token"
 		},
-		"resolves": {
-			"description": "Correlation keys of open messages in the same conversation that this message resolves (e.g. a permission was answered in the terminal).",
-			"type": "array",
-			"maxItems": 32,
-			"items": {
-				"$ref": "#/$defs/token"
-			}
+		"rescinds": {
+			"description": "Withdraws other open messages of the same conversation by correlation key, as part of sending this one. The same as POST /v1/conversations/{agent}/{id}/rescind.",
+			"$ref": "#/$defs/rescindRequest"
 		},
 		"sensitive": {
-			"description": "True when even the title must not leave the Mac. The phone then gets only the class and the agent name, whatever the relay payload mode.",
+			"description": "True when even the title must not leave the Mac. The phone then gets only the title phrase for the type, whatever the payload mode.",
 			"type": "boolean",
 			"default": false
 		},
@@ -87,7 +91,7 @@
 			"format": "date-time"
 		},
 		"expiresAt": {
-			"description": "After this instant the message moves to `expired`, its popup closes and a waiting sender gets status `expired`. Defaults per class (docs/architecture.md › Lifecycle).",
+			"description": "After this instant the message moves to `expired`, its popup closes and a waiting sender gets status `expired`. Defaults by type and blocking level (docs/architecture.md §5.2).",
 			"type": "string",
 			"format": "date-time"
 		},
@@ -109,9 +113,42 @@
 			"type": "string",
 			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
 		},
-		"messageClass": {
+		"messageType": {
 			"type": "string",
-			"enum": ["completion", "action_blocking", "action_nonblocking", "generic"]
+			"enum": [
+				"decision_required",
+				"action_required",
+				"task_completed",
+				"generic"
+			]
+		},
+		"blockingLevel": {
+			"type": "string",
+			"enum": ["non_blocking", "deferrable", "blocking"]
+		},
+		"rescindReason": {
+			"description": "`resolved_elsewhere`: answered or handled in the session or another channel. `obsolete`: no longer needed. `superseded`: replaced by a newer message.",
+			"type": "string",
+			"enum": ["resolved_elsewhere", "obsolete", "superseded"]
+		},
+		"rescindRequest": {
+			"description": "Body of DELETE /v1/messages/{id} (reason only) and of POST /v1/conversations/{agent}/{id}/rescind (reason and correlation keys); also the `rescinds` field of a message.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["reason"],
+			"properties": {
+				"reason": {
+					"$ref": "#/$defs/rescindReason"
+				},
+				"correlationKeys": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 32,
+					"items": {
+						"$ref": "#/$defs/token"
+					}
+				}
+			}
 		},
 		"source": {
 			"description": "Who sent it.",
@@ -265,9 +302,18 @@
 			]
 		},
 		"actionKind": {
-			"description": "Answers: approve and deny (fixed meaning), choice (returns its value), reply (returns free text); the first answer resolves the message. Non-answers, never returned to the sender: open (acknowledges and brings the conversation forward) and snooze (acknowledges and re-pings after `value` minutes).",
+			"description": "Answers, returned to the waiting sender: approve and deny (fixed meaning), choice (returns its value), reply (returns free text), done (you did the thing an `action_required` message asked for), defer (only on `deferrable` messages: keep working on what needs no input; the message stays open as `non_blocking` and the hub adds this button by itself). The first answer other than defer closes the message. Non-answers, never returned: open (acknowledges and brings the conversation forward) and snooze (a notifier-local reminder after `value` minutes; tells the agent nothing).",
 			"type": "string",
-			"enum": ["approve", "deny", "choice", "reply", "open", "snooze"]
+			"enum": [
+				"approve",
+				"deny",
+				"choice",
+				"reply",
+				"done",
+				"defer",
+				"open",
+				"snooze"
+			]
 		},
 		"actionResponse": {
 			"description": "Body of GET /v1/messages/{id}/response. Not part of the POST body; defined here so senders validate both ends against one file.",
@@ -281,17 +327,27 @@
 					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
 				},
 				"status": {
-					"description": "`pending`: open or acknowledged (snoozed included), poll again. `answered`: see actionId. `superseded`: a newer message took the slot. `resolved`: closed without an answer (completed, resolved by the sender or by progress, marked done). `expired`. On anything but `answered` the sender falls back to its own prompt.",
+					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: you marked it done without answering. `rescinded`: withdrawn (see rescindReason). `expired`. On `dismissed`, `rescinded` and `expired` the sender falls back to its own prompt.",
 					"type": "string",
-					"enum": ["pending", "answered", "resolved", "superseded", "expired"]
+					"enum": [
+						"pending",
+						"answered",
+						"deferred",
+						"dismissed",
+						"rescinded",
+						"expired"
+					]
+				},
+				"rescindReason": {
+					"$ref": "#/$defs/rescindReason"
 				},
 				"actionId": {
 					"type": "string"
 				},
 				"actionKind": {
-					"description": "Only answer kinds are ever returned.",
+					"description": "Only answer kinds are ever returned (defer as status `deferred`).",
 					"type": "string",
-					"enum": ["approve", "deny", "choice", "reply"]
+					"enum": ["approve", "deny", "choice", "reply", "done"]
 				},
 				"value": {
 					"description": "The choice value or the reply text.",
@@ -308,5 +364,56 @@
 				}
 			}
 		}
-	}
+	},
+	"allOf": [
+		{
+			"description": "`task_completed` and `generic` never block.",
+			"if": {
+				"required": ["type"],
+				"properties": {
+					"type": {
+						"enum": ["task_completed", "generic"]
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"blocking": {
+						"const": "non_blocking"
+					}
+				}
+			}
+		},
+		{
+			"description": "`generic` is never urgent.",
+			"if": {
+				"required": ["type"],
+				"properties": {
+					"type": {
+						"const": "generic"
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"urgent": {
+						"const": false
+					}
+				}
+			}
+		},
+		{
+			"description": "`scope` belongs to `task_completed`.",
+			"if": {
+				"required": ["scope", "type"]
+			},
+			"then": {
+				"properties": {
+					"type": {
+						"const": "task_completed"
+					}
+				}
+			}
+		}
+	]
 }

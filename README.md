@@ -4,7 +4,7 @@ Receives notifications from LLM agents (Claude Code first) and pings you only wi
 
 Bring your own keys: it runs on your machines and uses services you pick with your own credentials (an APNs key from your own Apple team, ntfy, optionally Pushover or Tailscale). The project hosts nothing for anyone; you can self-host parts for yourself (ntfy, for example), but nothing requires a server.
 
-Every message carries one of four classes: `completion`, `action_blocking`, `action_nonblocking`, `generic`. The sender declares it or deterministic rules assign it; no model is involved.
+Every message has a type (`decision_required`, `action_required`, `task_completed`, `generic`), an urgency (`urgent` true or false) and a blocking level (`non_blocking`, `deferrable`, `blocking`). The sender declares them or deterministic rules fill them in; no model is involved. Agents can also withdraw (rescind) their own notifications.
 
 ## Layout
 

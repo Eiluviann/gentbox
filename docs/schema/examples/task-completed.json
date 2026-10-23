@@ -16,7 +16,8 @@
 			}
 		}
 	},
-	"class": "completion",
+	"type": "task_completed",
+	"scope": "task",
 	"event": "claude-code.stop",
 	"title": "Done: Fix flaky ingest test",
 	"summary": "The long-poll test now waits on a notify instead of sleeping; 42 tests pass",

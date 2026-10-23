@@ -1,6 +1,6 @@
 # 0006 Phone transport: own iOS app over APNs, ntfy for answers and fallback
 
-Status: Accepted, 2026-10-23. Supersedes [0005](0005-ios-transport.md).
+Status: Accepted, 2026-10-23. Supersedes [0005](0005-ios-transport.md). Amended by [0007](0007-message-type-urgency-blocking.md): urgency and blocking replace the class, so Time Sensitive follows `urgent`, categories gain Done and Defer, and rescinds remove delivered notifications.
 
 ## Context
 
@@ -23,10 +23,10 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 
 | Key | Content | Budget |
 | --- | --- | --- |
-| `aps.alert.title` | The title phrase ("URGENT: Action required", "Task complete", …) | ~30 B |
+| `aps.alert.title` | The title phrase by type, "URGENT: " prefixed when urgent ("Your input is needed", "Task complete", …) | ~30 B |
 | `aps.alert.subtitle` | Project · conversation title | ≤ 120 B |
 | `aps.alert.body` | The message summary | ≤ 400 chars |
-| `aps.category` | `approval`, `question`, `choice`, `completion`, `info` | small |
+| `aps.category` | `approval`, `question`, `choice`, `action`, `completion`, `info`, each with a `-defer` variant for `deferrable` messages | small |
 | `aps.thread-id` | Conversation id, so the phone groups by session | ≤ 64 B |
 | `aps.interruption-level` | `passive`, `active` or `time-sensitive` (below) | small |
 | `aps.sound`, `aps.relevance-score`, `aps.mutable-content: 1` | | small |
@@ -40,11 +40,14 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 ### Actionable notifications
 
 - The app registers fixed categories at launch:
-  - `approval`: Approve, Deny, Reply.
-  - `question`: Reply, Open.
+  - `approval` (`decision_required` with approve/deny): Approve, Deny, Reply.
+  - `question` (`decision_required` without them): Reply, Open.
   - `choice`: Reply, Open, plus the message's choices.
+  - `action` (`action_required`): Done, Open.
   - `completion`: Open.
   - `info`: no actions.
+
+  Each answerable category has a `-defer` variant that adds Defer for `deferrable` messages. Snooze is not a push button: it stays notifier-local (ADR 0007).
 - **Approve requires an unlocked device** (`.authenticationRequired`): the system asks for Face ID before the app sees the tap, so a locked phone cannot approve anything [APNs-auth-required]. Deny and snooze do not.
 - **Reply** is a `UNTextInputNotificationAction`: type, dictate or Scribble a reply from the lock screen or the Watch.
 - **Choices** are per message, but categories are static. The optional Notification Content Extension sets the expanded notification's buttons at display time with `notificationActions` (iOS 12+) [Content-ext]. Without the extension a `choice` message offers Reply and Open, and the reply text is matched against the choice labels.
@@ -52,13 +55,13 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 
 ### Interruption levels, Focus and silent-then-ping
 
-- **Blocking items are Time Sensitive.** They use `interruption-level: time-sensitive`, which the paid team's Time Sensitive Notifications capability allows; it breaks through Focus unless the user turns that off for the app. `critical` needs a separate Apple approval and is not used [APNs-payload].
+- **Urgent items are Time Sensitive.** They use `interruption-level: time-sensitive`, which the paid team's Time Sensitive Notifications capability allows; it breaks through Focus unless the user turns that off for the app. `critical` needs a separate Apple approval and is not used [APNs-payload].
 - **Silent-then-ping** (architecture §6.2) maps to:
   - the silent push: `interruption-level: passive`, no sound.
-  - the escalation: the same `apns-collapse-id` at the audible level (`time-sensitive` for blocking, `active` otherwise) with a sound.
+  - the escalation: the same `apns-collapse-id` at the audible level (`time-sensitive` when urgent, `active` otherwise) with a sound.
 
   Spike S2 verifies that a collapsed replacement alerts again. If it does not, the escalation uses a new collapse id and a background push removes the silent one.
-- **Resolve.** A message resolved elsewhere is replaced through its collapse id by a passive "Handled on Mac" version. A background push (`content-available`, priority 5) then asks the app to remove it. iOS throttles background pushes, so removal is best-effort.
+- **Answered elsewhere or rescinded.** A background push (`content-available`, priority 5) asks the app to remove the delivered notification (`removeDeliveredNotifications`); the app confirms through the answer topic. Without confirmation after 60 s (iOS throttles background pushes), the hub replaces it through its collapse id with a passive "Handled on Mac" or "Withdrawn" version (ADR 0007).
 
 ### Icons: Notification Service Extension
 

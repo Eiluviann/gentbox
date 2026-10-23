@@ -34,27 +34,31 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 ## PR 1 · `notifier-core`
 
-**Scope.** The pure domain from architecture §1, §5, §6, §7: types, validation of semantic rules the JSON Schema cannot express, classification, the policy function, lifecycle transitions (including snooze), the coalescing decisions (supersede, fold, dedupe, completion, progress) as functions of the conversation's open items and their live-waiter flags, and action-token signing/verification over bytes. No IO, no async, no clock.
+**Scope.** The pure domain from architecture §1, §5, §6, §7: types, validation of semantic rules the JSON Schema cannot express, classification, the policy function, the `(type, urgent, blocking)` model with per-field classification and normalization (ADR 0007), lifecycle transitions (including snooze and defer), the coalescing decisions (supersede, fold, dedupe, and the implicit rescinds by completion and progress) as functions of the conversation's open items and their live-waiter flags, and action-token signing/verification over bytes. No IO, no async, no clock.
 
 **Files.**
 
 - `core/crates/notifier-core/src/lib.rs` (module map, re-exports)
 - `message.rs` (`Message`, `MessageClass`, `Source`, `Conversation`, `FocusTarget`, `Action`, `ActionKind`, serde camelCase)
 - `lifecycle.rs` (`LifecycleState`, `ResolutionReason`, the transition function returning `Result`)
-- `classify.rs` (`Rule`, `RuleSet` parsed from TOML, `classify(&Message, &RuleSet, &BuiltInRules) -> Classification` with the class source)
+- `classify.rs` (`Rule`, `RuleSet` parsed from TOML, `classify(&Message, &RuleSet, &BuiltInRules) -> Classification` with the source of each field: declared, rule name, default, normalized)
 - `builtin_rules.toml` (the Claude Code table of architecture §5.3, `include_str!`)
 - `policy.rs` (`Policy`, `PolicyContext`, `Presence`, `DeliveryPlan`, `decide`)
-- `coalesce.rs` (`CoalesceOutcome`: new, superseded, folded, duplicate; completion, progress and `resolves` effects)
+- `coalesce.rs` (`CoalesceOutcome`: new, superseded, folded, duplicate; completion, progress and explicit rescind effects)
+- `rescind.rs` (`RescindReason`, rescind by id or correlation keys, the effects list consumed by the hub)
 - `action_token.rs` (payload encoding, HMAC-SHA256 sign and constant-time verify; the nonce ledger is the store's)
 - `tests/` table tests; `tests/schema_examples.rs` deserialises every `docs/schema/examples/*.json`
 - Dependencies: `serde`, `serde_json`, `toml`, `globset`, `regex`, `thiserror`, `time` (types only), `hmac`, `sha2`, `subtle`, `base64`.
 
 **Tests.** Table-driven, one row each:
 
-- Classification: declared wins; user rule; `override = true` beats declared; built-in rule; fallback `generic`; `mute`; invalid TOML is an error value, not a panic.
-- Policy: every class × {present, away, locked} × {Focus off/on} × {quiet hours off/on}; blocking breakthrough setting; silent-then-ping (silent at once while the Mac is in use, escalation after 2 min if unaddressed, immediate when away); frontmost suppression of completions.
-- Coalescing: idempotency key; supersede in place; no re-ping unless louder; a message without a live waiter folds into one with a live waiter (same key, and blocking-into-blocking); dedupe within 10 s; completion resolves blocking items without a live waiter and leaves `action_nonblocking` alone; progress resolves `idle` and blocking items without a live waiter; `resolves`; parallel `permission:<agent>:<hash>` keys coexist.
-- Lifecycle: every allowed transition (including acknowledged → open when a snooze ends) and that every other one is rejected; `open` and `snooze` never resolve; the lifecycle → `actionResponse.status` table of architecture §5.2.
+- Field combinations: all 15 valid `(type, urgent, blocking)` combinations accepted; every invalid one (`task_completed`/`generic` with `deferrable` or `blocking`, urgent `generic`, `scope` on another type) rejected when declared and normalized when filled by rules, with the normalization recorded.
+- Classification, per field: declared wins field by field; a rule fills only missing fields; later rules fill what earlier ones left; `override = true` replaces declared fields; built-in rules after user rules; defaults `generic`/`false`/`non_blocking`; `mute`; invalid TOML is an error value, not a panic; the Claude Code table of architecture §5.3 row by row.
+- Policy: each of the 15 combinations × {present, away, locked} × {Focus off/on} × {quiet hours off/on}, checking popup vs banner vs toast vs inbox, re-ping cadence by blocking level, Defer offered only on `deferrable`, Time Sensitive and the URGENT prefix only when urgent, quiet-hours and Focus breakthrough only when urgent; silent-then-ping (silent at once while the Mac is in use, escalation after 2 min if unaddressed, immediate when away); frontmost suppression of `task_completed` toasts.
+- Coalescing: idempotency key; supersede in place; no re-ping unless louder; a message without a live waiter folds into one with a live waiter (same key, and blocking-into-blocking); dedupe within 10 s; `task_completed` rescinds `blocking` and `deferrable` items without a live waiter as `obsolete` and leaves `non_blocking` ones alone; progress rescinds `idle` and `blocking`/`deferrable` items without a live waiter as `resolved_elsewhere`; parallel `permission:<agent>:<hash>` keys coexist.
+- Rescind: by id and by correlation keys, each reason; via the `rescinds` field; a rescinded message rejects later answers; rescinding never produces an answer; the effects list (popup, toast, native notification, inbox "Withdrawn", phone removal or fallback notice) per channel and state.
+- Defer: only on `deferrable`; turns `blocking` into `non_blocking` and re-runs the policy; the waiter gets `deferred` once and `pending` after; a later real answer still closes the message.
+- Lifecycle: every allowed transition (including acknowledged → open when a snooze ends) and that every other one is rejected; `open` and `snooze` never close a message or reach the sender; the lifecycle → `actionResponse.status` table of architecture §5.2.
 - Action tokens: valid, expired, wrong message, wrong action, tampered payload, tampered MAC.
 
 **Acceptance.** `cargo test -p notifier-core` green; the examples deserialise; `decide` and `classify` are free of `std::time::SystemTime::now`, IO and `unsafe` (a test greps the crate source).
@@ -65,7 +69,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Files.** `core/crates/notifier-store/{Cargo.toml, src/lib.rs, src/migrations/0001_init.sql, src/repository.rs, src/retention.rs}`, `tests/`. `rusqlite` with `bundled`, WAL mode, `foreign_keys = ON`.
 
-**Tests.** Round-trip every core type; open messages listed by conversation and class; supersede chain recorded; retention deletes only resolved/expired older than the cutoff; token nonce insert is unique (second insert reports reuse); migration from an empty file and re-open of an existing file.
+**Tests.** Round-trip every core type; open messages listed by conversation, type, urgency and blocking level; rescinded messages kept with their reason; supersede chain recorded; retention deletes only answered, dismissed, rescinded and expired messages older than the cutoff; token nonce insert is unique (second insert reports reuse); migration from an empty file and re-open of an existing file.
 
 **Acceptance.** Store API returns `Result` for not-found and constraint outcomes and only throws (panics) on broken invariants; temp-dir tests; no SQL outside the crate.
 
@@ -86,12 +90,12 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 **Tests.**
 
 - 401 without or with a wrong token; 400 on a foreign `Host` over TCP and no check on the socket; `hello` proof verifies and never needs the token; 413; 422 with the JSON pointer; 429 with `Retry-After`; no route answers or lists messages with the sender token.
-- One message per class through the real router; store state after each.
+- Every example in `docs/schema/examples/` through the real router (one per type and per blocking level); store state after each; `DELETE` and the conversation `rescind` route wake waiters with `rescinded`; Defer wakes them with `deferred`.
 - Long-poll: `pending` after `wait`; `answered` when an answer (injected through the hub handle, as the UI does) lands mid-wait; two concurrent answers → one accepted, one 409; `superseded`, `resolved` and `expired` wake the waiter; the live waiter lapses 10 s after the last poll; snooze and open never wake it.
 - Second hub on the same state folder exits non-zero naming the lock holder.
 - Discovery: `token` 0600, folder 0700, `port` removed on clean shutdown.
 
-**Acceptance.** `agent-notifierd` runs on macOS and Linux CI; the `curl` script in the plan's verification section posts one message per class and gets the expected classes back.
+**Acceptance.** `agent-notifierd` runs on macOS and Linux CI; the `curl` script in the plan's verification section posts one message per type and blocking level and gets the expected fields back.
 
 ## PR 3 · `notifier-ffi` + macOS app shell
 
@@ -153,7 +157,7 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 - **JWT:** header and claims; signature verifies against the public key; reused until 20 min; refreshed by 60 min; refreshed once on 403 `ExpiredProviderToken` and never in a loop; an invalid `.p8` is a `Result` error, not a panic.
 - **Payload:**
   - Never exceeds 4,096 bytes, for a 64 KiB body and multi-byte text.
-  - Title phrase per class and action set (URGENT only for blocking; Goal complete only for `scope: goal`).
+  - Title phrase per type ("URGENT: " only when urgent; Goal complete only for `scope: goal`); Time Sensitive only when urgent; `-defer` categories only on `deferrable`.
   - Summary falls back to the title.
   - `minimal` and `sensitive` carry only the phrase and no actions.
   - `cwd` is never present; the collapse id is 64 bytes or less.
@@ -174,7 +178,7 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 **Scope.** ADR 0006, iOS side:
 
 - **The app:** inbox and detail from received pushes (stored in the App Group container); pairing by QR code (posts its device token, environment and version, HMAC-signed, to the answer topic; re-registers when iOS rotates the token).
-- **Notification categories** `approval`, `question`, `choice`, `completion`, `info`: Approve with `.authenticationRequired`, Deny, Reply as text input, Open. Background handlers post action tokens and reply text to the answer topic.
+- **Notification categories** `approval`, `question`, `choice`, `action`, `completion`, `info`, each answerable one with a `-defer` variant: Approve with `.authenticationRequired`, Deny, Reply as text input, Done, Defer, Open. Background handlers post action tokens and reply text to the answer topic.
 - **Notification Service Extension:** icon thumbnail from the App Group cache, fetching a missing project icon once from its ntfy attachment; optional decryption of end-to-end content; optional Communication Notifications avatar.
 - **Optional Notification Content Extension:** markdown excerpt, project and conversation, dynamic choice buttons via `notificationActions`.
 - **Signing:** paid team, Push Notifications and Time Sensitive capabilities, `aps-environment` development for Xcode builds and production for TestFlight.
@@ -194,13 +198,13 @@ XCUITest smoke for inbox and detail.
 
 ## PR 7 · `agent-notify` CLI + stdio MCP server
 
-**Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `agent-notify send|ask|wait|resolve|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and a stdio MCP server with `notify` (class `action_nonblocking` or `generic`, explicit) and `ask` (sends with `awaitsResponse`, waits up to a timeout, returns the answer or "no answer"). Types written against the schema and checked against the examples.
+**Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `agent-notify send|ask|wait|rescind|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and a stdio MCP server with `notify` (explicit `type`, `urgent`, `blocking`), `ask` (`decision_required` with `awaitsResponse`; `blocking` or `deferrable` chosen by the agent; waits up to a timeout and returns the answer, `deferred`, or "no answer") and `rescind`. Types written against the schema and checked against the examples.
 
 **Files.** `cli/src/{discovery.ts, hub-client.ts, message-types.ts, commands/*.ts, mcp-server.ts, main.ts}`, Vitest tests next to each.
 
 **Tests.** Vitest: discovery order, socket preference and the `hello` proof (a wrong proof never sends the token); request building per command; the examples parse into the TS types; MCP tool schemas; `ask` timeout path. One integration test against `agent-notifierd` (skipped when the binary is absent).
 
-**Acceptance.** `agent-notify send --class completion --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
+**Acceptance.** `agent-notify send --type task_completed --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
 
 ## PR 8 · Optional: Tailscale remote listener
 

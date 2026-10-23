@@ -6,16 +6,24 @@ Status tags: **Now** is built in Phase 3, **Planned** comes later, **Spike** mus
 
 **Principle: no shared infrastructure, bring your own keys.** The project hosts nothing for its users: no server, relay, account system or asset host that other people would depend on. Each user brings their own credentials (an APNs key from their own Apple team, an ntfy topic or account, optionally a Pushover app token or a Tailscale network), entered in Settings and kept in the Keychain. Users may run infrastructure for themselves (a self-hosted ntfy server, a personal relay, an always-on box), and the design supports that where it helps, but no feature requires it: everything works with your Mac plus public services you pick (Apple's push service, ntfy.sh).
 
-## 1. Classes
+## 1. Message type, urgency and blocking
 
-| Class | Meaning | Example |
+ADR: [0007](adr/0007-message-type-urgency-blocking.md). Three independent fields describe every message:
+
+| Field | Values | Meaning |
 | --- | --- | --- |
-| `action_blocking` | The agent cannot continue until you answer | Claude Code permission prompt, MCP elicitation form |
-| `action_nonblocking` | The agent wants an answer but keeps working | "Which name do you prefer? I used `Relay` for now" |
-| `completion` | A task finished | Claude Code `Stop` with no background work left |
-| `generic` | Everything else, kept for reference | Subagent finished, auth succeeded |
+| `type` | `decision_required` | The agent needs your answer: approve or deny, pick a choice, reply (a permission prompt) |
+| | `action_required` | You must do something yourself outside the conversation, then say Done (sign in, add a key, review a pull request) |
+| | `task_completed` | Work finished; `scope: goal` marks the agent's overall objective |
+| | `generic` | Everything else, kept for reference |
+| `urgent` | `true`, `false` | Reach me now: Time Sensitive, breaks through quiet hours and Focus, "URGENT:" prefix |
+| `blocking` | `non_blocking` | The agent keeps working and has planned for the answer to come later |
+| | `deferrable` | The agent has paused; you may Defer to let it continue with work that needs no input |
+| | `blocking` | Work cannot continue until you decide |
 
-The sender may declare the class. Otherwise deterministic rules assign it, falling back to `generic`. No model is involved (§5).
+Defaults `generic`, `false`, `non_blocking`. `task_completed` and `generic` are always `non_blocking`, and `generic` is never urgent (§5.3). The definitions of `decision_required` and `action_required` are to be confirmed with the user.
+
+The sender may declare any of the fields; deterministic rules fill the rest. No model is involved (§5.3).
 
 ## 2. System overview
 
@@ -70,7 +78,7 @@ The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/
 
 | Crate | Status | Responsibility | Depends on |
 | --- | --- | --- | --- |
-| `notifier-core` | Now (PR 1) | Domain types (`Message`, `MessageClass`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
+| `notifier-core` | Now (PR 1) | Domain types (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
 | `notifier-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `notifier-core` |
 | `notifier-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `notifier-core` |
 | `notifier-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `notifier-core`, `notifier-store`, `notifier-relay` (trait only) |
@@ -81,7 +89,7 @@ The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/
 
 The graph is acyclic: core ← store, relay ← hub ← ingest ← binaries and bindings.
 
-**Concurrency.** A single hub actor (one `tokio` task in `notifier-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers, redeemed phone answers, the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede/resolve races impossible by construction rather than by locking.
+**Concurrency.** A single hub actor (one `tokio` task in `notifier-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers, redeemed phone answers, the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede, rescind and defer races impossible by construction rather than by locking.
 
 **Platform sensing stays on the platform side.** Presence (frontmost app, idle seconds, screen locked, Focus) is read by Swift on the Mac and pushed into the core as `PresenceUpdate` commands; the daemon on Linux will read logind's idle hint (Planned). The core never calls platform APIs, so the policy engine stays a pure function with table tests.
 
@@ -96,8 +104,8 @@ POST /v1/messages
   → size limit (128 KiB body)               413
   → validate against message-v1.json        422 with the failing JSON pointer
   → idempotency (source.agent, idempotencyKey)  200 with the stored message
-  → classify                                declared → user rules → built-in rules → generic
-  → coalesce / dedupe / supersede / resolve (§7)
+  → classify, per field                     declared → user rules → built-in rules → defaults → normalize
+  → coalesce / dedupe / supersede / rescind (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
   → dispatch to channels; answer 201
@@ -106,12 +114,12 @@ POST /v1/messages
 Response body of `POST /v1/messages`:
 
 ```json
-{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "class": "action_blocking", "classSource": "declared", "state": "open", "shouldWait": true }
+{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "state": "open", "shouldWait": true }
 ```
 
 `id` is a ULID the hub assigns. It is the only message id in URLs and in `actionResponse.messageId`; the sender's `idempotencyKey` only deduplicates retries.
 
-`shouldWait` tells a blocking sender whether long-polling is worthwhile. It is `false` when no channel can answer (every answer channel is muted, or the user is at the very app the agent runs in and the policy says not to interrupt there, §6.2), so a hook falls back to the agent's own prompt at once instead of holding it.
+`shouldWait` tells a waiting sender whether long-polling is worthwhile. It is `false` when no channel can answer (every answer channel is muted, or the user is at the very app the agent runs in and the policy says not to interrupt there, §6.2), so a hook falls back to the agent's own prompt at once instead of holding it.
 
 ### 5.2 States
 
@@ -121,62 +129,76 @@ stateDiagram-v2
   open --> acknowledged: seen (popup closed, inbox opened, conversation became frontmost)
   open --> acknowledged: snoozed (snoozedUntil set)
   acknowledged --> open: snoozedUntil passed
-  open --> resolved
-  acknowledged --> resolved
+  open --> open: deferred (blocking becomes non_blocking)
+  acknowledged --> acknowledged: deferred
+  open --> answered
+  acknowledged --> answered
+  open --> dismissed: Mark done
+  acknowledged --> dismissed
+  open --> rescinded: sender, supersede, completion, progress
+  acknowledged --> rescinded
   open --> expired: expiresAt passed
   acknowledged --> expired
-  resolved --> [*]
+  answered --> [*]
+  dismissed --> [*]
+  rescinded --> [*]
   expired --> [*]
 ```
 
 - `open`: delivered, needs attention; counts towards the menu-bar badge, may re-ping.
-- `acknowledged`: you have seen it. No re-ping, no badge, still answerable. With `snoozedUntil` set it is hidden from the inbox's open list until then, and returns to `open` with one re-ping when the time passes (unless it was resolved meanwhile).
-- `resolved` carries a reason: `answered` (an answer action was taken), `superseded` (a newer message took its slot, §7), `completed` (the conversation's completion closed it), `resolved_by_sender` (`resolves`, `POST /v1/messages/{id}/resolve`, or conversation progress), `dismissed` (you chose "Mark done" in the inbox without answering).
+- `acknowledged`: you have seen it. No re-ping, no badge, still answerable. With `snoozedUntil` set it is hidden from the inbox's open list until then, and returns to `open` with one re-ping when the time passes.
+- **Deferred** is not a state: Defer on a `deferrable` message records `deferredAt`, sets `blocking` to `non_blocking` and re-runs the policy (the popup closes, re-pings stop); the message stays open or acknowledged and still awaits the real answer.
+- `answered`: an answer action was taken (`approve`, `deny`, `choice`, `reply`, `done`).
+- `dismissed`: you chose "Mark done" without answering.
+- `rescinded`, with a reason: `resolved_elsewhere`, `obsolete` or `superseded` (§7).
 - `expired`: `expiresAt` passed while open or acknowledged.
 
-Closing a popup or a notification only acknowledges; "Mark done" is the only user gesture that resolves without an answer.
+Closing a popup or a notification only acknowledges.
 
-**Answers and non-answers.** `approve`, `deny`, `choice` and `reply` are answers: the first one resolves the message as `answered` and wakes the waiter. `open` and `snooze` are non-answers: `open` acknowledges and brings the conversation forward, `snooze` acknowledges with `snoozedUntil = now + value` minutes (default 15). Neither is ever returned to a waiting sender.
+**Answers and non-answers.** `approve`, `deny`, `choice`, `reply` and `done` are answers: the first one closes the message as `answered` and wakes the waiter. `defer` is an answer that does not close (above). `open` and `snooze` are non-answers: `open` acknowledges and brings the conversation forward, `snooze` acknowledges with `snoozedUntil = now + value` minutes (default 15). Neither is ever returned to a waiting sender.
 
-**Live waiter.** A message has a live waiter while a long-poll for it is in flight or ended less than 10 s ago (the gap between two polls). `awaitsResponse` only declares the intent; it is the live waiter that counts everywhere below (answer buttons, supersede, completion). A sender that stops waiting (deadline, error, fallback to its own prompt) resolves its message with `POST /v1/messages/{id}/resolve`; if it dies without doing so, the waiter lapses after 10 s and the message becomes an ordinary item that completion or progress can close.
+**Live waiter.** A message has a live waiter while a long-poll for it is in flight or ended less than 10 s ago (the gap between two polls). `awaitsResponse` only declares the intent; it is the live waiter that counts everywhere below (answer buttons, supersede, implicit rescinds). A sender that stops waiting (deadline, error, fallback to its own prompt) rescinds its message with `DELETE /v1/messages/{id}` (`resolved_elsewhere`); if it dies without doing so, the waiter lapses after 10 s and the message becomes an ordinary item that completion or progress can rescind.
 
 **What the long-poll returns** (`actionResponse.status`):
 
 | Lifecycle | `status` |
 | --- | --- |
 | `open`, `acknowledged` (including snoozed) | `pending` |
-| `resolved` / `answered` | `answered`, with `actionId`, `actionKind`, `value` |
-| `resolved` / `superseded` | `superseded` |
-| `resolved` / `completed`, `resolved_by_sender`, `dismissed` | `resolved` |
+| Defer just chosen | `deferred`, once; then `pending` again until the real answer |
+| `answered` | `answered`, with `actionId`, `actionKind`, `value` |
+| `dismissed` | `dismissed` |
+| `rescinded` | `rescinded`, with `rescindReason` |
 | `expired` | `expired` |
 
-Default `expiresAt` when the sender gives none: `action_blocking` 24 h, `action_nonblocking` 7 days, `completion` 7 days, `generic` 24 h. `generic` messages are born `acknowledged`: they never badge.
+Default `expiresAt` when the sender gives none: `blocking` and `deferrable` 24 h, `non_blocking` decisions and actions 7 days, `task_completed` 7 days, `generic` 24 h. `generic` messages are born `acknowledged`: they never badge.
 
-**Retention.** Resolved and expired messages are deleted after 30 days. Since every class has a default expiry, nothing stays open forever unless a sender sets a far `expiresAt`. Configurable; the sweep runs at start and daily.
+**Retention.** Answered, dismissed, rescinded and expired messages are deleted after 30 days. Since every message has a default expiry, nothing stays open forever unless a sender sets a far `expiresAt`. Configurable; the sweep runs at start and daily.
 
 ### 5.3 Classification
 
-Order, first hit wins:
+Each of `type`, `urgent` and `blocking` is resolved on its own:
 
-1. **Declared** `class` in the message.
-2. **User rules** from `rules.toml`, in file order.
-3. **Built-in rules** shipped with the app (the Claude Code mappings below), so the hook stays thin and you can see and override them.
-4. **Fallback** `generic`.
+1. **Declared** in the message: wins.
+2. **User rules** from `rules.toml`, in file order: each matching rule sets only the fields still missing.
+3. **Built-in rules** shipped with the app (the Claude Code mappings below), same way, so the hook stays thin and you can see and override them.
+4. **Defaults:** `generic`, `false`, `non_blocking`.
+5. **Normalize:** `task_completed` and `generic` become `non_blocking`; `generic` becomes not urgent. Declared invalid combinations never get here: the schema rejects them (422). Normalizations are recorded in the delivery log.
 
-A user rule may set `override = true` to beat a declared class too. This is the one escape hatch for a sender that over-declares (every message `action_blocking`); without it the declared class wins, as decided.
+A user rule may set `override = true` to replace declared fields too: the escape hatch for a sender that over-declares.
 
 ```toml
-# rules.toml — matched top to bottom, first match wins.
+# rules.toml — matched top to bottom; each rule fills the fields still missing.
 [[rule]]
 name = "Quiet the docs bot"
 match = { source = "docs-bot" }
-class = "generic"
+type = "generic"
 override = true
 
 [[rule]]
-name = "Background agent finished"
-match = { source = "claude-code", event = "claude-code.notification.agent_completed" }
-class = "completion"
+name = "Permission prompts at work are urgent"
+match = { source = "claude-code", event = "claude-code.permission_request", cwd = "~/Work/**" }
+urgent = true
+override = true
 
 [[rule]]
 name = "Mute auth success"
@@ -184,26 +206,29 @@ match = { event = "claude-code.notification.auth_success" }
 mute = true          # stored as generic, never shown outside the inbox history
 ```
 
-Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets `class` and/or `mute`. Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
+Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking` and `mute`. Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
 
-**Built-in Claude Code mapping** (the Phase 4 hook sends `event` and, where it is certain, `class`):
+**Built-in Claude Code mapping** (the Phase 4 hook sends `event` and, where it is certain, the fields; `urgent` is false unless a user rule says otherwise):
 
-| Hook event | `event` | Class | Notes |
-| --- | --- | --- | --- |
-| `PermissionRequest` | `claude-code.permission_request` | `action_blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission:<agent_id or main>:<first 12 hex of SHA-256 of tool_name + tool_input>"` (the input has no `tool_use_id`), so parallel subagents' requests never supersede each other |
-| `Notification` `permission_prompt` | `claude-code.notification.permission_prompt` | `action_blocking` | No waiter; while the conversation has a blocking item with a live waiter it folds into it as a repeat (§7.3). It stands alone for sandbox network prompts, which have no `PermissionRequest` |
-| `Notification` `elicitation_dialog`, `elicitation_url_dialog` | `claude-code.notification.elicitation_*` | `action_blocking` | Answer in the session; `open` action only |
-| `Notification` `idle_prompt` | `claude-code.notification.idle_prompt` | `action_nonblocking` | Fires 60 s after a response with no typing, i.e. after the `Stop` completion already pinged. Deviation from the plan (which listed idle as blocking): a second loud ping for the same turn is noise. `correlationKey = "idle"`; resolved by conversation progress |
-| `Notification` `agent_needs_input` | `…agent_needs_input` | `action_blocking` | |
-| `Notification` `agent_completed` | `…agent_completed` | `completion` | |
-| `Notification` `quota_auto_resume_stale` | `…quota_auto_resume_stale` | `action_nonblocking` | Waits for Enter after a sleep |
-| `Notification` `auth_success`, `elicitation_complete`, `elicitation_response`, `quota_auto_resume_fired`, `quota_auto_resume_disabled`, `plugin_notification` | `…<type>` | `generic` | |
-| `Stop`, `background_tasks` empty | `claude-code.stop` | `completion` | Summary from `last_assistant_message` (first 400 chars) |
-| `Stop`, `background_tasks` non-empty | `claude-code.stop.paused` | `generic` | The session waits on its own background work; not done yet |
-| `StopFailure` | `claude-code.stop_failure` | `action_nonblocking` | The turn ended on an API error |
-| `SubagentStop` | `claude-code.subagent_stop` | `generic` | |
-| `SessionStart` | — | — | Registers or renames the conversation (`PUT /v1/conversations/{agent}/{id}`), sends no message |
-| `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` (all `async`) | — | — | `POST /v1/conversations/{agent}/{id}/progress`, sends no message (§7.6) |
+| Hook event | `event` | `type` | `blocking` | Notes |
+| --- | --- | --- | --- | --- |
+| `PermissionRequest` | `claude-code.permission_request` | `decision_required` | `blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission:<agent_id or main>:<first 12 hex of SHA-256 of tool_name + tool_input>"` (the input has no `tool_use_id`), so parallel subagents' requests never supersede each other. Not `deferrable`: Claude Code cannot continue past a pending permission |
+| `Notification` `permission_prompt` | `claude-code.notification.permission_prompt` | `decision_required` | `blocking` | No waiter; folds into a live-waiter blocking item as a repeat (§7.3). Stands alone for sandbox network prompts, which have no `PermissionRequest` |
+| `Notification` `elicitation_dialog` | `claude-code.notification.elicitation_dialog` | `decision_required` | `blocking` | Answer in the session; `open` action only |
+| `Notification` `elicitation_url_dialog` | `claude-code.notification.elicitation_url_dialog` | `action_required` | `blocking` | You open a URL and act there |
+| `Notification` `agent_needs_input` | `…agent_needs_input` | `decision_required` | `blocking` | |
+| `Notification` `quota_auto_resume_stale` | `…quota_auto_resume_stale` | `action_required` | `blocking` | Press Enter in the session after a sleep |
+| `Notification` `idle_prompt` | `claude-code.notification.idle_prompt` | `generic` | — | Fires 60 s after a response with no typing, after the `Stop` already notified you; a reminder, not a new ask. `correlationKey = "idle"`; rescinded by progress |
+| `Notification` `agent_completed` | `…agent_completed` | `task_completed` | — | |
+| `Notification` `auth_success`, `elicitation_complete`, `elicitation_response`, `quota_auto_resume_fired`, `quota_auto_resume_disabled`, `plugin_notification` | `…<type>` | `generic` | — | |
+| `Stop`, `background_tasks` empty | `claude-code.stop` | `task_completed` | — | Summary from `last_assistant_message` (first 400 chars) |
+| `Stop`, `background_tasks` non-empty | `claude-code.stop.paused` | `generic` | — | The session waits on its own background work; not done yet |
+| `StopFailure` | `claude-code.stop_failure` | `action_required` | `blocking` | The turn ended on an API error; retry in the session |
+| `SubagentStop` | `claude-code.subagent_stop` | `generic` | — | |
+| `SessionStart` | — | — | — | Registers or renames the conversation (`PUT /v1/conversations/{agent}/{id}`), sends no message |
+| `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` (all `async`) | — | — | — | `POST /v1/conversations/{agent}/{id}/progress`, sends no message (§7.6) |
+
+The MCP `ask` tool (PR 7) declares the fields itself: `decision_required` by default, with `blocking` chosen by the agent, `deferrable` when it can continue with other work.
 
 ## 6. Noise-policy engine
 
@@ -216,53 +241,66 @@ fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> Delive
 ```
 
 - `PolicyContext`: presence (`away` = screen locked or idle ≥ `awayAfter`, frontmost bundle id), Focus on/off, quiet hours active, the conversation's open items, the clock.
-- `Policy`: per-class settings from `config.toml`, defaults below.
-- `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (bool), `sound` (bool), `phone` (`now(priority)`, `silentThenPing { priority, after }`, `silent`, `none`) and `reping` (`after`, `max`).
+- `Policy`: settings from `config.toml` keyed on `(type, urgent, blocking)`, defaults below.
+- `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (`none`, `active`, `time_sensitive`), `sound` (bool), `phone` (`now(level)`, `silentThenPing { level, after }`, `silent`, `none`), `reping` (`after`, `max`) and `offerDefer` (bool).
 
-Timers (re-ping, phone escalation, snooze, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
+The three fields do separate jobs: **`type`** picks the surface and the title phrase, **`blocking`** drives persistence and escalation (popup, re-ping, Defer), **`urgent`** drives interruption (Time Sensitive, quiet hours and Focus breakthrough, the "URGENT:" prefix).
+
+Timers (re-ping, phone escalation, snooze, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered or rescinded in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
 
 ### 6.2 Defaults
 
-| Class | Mac | Phone |
+By blocking level (for `decision_required` and `action_required`) and type:
+
+| | Mac | Phone |
 | --- | --- | --- |
-| `action_blocking` | Persistent rich popup until handled, plus a Time Sensitive native notification and a sound. Re-ping every 5 min, at most 3 times, while `open` | Silent-then-ping (below), audible as Time Sensitive (ntfy fallback: priority 5) |
-| `action_nonblocking` | Native banner and inbox | Silent-then-ping, audible as Active (ntfy: priority 3) |
-| `completion` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Silent-then-ping, audible as Active (ntfy: priority 3) |
+| `blocking` | Persistent rich popup until handled, native notification, sound. Re-ping every 5 min, at most 3 times, while `open` | Silent-then-ping |
+| `deferrable` | Persistent rich popup with a Defer button, native notification, sound. Re-ping every 10 min, at most 2 times. After Defer: as `non_blocking` | Silent-then-ping; Defer is a phone button |
+| `non_blocking` | Native banner and inbox, no re-ping | Silent-then-ping |
+| `task_completed` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Silent-then-ping |
 | `generic` | Inbox only, silent | Never |
+
+`urgent` modifies every row above:
+
+| | `urgent: false` | `urgent: true` |
+| --- | --- | --- |
+| Native notification (Mac, iPhone) | Active | Time Sensitive |
+| Phone audible level | Active (ntfy fallback: priority 3) | Time Sensitive (ntfy fallback: priority 5) |
+| Title | Type phrase | "URGENT: " + type phrase |
+| Quiet hours | Mac silent, toasts and banners inbox-only; phone silent, no escalation | Breaks through: shown, audible, escalates |
+| Focus (Mac popups and toasts) | Popups silent, toasts inbox-only | Shown and audible |
 
 **Silent-then-ping** (the user's rule, 2026-10-23):
 
-- **Mac in active use** (unlocked, input within `awayAfter`, default 5 min): the phone gets the notification at once but silently (APNs `interruption-level: passive`; ntfy fallback: priority 2; either way it lands in Notification Centre with no sound and no screen wake). If the message is still not addressed on any device 2 min later, it is sent again under the same collapse id (ntfy: sequence id) at its audible level and pings (ADR 0006).
-- **Mac away** (locked, or idle ≥ `awayAfter`): the phone pings at once at the audible priority.
-- **Addressed** means acknowledged or resolved anywhere: answered on the Mac, the phone or in the session, the popup or notification closed, the conversation brought forward, or the message opened in the inbox.
+- **Mac in active use** (unlocked, input within `awayAfter`, default 5 min): the phone gets the notification at once but silently (APNs `interruption-level: passive`; ntfy fallback: priority 2; either way it lands in Notification Centre with no sound and no screen wake). If the message is still not addressed on any device 2 min later, it is sent again under the same collapse id at its audible level and pings (ADR 0006). On the ntfy fallback, which cannot update a delivered notification, the escalation is a second notification (ADR 0007).
+- **Mac away** (locked, or idle ≥ `awayAfter`): the phone pings at once at the audible level.
+- **Addressed** means acknowledged, answered, deferred, dismissed or rescinded anywhere: on the Mac, the phone or in the session, the popup or notification closed, the conversation brought forward, or the message opened in the inbox.
 - **Noise guard.** Escalations that fall within 60 s of each other share one sound; the rest update silently.
 
-Every cell is configurable per class (and per source, Planned). With this rule a completion you ignore at the Mac also pings the phone after 2 min; turn the phone off for `completion` if that is too much.
+Every cell is configurable per `(type, urgent, blocking)` (and per source, Planned). With this rule a completion you ignore at the Mac also pings the phone after 2 min; turn the phone off for `task_completed` if that is too much.
 
 ### 6.3 Quiet hours and Focus
 
-- **Quiet hours** (a weekly schedule, default off). Mac: no sounds; toasts and banners become inbox-only. Phone: everything stays silent (no escalation) except `action_blocking`, which breaks through by default (`quietHours.blockingBreaksThrough = true`).
-- **Focus.** macOS filters our native notifications by the active Focus; with the paid team, blocking ones are Time Sensitive and break through unless you turn that off for the app. Our own popups and toasts are not subject to Focus, so the engine treats Focus like quiet hours for them: blocking popups still appear but silently; toasts become inbox-only.
+- **Quiet hours** (a weekly schedule, default off): non-urgent messages stay silent on the Mac and the phone and do not escalate; urgent ones break through (table above).
+- **Focus.** macOS filters our native notifications by the active Focus; urgent ones are Time Sensitive and break through unless you turn that off for the app. Our own popups and toasts are not subject to Focus, so the engine applies the same rule to them: non-urgent popups appear silently and toasts become inbox-only; urgent ones are shown and audible.
 - **How the hub learns Focus** (Spike S3, §11). `INFocusStatusCenter`, which the paid team's Communication Notifications capability allows: the app asks once for Focus status access and polls `isFocused` on presence changes (key-value observation is reported not to work [Apple-forum-682143]). `isFocused` is true only when a Focus is on and Agent Notifier is not on its allowed list, which is exactly when the engine should hold back. Fallbacks, for builds without the paid team: read `~/Library/DoNotDisturb/DB/` behind Full Disk Access, or a Shortcuts automation running `agent-notify focus on|off`.
 
 ### 6.4 Frontmost suppression
 
-A completion is suppressed when `conversation.focus.bundleId` equals the frontmost app's bundle id. This is per app, not per tab: with two Claude Code sessions in one Ghostty window, finishing the background one is suppressed too. Tab-level matching (tty of the frontmost terminal tab) is Planned and needs Apple Events per terminal.
+A `task_completed` toast is suppressed when `conversation.focus.bundleId` equals the frontmost app's bundle id. This is per app, not per tab: with two Claude Code sessions in one Ghostty window, finishing the background one is suppressed too. Tab-level matching (tty of the frontmost terminal tab) is Planned and needs Apple Events per terminal.
 
-## 7. Coalescing, dedupe, supersede, resolve
+## 7. Coalescing, dedupe, supersede, rescind
 
-All within one conversation (`source.agent` + `conversation.id`):
-
-Rules are applied in this order by the hub actor, one message at a time, so none of them can interleave with an answer.
+All within one conversation (`source.agent` + `conversation.id`). Rules are applied in this order by the hub actor, one message at a time, so none of them can interleave with an answer.
 
 1. **Idempotency.** Same `source.agent` + `idempotencyKey` → return the stored message, change nothing.
-2. **Supersede.** A message whose `correlationKey` matches an `open` or `acknowledged` message takes its slot: the old one resolves as `superseded`, the new one takes over its popup and native notification in place (same notification identifier, same ntfy sequence id). It does not re-ping unless its class is louder than the old one's. A live waiter of the old message gets `superseded`.
-3. **Fold.** A message with no live waiter never displaces one that has a live waiter: if its correlation key matches such a message, or it is a blocking message while the conversation has a blocking item with a live waiter, it is not stored as a new item and only increases that item's repeat counter.
-4. **Dedupe.** If the superseding message has the same class, title and summary as the old one and arrives within 10 s, it is dropped and only a repeat counter increases.
-5. **Completion resolves blocking items.** A `completion` resolves the conversation's `open`/`acknowledged` `action_blocking` messages that have no live waiter, with reason `completed`. A message with a live waiter stays open (the agent cannot have finished while it waits). `action_nonblocking` messages are left alone: questions that can wait must survive the end of the turn.
-6. **Progress resolves.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) resolves, as `resolved_by_sender`, the conversation's `idle` item and its blocking items without a live waiter: something happened, so whatever they asked for was answered in the session. This covers a permission answered or denied in the terminal, where `PostToolUse` alone would not fire.
-7. **Explicit resolve.** `resolves: [keys]` on any message, or `POST /v1/messages/{id}/resolve`, closes those messages as `resolved_by_sender`.
-8. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest blocking item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
+2. **Supersede (implicit rescind).** A message whose `correlationKey` matches an `open` or `acknowledged` message takes its slot: the old one is rescinded as `superseded`, the new one takes over its popup and native notification in place (same notification identifier, same APNs collapse id). It does not re-ping unless it is louder (urgent, or a higher blocking level) than the old one. A live waiter of the old message gets `rescinded` / `superseded`.
+3. **Fold.** A message with no live waiter never displaces one that has a live waiter: if its correlation key matches such a message, or it is a `blocking` or `deferrable` message while the conversation has such an item with a live waiter, it is not stored as a new item and only increases that item's repeat counter.
+4. **Dedupe.** If the superseding message has the same fields, title and summary as the old one and arrives within 10 s, it is dropped and only a repeat counter increases.
+5. **Completion rescinds what waited on it.** A `task_completed` message rescinds, as `obsolete`, the conversation's `open`/`acknowledged` `blocking` and `deferrable` messages that have no live waiter. A message with a live waiter stays open (the agent cannot have finished while it waits); `non_blocking` messages survive the end of the turn.
+6. **Progress rescinds.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) rescinds, as `resolved_elsewhere`, the conversation's `idle` item and its `blocking` and `deferrable` items without a live waiter: something happened, so whatever they asked for was handled in the session. This covers a permission answered or denied in the terminal.
+7. **Explicit rescind.** `DELETE /v1/messages/{id}`, `POST /v1/conversations/{agent}/{id}/rescind`, or the `rescinds` field on a new message, with a reason (ADR 0007). Effects in every channel: popup and toast removed; Mac native notification removed; inbox row kept and marked "Withdrawn" with the reason in words (superseded rows fold into their successor instead); the own iPhone app removes the delivered notification through a background push and `removeDeliveredNotifications`, falling back after 60 s to a passive "Withdrawn" replacement under the same collapse id; the ntfy fallback cannot remove or update a delivered notification, so the hub publishes a min-priority "Withdrawn" notice only when the original had pinged, and ignores taps on the stale buttons.
+8. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest `blocking` or `deferrable` item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
 
 ## 8. Ingest API and transport
 
@@ -283,12 +321,13 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `POST /v1/hello` | Challenge-response proof (above); returns hub version and schema versions |
 | `POST /v1/messages` | Ingest one message (§5.1) |
 | `GET /v1/messages/{id}/response?wait=<s>` | Long-poll for the answer; holds up to `wait` seconds (max 55), returns `actionResponse` (`pending` on timeout) |
-| `POST /v1/messages/{id}/resolve` | Sender closes its own message (answered elsewhere, or it stopped waiting) |
+| `DELETE /v1/messages/{id}` | Rescind one message; body `{ "reason": … }`, default `resolved_elsewhere` (§7.7) |
+| `POST /v1/conversations/{agent}/{id}/rescind` | Rescind by correlation keys; body `{ "reason": …, "correlationKeys": [ … ] }` |
 | `PUT /v1/conversations/{agent}/{id}` | Register or rename a conversation (Claude Code `SessionStart`) |
 | `POST /v1/conversations/{agent}/{id}/progress` | The conversation moved on (§7.6) |
 | `POST /v1/presence/focus` | `{ "focused": true }` from the Shortcuts automation |
 
-**No answer route for senders.** The sender token can post, wait and resolve, but cannot answer or list messages: an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
+**No answer route for senders.** The sender token can post, wait, rescind and report progress, but cannot answer or list messages (rescinding never answers): an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
 
 **`Host` check.** On TCP, `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; on the Unix socket it is not checked (clients send `Host: localhost` or nothing).
 
@@ -305,7 +344,7 @@ sequenceDiagram
   participant H as Claude Code hook
   participant N as Hub
   participant U as You (Mac or phone)
-  H->>N: POST /v1/messages (action_blocking, awaitsResponse)
+  H->>N: POST /v1/messages (decision_required, blocking, awaitsResponse)
   N-->>H: 201 {id, shouldWait: true}
   N->>U: popup + notification (+ phone, silent-then-ping)
   loop until answered or the hook's own deadline
@@ -317,9 +356,9 @@ sequenceDiagram
   H-->>H: print {"hookSpecificOutput": {"decision": {"behavior": "allow"}}}
 ```
 
-- **First answer wins.** The hub actor accepts the first answer and resolves the message; later answers (the other device, a re-tap) get 409 and the UI shows "Already answered on <channel>".
+- **First answer wins.** The hub actor accepts the first answer and closes the message; later answers (the other device, a re-tap) get 409 and the UI shows "Already answered on <channel>".
 - **Answer buttons need a live waiter** (§5.2). Without one, approve/deny/reply/choice are hidden (and disappear from an open popup when the waiter lapses) and only open, snooze and Mark done remain, so a button never pretends to do something.
-- **The hook cleans up.** Whenever it stops waiting without an answer it calls `POST /v1/messages/{id}/resolve` before printing nothing, so the popup closes as the agent's own prompt takes over.
+- **The hook cleans up.** Whenever it stops waiting without an answer it calls `DELETE /v1/messages/{id}` (`resolved_elsewhere`) before printing nothing, so the popup closes as the agent's own prompt takes over.
 - **Mapping for Claude Code `PermissionRequest`** (Phase 4): `approve` → `{"behavior": "allow"}`; `deny` → `{"behavior": "deny", "message": "Denied from Agent Notifier"}`; `reply` → `deny` with your text as `message`, which tells Claude what to do instead.
 - **Timeouts.** Command hooks default to a 600 s timeout and are cancelled at it, output discarded; no maximum is documented [CC-hooks › Common fields, Timeouts]. The hook sets its own deadline below its configured `timeout` and exits with no output, which leaves the permission flow unchanged [CC-hooks › PermissionRequest decision control].
 - **Fallback.** No answer by the deadline, `shouldWait: false`, hub unreachable, or any error → the hook prints nothing and Claude Code shows its own prompt. The notifier never decides on its own.
@@ -339,7 +378,7 @@ Common to both:
 
 - **Action tokens.** `base64url(payload) "." base64url(HMAC-SHA256(key, payload))`, payload = message id, action id, nonce, expiry. The key is 256-bit, per hub, in the Keychain (Mac) or a 0600 file (daemon). Expiry = min(message `expiresAt`, 30 min); the nonce is recorded on first use, so a replay is ignored and logged. Constant-time comparison. Tokens are not secret from Apple's push service or the ntfy server (they ride in the notification), which is why they are single-use, short-lived and bound to one message and action.
 - **Self-answers are refused.** Tokens are minted only by the hub and sent only to your phone; topic names, the ntfy credentials and the APNs key live in the Keychain, not in `config.toml`. An agent on the Mac can neither read a token nor forge one.
-- **Which actions go to the phone.** In the default `summary` payload mode the notification says what is needed (§10), so `approve`, `deny` (when not `destructive`), `choice` and `snooze` go out as buttons (at most 3 on ntfy). In `minimal` mode, and for `sensitive` messages, there are no answer buttons: you cannot read what you would approve. Never `destructive` actions.
+- **Which actions go to the phone.** In the default `summary` payload mode the notification says what is needed (§10), so the answers go out as buttons: `approve`, `deny` (when not `destructive`), `choice`, `done`, and `defer` on `deferrable` messages (at most 3 on ntfy; Defer takes priority over a second choice). Snooze is a notifier-local reminder and stays off the push buttons (ADR 0007). In `minimal` mode, and for `sensitive` messages, there are no answer buttons: you cannot read what you would approve. Never `destructive` actions.
 - **Feedback.** Once the token is redeemed, the hub replaces the notification (same collapse or sequence id) with a passive "Approved from phone".
 
 ## 10. Phone relay
@@ -358,12 +397,13 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 
 | Message | Title |
 | --- | --- |
-| `action_blocking` with an `approve` or `deny` action | URGENT: Action required |
-| `action_blocking` otherwise (question, elicitation, needs input) | URGENT: Your input is needed |
-| `action_nonblocking` with an `approve` or `deny` action | Action required |
-| `action_nonblocking` otherwise | Your input is needed |
-| `completion`, `scope: task` (default) | Task complete |
-| `completion`, `scope: goal` | Goal complete |
+| `decision_required` | Your input is needed |
+| `action_required` | Action required |
+| `task_completed`, `scope: task` (default) | Task complete |
+| `task_completed`, `scope: goal` | Goal complete |
+| `generic` | The message title (inbox only) |
+
+Prefixed with "URGENT: " when `urgent` is true (ADR 0007; the user's earlier rule tied the prefix to blocking items, to be confirmed).
 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
 - **Subtitle:** project · conversation title (Mac and the own iOS app; left out on the ntfy fallback).
@@ -386,7 +426,7 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 | --- | --- |
 | Topics | Notification topic (fallback delivery only) and answer topic: random 32-character base64url strings, generated at setup, kept in the Keychain; on servers without ACLs the topic acts as the password [ntfy-faq] |
 | Auth | `Authorization: Bearer tk_…` when the server has ACLs [ntfy-publish › Access tokens]; the token lives in the Keychain |
-| Priority (fallback) | Silent 2 (iOS: passive). Audible: `action_blocking` 5, others 3. On iOS 5 maps to Time Sensitive, 3 to Active, 1–2 to Passive [ntfy-ios NotificationContent.swift:44-68] |
+| Priority (fallback) | Silent 2 (iOS: passive). Audible: urgent 5, others 3. On iOS 5 maps to Time Sensitive, 3 to Active, 1–2 to Passive [ntfy-ios NotificationContent.swift:44-68] |
 | Sequence id (fallback) | The hub message id of the slot, so supersede and escalation update in place and resolve clears [ntfy-publish › Updating notifications] |
 
 **ntfy.sh or self-hosted.** Both are supported; ntfy.sh is the default because it needs no setup. With APNs delivery, ntfy.sh only ever sees action tokens, device registrations and the occasional project icon; with ntfy delivery it also sees the title phrase and summary (no end-to-end encryption, issue #69 [ntfy-gh-69]). A self-hosted server needs `upstream-base-url: https://ntfy.sh` for instant iOS delivery of the fallback [ntfy-config › iOS instant notifications].

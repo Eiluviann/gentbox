@@ -1,6 +1,6 @@
 # 0003 Message schema v1
 
-Status: Accepted, 2026-10-23
+Status: Accepted, 2026-10-23. Superseded in part by [0007](0007-message-type-urgency-blocking.md): `class` became `type`, `urgent` and `blocking`, and `resolves` became `rescinds`.
 
 ## Context
 

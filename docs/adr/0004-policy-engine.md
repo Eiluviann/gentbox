@@ -1,6 +1,6 @@
 # 0004 Policy engine and classification
 
-Status: Accepted, 2026-10-23
+Status: Accepted, 2026-10-23. Superseded in part by [0007](0007-message-type-urgency-blocking.md): the policy is keyed on `(type, urgent, blocking)` instead of the class, and classification fills each field separately. The pure-function design, timers and delivery log stand.
 
 ## Context
 

@@ -9,7 +9,8 @@
 		"title": "Rename the relay crate",
 		"cwd": "/Users/me/Developer/agent-notifier"
 	},
-	"class": "action_nonblocking",
+	"type": "decision_required",
+	"blocking": "non_blocking",
 	"event": "mcp.ask",
 	"title": "Which name for the relay trait?",
 	"summary": "I used Relay for now and kept going; tell me if you prefer another name",

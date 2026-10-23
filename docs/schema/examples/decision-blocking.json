@@ -17,7 +17,9 @@
 			}
 		}
 	},
-	"class": "action_blocking",
+	"type": "decision_required",
+	"urgent": false,
+	"blocking": "blocking",
 	"event": "claude-code.permission_request",
 	"title": "Allow Bash: cargo test -p notifier-ingest?",
 	"summary": "Claude Code wants to run a command in agent-notifier",
