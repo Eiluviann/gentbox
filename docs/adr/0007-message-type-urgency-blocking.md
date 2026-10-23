@@ -127,3 +127,13 @@ Permission prompts become `decision_required` + `blocking` + not urgent. That se
 - **Keep four classes and add more:** the combinations would multiply into names (`urgent_blocking_decision` …).
 - **A single `priority` number:** it hides whether the agent is waiting, which is what decides persistence and Defer.
 - **Snooze as an agent-visible answer:** it would overlap Defer and tell the agent something you did not mean to say.
+
+## Amendments
+
+- **2026-10-24: urgency is a badge, never a title prefix.** Asked "Should Mac banners and popups still start their title with URGENT:?", the user chose "Badge only". This supersedes the 2026-10-23 line above that made "URGENT:" the title prefix (kept for history). Urgency now shows as:
+  - the red urgent badge under the type icon, in popups, toasts, the inbox, the steps view and the iOS app;
+  - Time Sensitive delivery;
+  - quiet-hours and Focus breakthrough;
+  - sorting above non-urgent items.
+
+  Native notifications, which have no badge slot, lead the subtitle with "Urgent ·", before the blocking badge ("Urgent · Waiting on you · topic · thread"). The type's title phrase is never changed by urgency.

@@ -23,7 +23,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 
 | Key | Content | Budget |
 | --- | --- | --- |
-| `aps.alert.title` | The title phrase by type, "URGENT: " prefixed when urgent ("Your input is needed", "Task complete", …) | ~30 B |
+| `aps.alert.title` | The title phrase by type, never prefixed ("Your input is needed", "Task complete", …); urgency leads `aps.alert.subtitle` with "Urgent ·" | ~30 B |
 | `aps.alert.subtitle` | Project · conversation title | ≤ 120 B |
 | `aps.alert.body` | The message summary | ≤ 400 chars |
 | `aps.category` | `approval`, `question`, `choice`, `action`, `completion`, `info`, each with a `-defer` variant for `deferrable` messages | small |
@@ -131,3 +131,7 @@ Everything above works without a network path to the Mac. With Tailscale on both
 - [APNs-auth-required] UNNotificationActionOptions.authenticationRequired: https://developer.apple.com/documentation/usernotifications/unnotificationactionoptions/authenticationrequired
 - [NSE] Modifying content in newly delivered notifications: https://developer.apple.com/documentation/usernotifications/modifying-content-in-newly-delivered-notifications
 - [Content-ext] Customizing the appearance of notifications: https://developer.apple.com/documentation/usernotificationsui/customizing-the-appearance-of-notifications; NSExtensionContext.notificationActions: https://developer.apple.com/documentation/foundation/nsextensioncontext/notificationactions
+
+## Amendments
+
+- 2026-10-24: `aps.alert.title` carries no "URGENT:" prefix; urgency shows as Time Sensitive and "Urgent ·" leading the subtitle (ADR 0007 amendment of the same date).

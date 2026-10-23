@@ -34,7 +34,7 @@
 			"$ref": "#/$defs/messageType"
 		},
 		"urgent": {
-			"description": "True when the message should reach you now: Time Sensitive on the Mac and the phone, breaks through quiet hours and Focus, title prefixed with \"URGENT:\". Default false. Never true for `generic`.",
+			"description": "True when the message should reach you now: Time Sensitive on the Mac (and later the phone), breaks through quiet hours and Focus, shown with the red urgent badge and sorted above other messages. Never a title prefix (native notifications lead the subtitle with \"Urgent ·\"). Default false. Never true for `generic`.",
 			"type": "boolean"
 		},
 		"blocking": {

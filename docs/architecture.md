@@ -37,7 +37,7 @@ ADR: [0007](adr/0007-message-type-urgency-blocking.md). Three independent fields
 | | `action_required` | You must do something yourself outside the conversation, then say Done (sign in, add a key, review a pull request). Carries an action plan, `steps` (§5.6) |
 | | `task_completed` | Work finished; `scope: goal` marks the agent's overall objective |
 | | `generic` | Everything else, kept for reference |
-| `urgent` | `true`, `false` | Reach me now: Time Sensitive, breaks through quiet hours and Focus, "URGENT:" prefix |
+| `urgent` | `true`, `false` | Reach me now: Time Sensitive, breaks through quiet hours and Focus, red urgent badge, sorts to the top. Never a title prefix |
 | `blocking` | `non_blocking` | The agent keeps working and has planned for the answer to come later |
 | | `deferrable` | The agent has paused; you may Defer to let it continue with work that needs no input |
 | | `blocking` | Work cannot continue until you decide |
@@ -308,7 +308,7 @@ fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> Delive
 - `Policy`: settings from `config.toml` keyed on `(type, urgent, blocking)`, defaults below.
 - `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (`none`, `active`, `time_sensitive`), `sound` (bool), `phone` (`now(level)`, `silentThenPing { level, after }`, `silent`, `none`), `reping` (`after`, `max`) and `offerDefer` (bool).
 
-The three fields do separate jobs: **`type`** picks the surface and the title phrase, **`blocking`** drives persistence and escalation (popup, re-ping, Defer) and the blocking badge, **`urgent`** drives interruption (Time Sensitive, quiet hours and Focus breakthrough, the "URGENT:" prefix).
+The three fields do separate jobs: **`type`** picks the surface and the title phrase, **`blocking`** drives persistence and escalation (popup, re-ping, Defer) and the blocking badge, **`urgent`** drives interruption (Time Sensitive, quiet hours and Focus breakthrough, the urgent badge and sort order).
 
 Timers (re-ping, phone escalation, snooze, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered or rescinded in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
 
@@ -333,7 +333,9 @@ By blocking level (for `decision_required` and `action_required`) and type:
 | --- | --- | --- |
 | Native notification (Mac, iPhone) | Active | Time Sensitive |
 | Phone audible level | Active (ntfy fallback: priority 3) | Time Sensitive (ntfy fallback: priority 5) |
-| Title | Type phrase | "URGENT: " + type phrase (the only thing that sets the prefix) |
+| Title | Type phrase | Type phrase, unchanged: urgency never prefixes a title |
+| Urgent badge | None | Red urgent badge under the type icon (popups, toasts, inbox, steps view); native notifications, which have no badge slot, lead the subtitle with "Urgent ·" |
+| Sort order | By time | Above non-urgent items in the inbox, within its topic and thread, and in the popup stack |
 | Quiet hours | Mac silent, toasts and banners inbox-only; phone silent, no escalation | Breaks through: shown, audible, escalates |
 | Focus (Mac popups and toasts) | Popups silent, toasts inbox-only | Shown and audible |
 
@@ -487,12 +489,13 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 | `task_completed`, `scope: goal` | Goal complete |
 | `generic` | The message title (inbox only) |
 
-Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the user, 2026-10-23). The blocking level never changes the title; it shows as its own badge (below).
+No prefix: urgency never changes the title (the user's decision, 2026-10-24, replacing the 2026-10-23 "URGENT:" prefix rule; ADR 0007 amendment). Urgency shows as the urgent badge, and the blocking level as its own badge (below).
 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
 - **Subtitle:** topic title · thread title, leaving out a part that repeats the previous one and leaving out "General"; Mac and the own iOS app. On the ntfy fallback "topic · thread" leads the body instead. The topic cannot be shown on a stacked group: `summary-arg` is ignored since iOS 15, and a category summary format can only show a count (ADR 0009).
 - **Grouping:** APNs `thread-id` is the message's thread id (implicit threads included), so the lock screen and Notification Centre group a thread's notifications; Mac native notifications use the same thread identifier. Notifications already delivered keep their group after a takeover or a move.
-- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · topic · thread"); the ntfy fallback leads the body with it.
+- **Urgent badge:** a red badge under the type icon when `urgent` is true, in popups, toasts, the inbox, the steps view and the iOS app; urgent items also sort above the rest. Native notifications on the Mac and the iPhone have no badge slot: they are Time Sensitive and lead the subtitle with "Urgent ·"; the ntfy fallback leads the body with it.
+- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the urgent badge: an urgent blocking item shows both, a non-urgent one only this. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications lead the subtitle with it, after "Urgent ·" when both apply ("Urgent · Waiting on you · topic · thread"); the ntfy fallback leads the body with it.
 - **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.gentbox/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).
