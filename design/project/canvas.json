@@ -33,7 +33,7 @@
 		},
 		"mac-popover-empty.dc.html": {
 			"x": 1520,
-			"y": 2480,
+			"y": 3400,
 			"w": 460,
 			"h": 440,
 			"title": "Popover · all clear, quiet hours"
@@ -293,7 +293,7 @@
 		},
 		"mac-popover-item-menu.dc.html": {
 			"x": 1520,
-			"y": 1800,
+			"y": 2720,
 			"w": 460,
 			"h": 560,
 			"title": "Popover · item menu, mute and close"
@@ -311,6 +311,13 @@
 			"w": 390,
 			"h": 844,
 			"title": "iPhone · undo after a lock-screen action"
+		},
+		"mac-popover-steps.dc.html": {
+			"x": 1520,
+			"y": 1800,
+			"w": 460,
+			"h": 800,
+			"title": "Popover · action steps after Do it"
 		}
 	},
 	"order": [
@@ -318,6 +325,7 @@
 		"mac-menubar-icons.dc.html",
 		"mac-popover.dc.html",
 		"mac-popover-undo.dc.html",
+		"mac-popover-steps.dc.html",
 		"mac-popover-item-menu.dc.html",
 		"mac-popover-empty.dc.html",
 		"mac-blocking-popup.dc.html",

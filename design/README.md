@@ -30,6 +30,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 - **Outcomes afterwards**, the same tag on the Mac and the iPhone: "Approved on iPhone" (answered, with where), "Done on Mac" (done), "Deferred · agent working" (still open, now non-blocking), "Marked done, no answer" (dismissed), "Withdrawn · No longer needed" (rescinded, reason in words).
 - "URGENT:" follows the urgent flag only; the blocking label is separate, so the boards show an urgent item that does not block (the completed hotfix) and blocking items that are not urgent (the stacked Allow Edit).
 - **Titles are descriptive summaries, never commands.** A title says in plain words what the agent asks or did ("Allow Bash to run the ingest tests?", "Ingest auth accepts rotated tokens; 12 tests pass"), short enough for one line in the popover; the command, path or raw input only appears in a code box in the body, never in a title, row or notification line.
+- **Action plans.** Every action_required message carries an action plan: numbered steps saying how to do it. Its card and popup lead with **Do it**, which turns the whole popover into the plan; steps can be ticked off locally, and Done, Reply and Defer sit at the bottom (through the 3 s undo).
 - Icons are outline SF Symbols by default, never the filled variants.
 - Accent `#007AFF` is for controls only. Greys: `#F2F2F7` tracks, 1 px `#E0E0E0` borders, no box inside a box. Type is the system font.
 - **Gentbox mark** (menu bar and app icon): a custom symbol, `bubble.left` with a `>_` prompt; red dot and count while agents wait, slash in quiet hours or Focus. An inbox-tray variant was tried for the rename and dropped at the user's request.
@@ -41,7 +42,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | --- | --- | --- |
 | Mac | `Main` foundations | |
 | | `mac-menubar-icons` | |
-| | `mac-popover` next up: the blocked-on message as a full card, the rest as a two-line list, topic and thread as a breadcrumb | `mac-popover-undo` (actioned items held with a bar and Undo before sending), `mac-popover-item-menu` (mute and close from a message's menu), `mac-popover-empty` |
+| | `mac-popover` next up: the blocked-on message as a full card, the rest as a two-line list, topic and thread as a breadcrumb | `mac-popover-undo` (actioned items held with a bar and Undo before sending), `mac-popover-steps` (Do it opens the action plan), `mac-popover-item-menu` (mute and close from a message's menu), `mac-popover-empty` |
 | | `mac-blocking-popup` decision, waiting, urgent | `mac-blocking-stacked`, `mac-blocking-reply`, `mac-blocking-no-waiter`, `mac-popup-deferrable` (action, paused, Defer), `mac-popup-rescinded` (withdrawn transition and rows) |
 | | `mac-completion-toast` | |
 | | `mac-native-banner` decision, agent working | `mac-native-banner-expanded` |
@@ -72,7 +73,7 @@ None open. ADR 0007 settled Snooze (local) versus Defer (an answer), permission 
 
 Open: the undo window. `architecture.md` has the UI send answers straight to the hub actor, which closes the message on the first answer ("first answer wins"). Holding an answer for 3 s needs a decision on where the hold lives (in the app before the command is sent, or as a pending state in the hub), what the other device shows meanwhile, and what happens if it answers during the window (the held answer would then get 409 and show "Already answered on <channel>"). On iOS the hold also has to fit the background time an action response gets.
 
-Open: descriptive, summarising titles without commands, to be enforced by the architecture rather than by each surface (sent to the architecture session on 2026-10-23). `architecture.md` maps `PermissionRequest` to a `decision_required` message (§5) but does not say how its title is built. Proposed: the Claude Code adapter builds the title as "Allow <tool> to <purpose>?" from `tool_input.description` when present ("Allow <tool> to run a command?" otherwise) and always moves the raw command into the body as a code block; the MCP `post` tool documents that titles carry no commands, and the hub rejects or rewrites a title that does.
+Open: descriptive, summarising titles without commands, to be enforced by the architecture rather than by each surface (sent to the architecture session on 2026-10-23). Also sent: action_required messages must carry an action plan (ordered steps), which the steps view shows. `architecture.md` maps `PermissionRequest` to a `decision_required` message (§5) but does not say how its title is built. Proposed: the Claude Code adapter builds the title as "Allow <tool> to <purpose>?" from `tool_input.description` when present ("Allow <tool> to run a command?" otherwise) and always moves the raw command into the body as a code block; the MCP `post` tool documents that titles carry no commands, and the hub rejects or rewrites a title that does.
 
 ## Open design questions
 
