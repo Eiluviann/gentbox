@@ -7,7 +7,10 @@ use crate::error::StoreError;
 /// Every migration, in order, as `(version, SQL)`. Versions start at 1 and
 /// have no gaps. Add a migration by appending a file and a row; never edit one
 /// that has shipped.
-const MIGRATIONS: &[(u32, &str)] = &[(1, include_str!("migrations/0001_init.sql"))];
+const MIGRATIONS: &[(u32, &str)] = &[
+    (1, include_str!("migrations/0001_init.sql")),
+    (2, include_str!("migrations/0002_swept_messages.sql")),
+];
 
 /// The newest schema version this build knows.
 pub fn latest_version() -> u32 {

@@ -2,6 +2,7 @@
 //!
 //! The hub runs it at start and daily, passing `now`.
 
+use gentbox_core::ids::MessageId;
 use gentbox_core::lifecycle::LifecycleState;
 use rusqlite::params;
 use time::{Duration, OffsetDateTime};
@@ -12,6 +13,10 @@ use crate::repository::Repository;
 
 /// How long closed records are kept: 30 days, as architecture §5.2 says.
 pub const DEFAULT_RETENTION: Duration = Duration::days(30);
+
+/// How long the sweep remembers the ids of the messages it deleted, so a
+/// long-poll for one answers `gone` rather than "unknown": a year.
+pub const DEFAULT_SWEPT_ID_RETENTION: Duration = Duration::days(365);
 
 /// How long the sweep keeps what it may delete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +29,9 @@ pub struct RetentionPolicy {
     /// last change). The architecture says "the message retention period", so
     /// this defaults to the same value.
     pub group_retention: Duration,
+    /// The ids of deleted messages are remembered this long after the sweep
+    /// that deleted them ([`Repository::was_swept`]).
+    pub swept_id_retention: Duration,
 }
 
 impl Default for RetentionPolicy {
@@ -31,6 +39,7 @@ impl Default for RetentionPolicy {
         Self {
             message_retention: DEFAULT_RETENTION,
             group_retention: DEFAULT_RETENTION,
+            swept_id_retention: DEFAULT_SWEPT_ID_RETENTION,
         }
     }
 }
@@ -55,7 +64,9 @@ impl Repository<'_> {
     ///    closed before `now - message_retention`. Open and acknowledged
     ///    messages are never deleted, however old. A message that replaced
     ///    another one stays referenced: deleting the replaced message
-    ///    clears nothing else, deleting the successor clears the link.
+    ///    clears nothing else, deleting the successor clears the link. Each
+    ///    deleted id is remembered ([`Repository::was_swept`]) until
+    ///    `now - swept_id_retention`.
     /// 2. **Threads** with no messages that are closed, or implicit, and whose
     ///    last change (closing, for a closed one) is before
     ///    `now - group_retention`. A thread you muted is never deleted, so the
@@ -74,8 +85,22 @@ impl Repository<'_> {
     ) -> Result<SweepReport, StoreError> {
         let message_cutoff = to_nanos(now - policy.message_retention)?;
         let group_cutoff = to_nanos(now - policy.group_retention)?;
+        let swept_id_cutoff = to_nanos(now - policy.swept_id_retention)?;
+        let instant = to_nanos(now)?;
         self.atomically(|| {
             let closed_states = closed_state_list();
+            self.connection
+                .prepare_cached(
+                    "DELETE FROM swept_messages WHERE swept_at < ?1",
+                )?
+                .execute(params![swept_id_cutoff])?;
+            self.connection
+                .prepare_cached(&format!(
+                    "INSERT OR IGNORE INTO swept_messages (id, source_agent, closed_at, swept_at) \
+                 SELECT id, source_agent, closed_at, ?2 FROM messages WHERE state IN ({closed_states}) \
+                 AND closed_at IS NOT NULL AND closed_at < ?1"
+                ))?
+                .execute(params![message_cutoff, instant])?;
             let messages = self
                 .connection
                 .prepare_cached(&format!(
@@ -121,6 +146,17 @@ impl Repository<'_> {
                 conversations: count_of(conversations)?,
             })
         })
+    }
+}
+
+impl Repository<'_> {
+    /// Whether the retention sweep deleted this message (and still remembers
+    /// it): a long-poll for it answers `gone`, distinct from an unknown id.
+    pub fn was_swept(&self, id: &MessageId) -> Result<bool, StoreError> {
+        self.exists(
+            "SELECT 1 FROM swept_messages WHERE id = ?1",
+            params![id.as_str()],
+        )
     }
 }
 

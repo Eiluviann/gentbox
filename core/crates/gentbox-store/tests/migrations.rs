@@ -11,12 +11,12 @@ use support::{NOW, file_store, plain, seed_group};
 fn an_empty_file_is_migrated_to_the_latest_version() {
     let (directory, store) = file_store();
     assert_eq!(store.schema_version().unwrap(), latest_version());
-    assert_eq!(latest_version(), 1);
+    assert_eq!(latest_version(), 2);
     assert!(directory.path().join("gentbox.db").exists());
 }
 
 #[test]
-fn the_first_migration_creates_every_table() {
+fn the_migrations_create_every_table() {
     let (directory, _store) = file_store();
     let connection = Connection::open(directory.path().join("gentbox.db")).unwrap();
     let mut statement = connection
@@ -37,6 +37,7 @@ fn the_first_migration_creates_every_table() {
             "deliveries",
             "messages",
             "responses",
+            "swept_messages",
             "threads",
             "topics",
         ]
@@ -84,7 +85,7 @@ fn opening_a_file_twice_in_a_row_does_not_rerun_migrations() {
     let path = directory.path().join("gentbox.db");
     for _ in 0..3 {
         let store = Store::open(&path).unwrap();
-        assert_eq!(store.schema_version().unwrap(), 1);
+        assert_eq!(store.schema_version().unwrap(), latest_version());
     }
 }
 
@@ -102,7 +103,7 @@ fn a_file_from_a_newer_gentbox_is_refused() {
         error,
         StoreError::SchemaTooNew {
             found: 99,
-            supported: 1
+            supported: 2
         }
     ));
 }
@@ -121,4 +122,37 @@ fn a_file_database_runs_in_wal_mode() {
 fn an_in_memory_store_is_fully_migrated() {
     let store = Store::open_in_memory().unwrap();
     assert_eq!(store.schema_version().unwrap(), latest_version());
+}
+
+#[test]
+fn a_version_1_file_migrates_to_version_2_and_keeps_its_data() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("gentbox.db");
+    {
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch(include_str!("../src/migrations/0001_init.sql"))
+            .unwrap();
+        connection.pragma_update(None, "user_version", 1).unwrap();
+        connection
+            .execute(
+                "INSERT INTO topics (id, title, implicit, status, created_by_agent, created_at, \
+                 updated_at) VALUES ('kept', 'Kept', 0, 'open', 'a', 0, 0)",
+                [],
+            )
+            .unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), 2);
+    let topic = store
+        .repository()
+        .topic(&gentbox_core::ids::TopicId::new("kept"))
+        .unwrap();
+    assert_eq!(topic.title, "Kept");
+    assert!(
+        !store
+            .repository()
+            .was_swept(&gentbox_core::ids::MessageId::new("anything"))
+            .unwrap()
+    );
 }
