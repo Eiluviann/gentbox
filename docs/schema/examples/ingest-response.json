@@ -1,0 +1,22 @@
+{
+	"id": "01JBMA2W8R6T4Y2V0P8N6M4K2H",
+	"type": "decision_required",
+	"urgent": false,
+	"blocking": "blocking",
+	"fieldSources": {
+		"type": "declared",
+		"urgent": "default",
+		"blocking": "declared"
+	},
+	"topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD",
+	"threadId": "01JBM9P3H4S5E6J7N8G9E0S1TQ",
+	"state": "open",
+	"shouldWait": true,
+	"warnings": [
+		{
+			"code": "title_looks_like_command",
+			"field": "title",
+			"message": "The title looked like a command and was moved into the body; it now reads \"Allow Bash to run the ingest tests with output?\". Write titles as plain-word summaries."
+		}
+	]
+}

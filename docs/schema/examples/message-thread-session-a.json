@@ -23,8 +23,9 @@
 	"urgent": false,
 	"blocking": "blocking",
 	"event": "claude-code.permission_request",
-	"title": "Allow Bash: cargo test -p gentbox-ingest?",
-	"summary": "Run the ingest tests in gentbox",
+	"title": "Allow Bash to run the ingest tests with output?",
+	"summary": "gentbox: Run the ingest tests with output",
+	"body": "```bash\ncargo test -p gentbox-ingest -- --nocapture\n```\n\nWorking directory: `~/Developer/gentbox`",
 	"actions": [
 		{
 			"id": "allow",

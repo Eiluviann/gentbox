@@ -13,8 +13,9 @@
 	"urgent": true,
 	"blocking": "deferrable",
 	"event": "mcp.ask",
-	"title": "Sign in to npm so I can publish @gentbox/cli",
-	"summary": "Run npm login in a terminal, then tap Done. Defer if I should finish the changelog first",
+	"title": "Sign in to npm so I can publish the CLI package",
+	"summary": "Sign in to npm in a terminal, then tap Done. Defer if I should finish the changelog first",
+	"body": "Run this in any terminal, then tap Done:\n\n```bash\nnpm login\n```\n\nPackage: `@gentbox/cli`",
 	"actions": [
 		{
 			"id": "done",

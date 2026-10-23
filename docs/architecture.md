@@ -108,6 +108,7 @@ POST /v1/messages
   → idempotency (source.agent, idempotencyKey)  200 with the stored message
   → classify, per field                     declared → user rules → built-in rules → defaults → normalize
   → resolve topic and thread                topic: named → rule → conversation's latest → General; thread: named → rule → conversation default (§5.4)
+  → title guard                             commands, paths, URLs, raw input → body; descriptive title (§5.5)
   → coalesce / dedupe / supersede / rescind (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
@@ -117,8 +118,10 @@ POST /v1/messages
 Response body of `POST /v1/messages`:
 
 ```json
-{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD", "threadId": "01JBM9P3H4S5E6J7N8G9E0S1TQ", "state": "open", "shouldWait": true }
+{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD", "threadId": "01JBM9P3H4S5E6J7N8G9E0S1TQ", "state": "open", "shouldWait": true, "warnings": [] }
 ```
+
+The full shape is `$defs/ingestResponse` in the schema; `warnings` reports what the hub changed, such as a title the guard rewrote (§5.5).
 
 `id` is a ULID the hub assigns. It is the only message id in URLs and in `actionResponse.messageId`; the sender's `idempotencyKey` only deduplicates retries.
 
@@ -215,7 +218,7 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 
 | Hook event | `event` | `type` | `blocking` | Notes |
 | --- | --- | --- | --- | --- |
-| `PermissionRequest` | `claude-code.permission_request` | `decision_required` | `blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission:<agent_id or main>:<first 12 hex of SHA-256 of tool_name + tool_input>"` (the input has no `tool_use_id`), so parallel subagents' requests never supersede each other. Not `deferrable`: Claude Code cannot continue past a pending permission |
+| `PermissionRequest` | `claude-code.permission_request` | `decision_required` | `blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission:<agent_id or main>:<first 12 hex of SHA-256 of tool_name + tool_input>"` (the input has no `tool_use_id`), so parallel subagents' requests never supersede each other. Not `deferrable`: Claude Code cannot continue past a pending permission. Title built by the adapter, never from raw input: "Allow Bash to <description>?", "Allow editing <file name>?", "Allow fetching a page from <host>?", "Allow <Server> to <tool in words>?"; the command or input goes in the body (§5.5) |
 | `Notification` `permission_prompt` | `claude-code.notification.permission_prompt` | `decision_required` | `blocking` | No waiter; folds into a live-waiter blocking item as a repeat (§7.3). Stands alone for sandbox network prompts, which have no `PermissionRequest` |
 | `Notification` `elicitation_dialog` | `claude-code.notification.elicitation_dialog` | `decision_required` | `blocking` | Answer in the session; `open` action only |
 | `Notification` `elicitation_url_dialog` | `claude-code.notification.elicitation_url_dialog` | `action_required` | `blocking` | You open a URL and act there |
@@ -224,7 +227,7 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 | `Notification` `idle_prompt` | `claude-code.notification.idle_prompt` | `generic` | — | Fires 60 s after a response with no typing, after the `Stop` already notified you; a reminder, not a new ask. `correlationKey = "idle"`; rescinded by progress |
 | `Notification` `agent_completed` | `…agent_completed` | `task_completed` | — | |
 | `Notification` `auth_success`, `elicitation_complete`, `elicitation_response`, `quota_auto_resume_fired`, `quota_auto_resume_disabled`, `plugin_notification` | `…<type>` | `generic` | — | |
-| `Stop`, `background_tasks` empty | `claude-code.stop` | `task_completed` | — | Summary from `last_assistant_message` (first 400 chars) |
+| `Stop`, `background_tasks` empty | `claude-code.stop` | `task_completed` | — | Title: the first sentence of `last_assistant_message`, summary: the next ones, both through the title guard; fallback "Claude Code finished a task in <project>" |
 | `Stop`, `background_tasks` non-empty | `claude-code.stop.paused` | `generic` | — | The session waits on its own background work; not done yet |
 | `StopFailure` | `claude-code.stop_failure` | `action_required` | `blocking` | The turn ended on an API error; retry in the session |
 | `SubagentStop` | `claude-code.subagent_stop` | `generic` | — | |
@@ -247,6 +250,17 @@ ADRs: [0008](adr/0008-topics.md) (topics), [0009](adr/0009-threads.md) (threads,
 - **Close:** closing a topic closes its open threads (and reopening it reopens those); open messages stay unless `rescindOpenMessages: true`. A message to a closed thread reopens it and its topic.
 - **For you:** mute, mark read, close and reopen at both levels (a muted topic mutes its threads); move a thread or a message.
 - **Inbox:** topic → thread → messages; each message row shows its conversation. A simple conversation shows as General → its thread. Closed topics and threads move to a Closed section.
+
+### 5.5 Titles are descriptive summaries
+
+ADR: [0010](adr/0010-descriptive-titles.md).
+
+- **Rule:** `title` and `summary` say in plain words what the agent asks or did ("Allow Bash to run the ingest tests?", "Ingest auth accepts rotated tokens; 12 tests pass"). Commands, paths, URLs and raw tool input go only in `body`, which surfaces show as code boxes. The same holds for conversation, topic and thread titles.
+- **Enforced once, in the hub:** the **title guard** (a pure function in `gentbox-core`) flags text with code marks, shell operators, flags, paths, environment assignments, URLs, JSON, or a leading command name with arguments (the exact list is in ADR 0010).
+- **On a flag** (default `rewrite` mode): the message title moves to the top of the body as "Original title" and is replaced by the summary's first sentence when that passes, else by a fallback phrase from the message's fields and project ("Claude Code needs your decision in gentbox"); a flagged summary moves to the body and is dropped; a flagged conversation title is ignored; explicit topic and thread creates answer 422, inline ones fall back to the key in words. The response's `warnings` says what changed, and the delivery log records it.
+- **Strict mode** per source (`titleGuard = "reject"`) answers 422 `title_looks_like_command` instead: for adapters under development; never the default, because rejecting a blocking prompt strands the agent.
+- **Up front:** the Claude Code adapter builds titles from the hook input (table in §5.3) and never copies `tool_input` into a line; the MCP tools state the rule and pass the hub's warnings back to the model.
+- **Surfaces trust `title` and `summary` as-is** and never sanitise them.
 
 ## 6. Noise-policy engine
 
@@ -362,6 +376,8 @@ ADR: [0002](adr/0002-ingest-transport.md).
 **`Host` check.** On TCP, `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; on the Unix socket it is not checked (clients send `Host: localhost` or nothing).
 
 **Rate limits.** Token bucket per `source.agent`: burst 30, refill 1/s; per-conversation burst 10. Over the limit → 429 with `Retry-After`. Body limit 128 KiB.
+
+**Error codes.** 422 bodies carry a `code`: `schema_invalid` (with the JSON pointer), `invalid_combination`, `topic_conflict`, `title_looks_like_command` (strict mode, and explicit topic or thread creates).
 
 **Versioning.** `/v1/` in the path and `"version": 1` in the body. Additive optional fields stay in v1; anything else is v2 on a new path, served alongside v1 for at least one release.
 

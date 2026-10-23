@@ -65,6 +65,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Topics and threads (ADRs 0008, 0009).** The topic and thread models (`kind` hints, `implicit`) and the resolution order: `thread.id` fixes both (conflicting `topic` → error); topic: named → rule → the conversation's latest default thread's topic → the agent's General topic; thread: named key (create on first use) → rule → the conversation's default thread in that topic (implicit, created on first use); the thread takeover by the first explicit `kind: "conversation"` thread; rule templates with `{project}`, `{agent}`, `{conversation}`; effective mute (topic or thread) in the policy (non-urgent → inbox only, `shouldWait: false`; urgent unaffected); topics and threads never coalesce. Tests: every resolution branch, a thread spanning two conversations, a conversation posting into two topics (one default thread per topic), implicit General per agent, takeover (idempotent, only once, never by the inline form), rule precedence, `kind` never changing a decision, every `(type, urgent, blocking)` combination muted by topic, by thread, and not muted.
 
+**Title guard (ADR 0010).** `title_guard.rs`: the pure check over title, summary, conversation, topic and thread titles, and the rewrite (original into the body as a code box, summary's first sentence or the fallback phrase per type and project, key-to-words for inline topics and threads). Tests: a table of at least 40 strings, each heuristic positive and negative (flags vs hyphenated words, paths vs `and/or` and bare file names, versions, URLs, JSON, `npm login` vs "Cargo tests pass"), every rewrite branch, and that no rewritten title or summary ever fails the guard.
+
 ## PR 2a · `gentbox-store`
 
 **Scope.** SQLite persistence for messages, conversations, actions, responses, deliveries and the action-token ledger; migrations; retention sweep.
@@ -102,6 +104,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 **Acceptance.** `gentboxd` runs on macOS and Linux CI; the `curl` script in the plan's verification section posts one message per type and blocking level and gets the expected fields back.
 
 **Topics and threads (ADRs 0008, 0009).** Topic routes (`POST /v1/topics`, `GET /v1/topics`, `GET`/`PATCH /v1/topics/{id}`, `POST /v1/topics/{id}/close|reopen|rescind`), thread routes (`POST /v1/threads`, `GET /v1/threads`, `GET`/`PATCH /v1/threads/{id}`, `POST /v1/threads/{id}/close|reopen|rescind`, `PUT /v1/threads/{id}/topic`), `PUT /v1/messages/{id}/thread`, and inline resolution in `POST /v1/messages`. Tests: concurrent upserts of one key create one topic or thread; 201 vs 200; listings return no messages; close with and without `rescindOpenMessages` (waiters get `rescinded`); a message to a closed thread reopens it and its topic; `topicId` and `threadId` in the 201 response; `PATCH` on implicit topics and threads answers 409; a thread move into a topic with the same key answers 409.
+
+**Title guard (ADR 0010).** The pipeline runs the guard after classification; `warnings` in the 201 response (`$defs/ingestResponse`); the per-source `titleGuard = "reject"` strict mode answering 422 `title_looks_like_command`; 422 on explicit topic and thread creates or PATCHes with a flagged title. Tests: a command title is rewritten with a warning and the original is first in the body; strict mode rejects it; a flagged conversation title is ignored.
 
 ## PR 3 · `gentbox-ffi` + macOS app shell
 
@@ -222,6 +226,8 @@ XCUITest smoke for inbox and detail.
 
 **Topics and threads (ADRs 0008, 0009).** MCP tools `create_topic`, `close_topic`, `create_thread` (with `kind` and a flag to stand for the current conversation) and `close_thread`, and `topic` and `thread` parameters on `notify` and `ask`; CLI `gentbox topic …`, `gentbox thread create|close|reopen|list|move`, and `--topic`/`--thread` on `send` and `ask`. Tests: Vitest for request building and the inline shortcuts.
 
+**Title guard (ADR 0010).** The `notify`, `ask`, `create_topic` and `create_thread` tool descriptions and `title` parameters state the rule with one good and one bad example, and the tool results pass the hub's `warnings` to the model verbatim. Tests: Vitest that warnings reach the tool result.
+
 ## PR 8 · Optional: Tailscale remote listener
 
 Only if the user wants full bodies beyond the push excerpt and the inbox history on the phone; it needs Tailscale on the Mac and the iPhone.
@@ -235,5 +241,6 @@ Only if the user wants full bodies beyond the push excerpt and the inbox history
 ## After Phase 3: Phase 4 inputs
 
 - **Spike S1** (first task of Phase 4): in a terminal CLI session, does Claude Code show its permission prompt while a `PermissionRequest` hook is still running? It decides whether the hook may wait long when you are at the terminal (architecture §11).
+- Title builders per hook event (architecture §5.3, ADR 0010), with Vitest tables: Bash with and without `description`, a `description` that itself fails the guard, Edit/Write paths reduced to file names, WebFetch hosts, MCP tool names in words, `Stop` titles from `last_assistant_message`; no raw `tool_input` ever in a title or summary, always in the body.
 - Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook resolving its own message whenever it stops waiting.
 - Packaging as a Claude Code plugin (hooks + MCP), merged with the existing user hooks, never replacing them.

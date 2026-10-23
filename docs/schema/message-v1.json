@@ -47,18 +47,18 @@
 			"pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"
 		},
 		"title": {
-			"description": "One line shown in every channel. Plain text.",
+			"description": "A descriptive summary in plain words of what the agent asks or did, one line in every channel (e.g. \"Allow Bash to run the ingest tests?\", \"Ingest auth accepts rotated tokens; 12 tests pass\"). Never a command, path, URL or raw tool input: those go in `body`. The hub's title guard moves such text into the body and replaces the title, with a warning in the response (docs/adr/0010-descriptive-titles.md).",
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 120
 		},
 		"summary": {
-			"description": "Plain text: what is needed, or what was done. The description of every notification, on the Mac and on the phone (unless the phone payload mode is minimal or the message is sensitive), and the inbox row.",
+			"description": "Plain text: what is needed, or what was done, in plain words. The description of every notification, on the Mac and on the phone (unless the phone payload mode is minimal or the message is sensitive), and the inbox row. Same rule as `title`: no commands, paths, URLs or raw input; the hub's title guard moves them into `body`.",
 			"type": "string",
 			"maxLength": 400
 		},
 		"body": {
-			"description": "Markdown shown in the conversation detail and the rich popup. In the `summary` payload mode an excerpt trimmed to the 4 KB push budget goes to the own iOS app over APNs (ADR 0006); never to the ntfy fallback.",
+			"description": "Markdown shown in the conversation detail and the rich popup. In the `summary` payload mode an excerpt trimmed to the 4 KB push budget goes to the own iOS app over APNs (ADR 0006); never to the ntfy fallback. The place for commands, paths, URLs and raw tool input, rendered as code boxes.",
 			"type": "string",
 			"maxLength": 65536
 		},
@@ -421,7 +421,8 @@
 				},
 				"title": {
 					"type": "string",
-					"maxLength": 120
+					"maxLength": 120,
+					"description": "Descriptive conversation title; one that looks like a command or raw input is ignored by the hub (ADR 0010)."
 				},
 				"cwd": {
 					"description": "Working directory. Shown as the project name; never sent to the phone.",
@@ -829,6 +830,83 @@
 					"description": "How many conversations have posted into it.",
 					"type": "integer",
 					"minimum": 0
+				}
+			}
+		},
+		"ingestResponse": {
+			"description": "Body of the 201 (or idempotent 200) response to POST /v1/messages.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"id",
+				"type",
+				"urgent",
+				"blocking",
+				"topicId",
+				"threadId",
+				"state",
+				"shouldWait"
+			],
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+				},
+				"type": {
+					"$ref": "#/$defs/messageType"
+				},
+				"urgent": {
+					"type": "boolean"
+				},
+				"blocking": {
+					"$ref": "#/$defs/blockingLevel"
+				},
+				"fieldSources": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"topicId": {
+					"type": "string",
+					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+				},
+				"threadId": {
+					"type": "string",
+					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+				},
+				"state": {
+					"type": "string",
+					"enum": ["open", "acknowledged"]
+				},
+				"shouldWait": {
+					"type": "boolean"
+				},
+				"warnings": {
+					"description": "Changes the hub made, for the sender to learn from (e.g. the title guard).",
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["code", "message"],
+						"properties": {
+							"code": {
+								"type": "string",
+								"enum": [
+									"title_looks_like_command",
+									"summary_looks_like_command",
+									"conversation_title_ignored",
+									"normalized"
+								]
+							},
+							"field": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							}
+						}
+					}
 				}
 			}
 		}
