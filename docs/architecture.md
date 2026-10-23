@@ -161,7 +161,7 @@ stateDiagram-v2
   acknowledged --> acknowledged: deferred
   open --> answered
   acknowledged --> answered
-  open --> dismissed: Mark done
+  open --> dismissed: cleared
   acknowledged --> dismissed
   open --> rescinded: sender, supersede, completion, progress
   acknowledged --> rescinded
@@ -177,13 +177,13 @@ stateDiagram-v2
 - `acknowledged`: you have seen it. No re-ping, no badge, still answerable. With `snoozedUntil` set it is hidden from the inbox's open list until then, and returns to `open` with one re-ping when the time passes.
 - **Deferred** is not a state: Defer on a `deferrable` message records `deferredAt`, sets `blocking` to `non_blocking` and re-runs the policy (the popup closes, re-pings stop); the message stays open or acknowledged and still awaits the real answer.
 - `answered`: an answer action was taken (`approve`, `deny`, `choice`, `reply`, `done`).
-- `dismissed`: you chose "Mark done" without answering.
+- `dismissed`: you cleared the message from the inbox without answering. An `action_required` message is never cleared: it is closed with Done.
 - `rescinded`, with a reason: `resolved_elsewhere`, `obsolete` or `superseded` (§7).
 - `expired`: `expiresAt` passed while open or acknowledged.
 
 Closing a popup or a notification only acknowledges.
 
-**Answers and non-answers.** `approve`, `deny`, `choice`, `reply` and `done` are answers: the first one closes the message as `answered` and wakes the waiter. `defer` is an answer that does not close (above). `open` and `snooze` are non-answers: `open` acknowledges and brings the conversation forward, `snooze` acknowledges with `snoozedUntil = now + value` minutes (default 15). Neither is ever returned to a waiting sender.
+**Answers and non-answers.** `approve`, `deny`, `choice`, `reply` and `done` are answers: the first one closes the message as `answered` and wakes the waiter. `defer` is an answer that does not close (above). **Done is always offered on `action_required`, with or without a live waiter:** with one the agent hears it at once; without one it closes the item locally and records the answer, so the agent's next poll returns `answered` with `actionKind: done`. `open` and `snooze` are non-answers: `open` acknowledges and brings the conversation forward, `snooze` acknowledges with `snoozedUntil = now + value` minutes (default 15). Neither is ever returned to a waiting sender.
 
 **Live waiter.** A message has a live waiter while a long-poll for it is in flight or ended less than 10 s ago (the gap between two polls). `awaitsResponse` only declares the intent; it is the live waiter that counts everywhere below (answer buttons, supersede, implicit rescinds). A sender that stops waiting (deadline, error, fallback to its own prompt) rescinds its message with `DELETE /v1/messages/{id}` (`resolved_elsewhere`); if it dies without doing so, the waiter lapses after 10 s and the message becomes an ordinary item that completion or progress can rescind.
 
@@ -231,7 +231,7 @@ override = true
 [[rule]]
 name = "Mute auth success"
 match = { event = "claude-code.notification.auth_success" }
-mute = true          # stored as generic, never shown outside the inbox history
+mute = true          # routed like a muted topic: non-urgent to the inbox only, urgent still breaks through; type, urgent and blocking are unchanged
 ```
 
 Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute`, `topic` and `thread`, the last two as templates with `{project}` (working-directory name), `{agent}` and `{conversation}` placeholders, e.g. `topic = { key = "project:{project}", title = "{project}", kind = "project" }`; only for what the message did not name. Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
@@ -439,7 +439,7 @@ sequenceDiagram
 ```
 
 - **First answer wins.** The hub actor accepts the first answer and closes the message; later answers (the other device, a re-tap) get 409 and the UI shows "Already answered on <channel>".
-- **Answer buttons need a live waiter** (§5.2). Without one, approve/deny/reply/choice are hidden (and disappear from an open popup when the waiter lapses) and only open, snooze and Mark done remain, so a button never pretends to do something.
+- **Answer buttons need a live waiter** (§5.2). Without one, approve/deny/reply/choice and Defer are hidden (and disappear from an open popup when the waiter lapses) and only open and snooze remain, plus Done on an `action_required` message, which closes the item locally and records `done` for a later poll, so a button never pretends to do something it cannot.
 - **The hook cleans up.** Whenever it stops waiting without an answer it calls `DELETE /v1/messages/{id}` (`resolved_elsewhere`) before printing nothing, so the popup closes as the agent's own prompt takes over.
 - **Mapping for Claude Code `PermissionRequest`** (Phase 4): `approve` → `{"behavior": "allow"}`; `deny` → `{"behavior": "deny", "message": "Denied from Gentbox"}`; `reply` → `deny` with your text as `message`, which tells Claude what to do instead.
 - **Timeouts.** Command hooks default to a 600 s timeout and are cancelled at it, output discarded; no maximum is documented [CC-hooks › Common fields, Timeouts]. The hook sets its own deadline below its configured `timeout` and exits with no output, which leaves the permission flow unchanged [CC-hooks › PermissionRequest decision control].

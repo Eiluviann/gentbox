@@ -1,0 +1,41 @@
+# The core is pure: no clock, no IO, no environment, no processes, no threads.
+# `tests/purity.rs` scans the source as a backstop; these rules resolve paths,
+# so `use std::{env, fs};` cannot slip past them.
+
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "no clock: time is passed in as data" },
+    { path = "std::time::Instant::now", reason = "no clock: time is passed in as data" },
+    { path = "time::OffsetDateTime::now_utc", reason = "no clock: time is passed in as data" },
+    { path = "time::UtcDateTime::now", reason = "no clock: time is passed in as data" },
+    { path = "std::fs::read", reason = "no IO in the core" },
+    { path = "std::fs::read_to_string", reason = "no IO in the core" },
+    { path = "std::fs::read_dir", reason = "no IO in the core" },
+    { path = "std::fs::write", reason = "no IO in the core" },
+    { path = "std::fs::create_dir_all", reason = "no IO in the core" },
+    { path = "std::fs::remove_file", reason = "no IO in the core" },
+    { path = "std::fs::metadata", reason = "no IO in the core" },
+    { path = "std::fs::File::open", reason = "no IO in the core" },
+    { path = "std::fs::File::create", reason = "no IO in the core" },
+    { path = "std::env::var", reason = "no environment in the core: pass values in" },
+    { path = "std::env::var_os", reason = "no environment in the core: pass values in" },
+    { path = "std::env::vars", reason = "no environment in the core: pass values in" },
+    { path = "std::env::current_dir", reason = "no environment in the core: pass values in" },
+    { path = "std::env::home_dir", reason = "no environment in the core: pass values in" },
+    { path = "std::process::Command::new", reason = "no processes in the core" },
+    { path = "std::process::exit", reason = "no processes in the core" },
+    { path = "std::thread::sleep", reason = "no clock and no threads in the core" },
+    { path = "std::thread::spawn", reason = "no threads in the core" },
+    { path = "std::io::stdin", reason = "no IO in the core" },
+    { path = "std::io::stdout", reason = "no IO in the core" },
+    { path = "std::io::stderr", reason = "no IO in the core" },
+]
+
+disallowed-types = [
+    { path = "std::time::SystemTime", reason = "no clock: time is passed in as data" },
+    { path = "std::time::Instant", reason = "no clock: time is passed in as data" },
+    { path = "std::fs::File", reason = "no IO in the core" },
+    { path = "std::net::TcpStream", reason = "no IO in the core" },
+    { path = "std::net::TcpListener", reason = "no IO in the core" },
+    { path = "std::net::UdpSocket", reason = "no IO in the core" },
+    { path = "std::process::Command", reason = "no processes in the core" },
+]

@@ -1,0 +1,75 @@
+# Built-in rules: the Claude Code mapping of docs/architecture.md §5.3.
+# Applied after the user's rules.toml; each rule fills only the fields still
+# missing. `urgent` is false unless a user rule says otherwise.
+
+[[rule]]
+name = "Claude Code permission request"
+match = { event = "claude-code.permission_request" }
+type = "decision_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code permission prompt"
+match = { event = "claude-code.notification.permission_prompt" }
+type = "decision_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code elicitation dialog"
+match = { event = "claude-code.notification.elicitation_dialog" }
+type = "decision_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code elicitation URL dialog"
+match = { event = "claude-code.notification.elicitation_url_dialog" }
+type = "action_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code agent needs input"
+match = { event = "claude-code.notification.agent_needs_input" }
+type = "decision_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code quota auto-resume stale"
+match = { event = "claude-code.notification.quota_auto_resume_stale" }
+type = "action_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code idle prompt"
+match = { event = "claude-code.notification.idle_prompt" }
+type = "generic"
+
+[[rule]]
+name = "Claude Code agent completed"
+match = { event = "claude-code.notification.agent_completed" }
+type = "task_completed"
+
+[[rule]]
+name = "Claude Code informational notification"
+match = { event = "claude-code.notification.{auth_success,elicitation_complete,elicitation_response,quota_auto_resume_fired,quota_auto_resume_disabled,plugin_notification}" }
+type = "generic"
+
+[[rule]]
+name = "Claude Code stop"
+match = { event = "claude-code.stop" }
+type = "task_completed"
+
+[[rule]]
+name = "Claude Code stop with background work"
+match = { event = "claude-code.stop.paused" }
+type = "generic"
+
+[[rule]]
+name = "Claude Code stop failure"
+match = { event = "claude-code.stop_failure" }
+type = "action_required"
+blocking = "blocking"
+
+[[rule]]
+name = "Claude Code subagent stop"
+match = { event = "claude-code.subagent_stop" }
+type = "generic"

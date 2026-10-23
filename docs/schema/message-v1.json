@@ -94,8 +94,9 @@
 			"$ref": "#/$defs/token"
 		},
 		"rescinds": {
-			"description": "Withdraws other open messages of the same conversation by correlation key, as part of sending this one. The same as POST /v1/conversations/{agent}/{id}/rescind.",
-			"$ref": "#/$defs/rescindRequest"
+			"description": "Withdraws other open messages of the same conversation by correlation key, as part of sending this one, so `correlationKeys` is required here. The same as POST /v1/conversations/{agent}/{id}/rescind.",
+			"$ref": "#/$defs/rescindRequest",
+			"required": ["reason", "correlationKeys"]
 		},
 		"sensitive": {
 			"description": "True when even the title must not leave the Mac. The phone then gets only the title phrase for the type, whatever the payload mode.",
@@ -545,7 +546,7 @@
 			]
 		},
 		"actionKind": {
-			"description": "Answers, returned to the waiting sender: approve and deny (fixed meaning), choice (returns its value), reply (returns free text), done (you did the thing an `action_required` message asked for), defer (only on `deferrable` messages: keep working on what needs no input; the message stays open as `non_blocking` and the hub adds this button by itself). The first answer other than defer closes the message. Non-answers, never returned: open (acknowledges and brings the conversation forward) and snooze (a local to Gentbox reminder after `value` minutes; tells the agent nothing).",
+			"description": "Answers, returned to the waiting sender: approve and deny (fixed meaning), choice (returns its value), reply (returns free text), done (you did the thing an `action_required` message asked for; always offered on those, and when no sender was waiting it is recorded, so a later poll returns `answered` with `actionKind` done), defer (only on `deferrable` messages: keep working on what needs no input; the message stays open as `non_blocking` and the hub adds this button by itself). The first answer other than defer closes the message. Non-answers, never returned: open (acknowledges and brings the conversation forward) and snooze (a local to Gentbox reminder after `value` minutes; tells the agent nothing).",
 			"type": "string",
 			"enum": [
 				"approve",
@@ -570,7 +571,7 @@
 					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
 				},
 				"status": {
-					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: you marked it done without answering. `rescinded`: withdrawn (see rescindReason). `expired`. On `dismissed`, `rescinded` and `expired` the sender falls back to its own prompt.",
+					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: cleared without an answer (never for `action_required`, which is closed with Done and reports `answered`). `rescinded`: withdrawn (see rescindReason). `expired`. On `dismissed`, `rescinded` and `expired` the sender falls back to its own prompt.",
 					"type": "string",
 					"enum": [
 						"pending",
