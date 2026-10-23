@@ -1077,7 +1077,7 @@ a.side-item { text-decoration: none; }
 
 /* Each thread section is ruled top and bottom; neighbouring sections share one line */
 .thread-row { border-top: 1px solid var(--line); padding-top: 8px; }
-.topic-row + .thread-row { border-top: 1px solid var(--line); }
+.topic-row + .thread-row { border-top: none; padding-top: 2px; }
 
 /* Nesting: notification rows sit on a slightly darker ground than their topic and thread rows */
 .row.in-thread { background: #f7f7f9; }
