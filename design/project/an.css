@@ -1063,8 +1063,9 @@ a.side-item { text-decoration: none; }
 .side-item.sub { padding-left: 32px; font-size: 12px; height: 24px; }
 
 /* Urgent items keep red edges so two urgent items in a row stay apart */
-.row.urgent-item { border-top: 1px solid rgba(215, 0, 21, 0.45) !important; border-bottom: 1px solid rgba(215, 0, 21, 0.45); }
-.row.urgent-item + .row { border-top-color: transparent; }
+/* one shared edge between neighbours: every urgent row draws its top edge, the row after the last one draws the bottom edge */
+.row.urgent-item { border-top: 1px solid rgba(215, 0, 21, 0.45) !important; }
+.row.urgent-item + .row:not(.urgent-item), .row.urgent-item + .thread-row, .row.urgent-item + .topic-row { border-top: 1px solid rgba(215, 0, 21, 0.45) !important; }
 .panel.urgent-item, .card.urgent-item { border-color: rgba(215, 0, 21, 0.55); }
 .ios a.irow.urgent-item, .ios .irow.urgent-item { box-shadow: inset 0 0 0 1px rgba(215, 0, 21, 0.45); }
 .tl-item.urgent-item { box-shadow: inset 0 0 0 1px rgba(215, 0, 21, 0.45); border-radius: 8px; }
