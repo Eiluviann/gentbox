@@ -72,14 +72,25 @@ pub fn stored(
     )
 }
 
-/// A stored message that awaits a response.
+/// A stored message that awaits a response. A decision carries one button of
+/// each answer kind, so every answer is one the message offers.
 pub fn awaiting(message_type: MessageType, urgent: bool, blocking: Blocking) -> Message {
-    stored(
-        message_type,
-        urgent,
-        blocking,
-        json!({ "awaitsResponse": true }),
-    )
+    let extra = if message_type == MessageType::DecisionRequired {
+        json!({ "awaitsResponse": true, "actions": decision_buttons() })
+    } else {
+        json!({ "awaitsResponse": true })
+    };
+    stored(message_type, urgent, blocking, extra)
+}
+
+/// Approve, deny, a choice and a reply.
+pub fn decision_buttons() -> Value {
+    json!([
+        { "id": "allow", "label": "Allow", "kind": "approve" },
+        { "id": "refuse", "label": "Deny", "kind": "deny" },
+        { "id": "pick-a", "label": "Option A", "kind": "choice", "value": "a" },
+        { "id": "other", "label": "Other…", "kind": "reply" }
+    ])
 }
 
 /// Every valid combination, as `(type, urgent, blocking)`.

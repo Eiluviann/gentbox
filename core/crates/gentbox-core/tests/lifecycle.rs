@@ -4,8 +4,9 @@ mod support;
 
 use gentbox_core::actions::{offered_actions, with_hub_actions};
 use gentbox_core::lifecycle::{
-    ActionError, DEFAULT_SNOOZE_MINUTES, Lifecycle, LifecycleEvent, LifecycleState,
-    ResolutionReason, TransitionError, apply_event, default_time_to_live, take_action, transition,
+    ActionError, ActionPress, DEFAULT_SNOOZE_MINUTES, Lifecycle, LifecycleEvent, LifecycleState,
+    ResolutionReason, TransitionError, apply_event, default_time_to_live, press_action,
+    take_action, transition,
 };
 use gentbox_core::message::{ActionKind, Blocking, MessageType};
 use gentbox_core::policy::{MacSurface, Policy, decide};
@@ -184,7 +185,6 @@ fn answers_close_the_message_and_reach_the_sender() {
         ActionKind::Deny,
         ActionKind::Choice,
         ActionKind::Reply,
-        ActionKind::Done,
     ] {
         let message = awaiting(MessageType::DecisionRequired, false, Blocking::Blocking);
         let outcome = take_action(&message, kind, NOW, None).unwrap();
@@ -491,4 +491,64 @@ fn answer_buttons_need_a_live_waiter_and_defer_only_while_deferrable() {
         .unwrap()
         .message;
     assert!(offered_actions(&closed, true).is_empty());
+}
+
+#[test]
+fn an_answer_the_message_does_not_offer_is_refused() {
+    // Approve on a completion, Done on a decision, a reply on a message
+    // without a reply button: none closes the message.
+    let cases = [
+        (
+            stored(
+                MessageType::TaskCompleted,
+                false,
+                Blocking::NonBlocking,
+                json!({}),
+            ),
+            ActionKind::Approve,
+        ),
+        (
+            stored(
+                MessageType::Generic,
+                false,
+                Blocking::NonBlocking,
+                json!({}),
+            ),
+            ActionKind::Deny,
+        ),
+        (
+            awaiting(MessageType::DecisionRequired, false, Blocking::Blocking),
+            ActionKind::Done,
+        ),
+        (
+            stored(
+                MessageType::DecisionRequired,
+                false,
+                Blocking::Blocking,
+                json!({ "awaitsResponse": true, "actions": [{ "id": "allow", "label": "Allow", "kind": "approve" }] }),
+            ),
+            ActionKind::Reply,
+        ),
+    ];
+    for (message, kind) in cases {
+        assert_eq!(
+            take_action(&message, kind, NOW, None),
+            Err(ActionError::UnknownAction),
+            "{kind:?} on {:?}",
+            message.message_type
+        );
+    }
+}
+
+#[test]
+fn a_defer_press_must_name_the_defer_button() {
+    let message = awaiting(MessageType::DecisionRequired, false, Blocking::Deferrable);
+    let mut press = ActionPress::of_kind(ActionKind::Defer);
+    press.action_id = Some("allow".to_owned());
+    assert_eq!(
+        press_action(&message, &press, NOW),
+        Err(ActionError::UnknownAction)
+    );
+    press.action_id = Some(gentbox_core::actions::DEFER_ACTION_ID.to_owned());
+    assert!(press_action(&message, &press, NOW).is_ok());
 }
