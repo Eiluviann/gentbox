@@ -13,7 +13,7 @@ Senders are hook scripts (short-lived processes, TypeScript or shell), an MCP se
 - **The sender token cannot answer.** It posts, long-polls, resolves and reports progress; it cannot answer or list messages, so an agent cannot approve its own prompt. Answers come from the in-process UI and the phone (per-action tokens); a CLI answer credential in the Keychain is Planned.
 - **Answers by long-poll**: `GET /v1/messages/{id}/response?wait=≤55`. The sender loops until its own deadline. The hub replies `pending` at the end of each wait, so no intermediary or client timeout ever sees a hung request.
 - `Host` header check on TCP (not on the socket), JSON-only content type, no CORS: a browser cannot use the port even if it guesses it.
-- A **separate remote listener** for the phone, bound only to the Tailscale address and off by default, serving only `/r/v1/…` routes (ADR 0005).
+- Phone answers do not use this transport: they come back through an ntfy answer topic the hub subscribes to (ADR 0005). A **separate remote listener**, bound only to a Tailscale address and off by default, is added only for the optional own iOS app (PR 6).
 
 ## Consequences
 

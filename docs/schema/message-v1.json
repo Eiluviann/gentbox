@@ -37,12 +37,12 @@
 			"maxLength": 120
 		},
 		"summary": {
-			"description": "Plain text shown as the native notification body and in the inbox row. Never sent to the phone in the default minimal payload.",
+			"description": "Plain text: what is needed, or what was done. The description of every notification, on the Mac and on the phone (unless the phone payload mode is minimal or the message is sensitive), and the inbox row.",
 			"type": "string",
 			"maxLength": 400
 		},
 		"body": {
-			"description": "Markdown shown in the conversation detail and the rich popup. Never sent to the phone relay in any payload mode; the own iOS app reads it over Tailscale.",
+			"description": "Markdown shown in the conversation detail and the rich popup. Never sent to the phone relay in any payload mode.",
 			"type": "string",
 			"maxLength": 65536
 		},
@@ -53,6 +53,11 @@
 			"items": {
 				"$ref": "#/$defs/action"
 			}
+		},
+		"scope": {
+			"description": "For completions: `task` (default) for one finished task, `goal` when the agent reached its overall objective. Picks the notification title (Task complete / Goal complete).",
+			"type": "string",
+			"enum": ["task", "goal"]
 		},
 		"awaitsResponse": {
 			"description": "True when the sender intends to long-poll /v1/messages/{id}/response. What counts is the live waiter (a poll in flight or ended under 10 s ago): answer buttons (approve, deny, choice, reply) are offered only while one exists.",

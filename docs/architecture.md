@@ -29,7 +29,6 @@ flowchart LR
     core[notifier-core<br/>classify · policy · lifecycle]
     store[(notifier-store<br/>SQLite)]
     relay[notifier-relay<br/>ntfy now · APNs later]
-    remote[remote action endpoint<br/>Tailscale only, off by default]
     ui[SwiftUI over notifier-ffi<br/>menu-bar inbox · popups · native notifications]
   end
   ntfy[(ntfy server<br/>ntfy.sh or self-hosted)]
@@ -40,8 +39,8 @@ flowchart LR
   ingest --> core --> store
   core --> ui
   core --> relay --> ntfy --> phone
-  phone -->|http action over Tailscale| remote --> core
-  phone -->|inbox over Tailscale| remote
+  phone -->|http action to the answer topic| ntfy
+  ntfy -.->|answer topic subscription| relay
 ```
 
 ## 3. Hub placement
@@ -68,16 +67,16 @@ The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/
 | --- | --- | --- | --- |
 | `notifier-core` | Now (PR 1) | Domain types (`Message`, `MessageClass`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
 | `notifier-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `notifier-core` |
-| `notifier-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter, payload modes, digest formatting. Knows nothing of the hub | `notifier-core` |
+| `notifier-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `notifier-core` |
 | `notifier-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `notifier-core`, `notifier-store`, `notifier-relay` (trait only) |
-| `notifier-ingest` | Now (PR 2b, remote routes PR 5) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `notifier-hub` |
+| `notifier-ingest` | Now (PR 2b; remote routes for the iOS app in PR 6) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `notifier-hub` |
 | `agent-notifierd` | Now (PR 2b) | Binary: config, lock, logging, signal handling; wires hub, ingest and the configured relay | `notifier-ingest`, `notifier-hub`, `notifier-relay` |
 | `notifier-ffi` | Now (PR 3) | UniFFI bindings for Swift. The only crate allowed `unsafe` (generated scaffolding); it has its own `[lints]` table | `notifier-hub`, `notifier-ingest`, `notifier-relay` |
 | `notifier-node` | Planned | napi-rs bindings for the Linux Electron client | as `notifier-ffi` |
 
 The graph is acyclic: core ← store, relay ← hub ← ingest ← binaries and bindings.
 
-**Concurrency.** A single hub actor (one `tokio` task in `notifier-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers (local and remote), the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede/resolve races impossible by construction rather than by locking.
+**Concurrency.** A single hub actor (one `tokio` task in `notifier-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers, redeemed phone answers, the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede/resolve races impossible by construction rather than by locking.
 
 **Platform sensing stays on the platform side.** Presence (frontmost app, idle seconds, screen locked, Focus) is read by Swift on the Mac and pushed into the core as `PresenceUpdate` commands; the daemon on Linux will read logind's idle hint (Planned). The core never calls platform APIs, so the policy engine stays a pure function with table tests.
 
@@ -213,26 +212,33 @@ fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> Delive
 
 - `PolicyContext`: presence (`away` = screen locked or idle ≥ `awayAfter`, frontmost bundle id), Focus on/off, quiet hours active, the conversation's open items, the clock.
 - `Policy`: per-class settings from `config.toml`, defaults below.
-- `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (bool), `sound` (bool), `phone` (`now(priority)`, `digest`, `none`), `reping` (`after`, `max`) and `phoneGrace` (delay before the phone push, cancelled if handled).
+- `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (bool), `sound` (bool), `phone` (`now(priority)`, `silentThenPing { priority, after }`, `silent`, `none`) and `reping` (`after`, `max`).
 
-Timers (re-ping, phone grace, digest flush, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
+Timers (re-ping, phone escalation, snooze, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
 
 ### 6.2 Defaults
 
-| Class | Mac | Phone (ntfy) |
+| Class | Mac | Phone |
 | --- | --- | --- |
-| `action_blocking` | Persistent rich popup until handled, plus a native notification and a sound. Re-ping every 5 min, at most 3 times, while `open` | Priority 5. Sent at once when you are away; when you are at the Mac, after a 2 min grace and only if still `open` |
-| `action_nonblocking` | Native banner and inbox | Digest: one push every 30 min with the count and the first titles, flushed early when you go away; never during quiet hours |
-| `completion` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Priority 3, only when you are away (locked, or idle ≥ 5 min) |
+| `action_blocking` | Persistent rich popup until handled, plus a native notification and a sound. Re-ping every 5 min, at most 3 times, while `open` | Silent-then-ping (below), audible priority 5 |
+| `action_nonblocking` | Native banner and inbox | Silent-then-ping, audible priority 3 |
+| `completion` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Silent-then-ping, audible priority 3 |
 | `generic` | Inbox only, silent | Never |
 
-Every cell is configurable per class (and per source, Planned). The phone grace for blocking items is a refinement of the plan's "immediate": at the Mac, the popup is in front of you and a simultaneous phone buzz is the noise this app exists to remove.
+**Silent-then-ping** (the user's rule, 2026-10-23):
+
+- **Mac in active use** (unlocked, input within `awayAfter`, default 5 min): the phone gets the notification at once but silently (ntfy priority 2: on iOS it lands in Notification Centre with no sound and no screen wake [ntfy-ios NotificationContent.swift:44-68]). If the message is still not addressed on any device 2 min later, it is republished at its audible priority and pings.
+- **Mac away** (locked, or idle ≥ `awayAfter`): the phone pings at once at the audible priority.
+- **Addressed** means acknowledged or resolved anywhere: answered on the Mac, the phone or in the session, the popup or notification closed, the conversation brought forward, or the message opened in the inbox.
+- **Noise guard.** Escalations that fall within 60 s of each other share one sound; the rest update silently.
+
+Every cell is configurable per class (and per source, Planned). With this rule a completion you ignore at the Mac also pings the phone after 2 min; turn the phone off for `completion` if that is too much.
 
 ### 6.3 Quiet hours and Focus
 
-- **Quiet hours** (a weekly schedule, default off). Mac: no sounds; toasts and banners become inbox-only. Phone: everything except `action_blocking` waits for the digest after quiet hours end. `action_blocking` breaks through by default (`quietHours.blockingBreaksThrough = true`).
+- **Quiet hours** (a weekly schedule, default off). Mac: no sounds; toasts and banners become inbox-only. Phone: everything stays silent (no escalation) except `action_blocking`, which breaks through by default (`quietHours.blockingBreaksThrough = true`).
 - **Focus.** macOS already filters our native notifications by the active Focus, and a Personal Team build cannot claim the Time Sensitive entitlement to break through (§11). Our own popups and toasts are not subject to Focus, so the engine treats Focus like quiet hours for them: blocking popups still appear but silently; toasts become inbox-only.
-- **How the hub learns Focus** (Spike S3, §11): a Shortcuts personal automation "When <Focus> turns on/off" runs `agent-notify focus on|off` (or opens `agentnotifier://focus?state=on`). Optional fallback behind Full Disk Access: read `~/Library/DoNotDisturb/DB/Assertions.json`. `INFocusStatusCenter` is not used: it needs the Communication Notifications entitlement, which free teams cannot claim.
+- **How the hub learns Focus** (Spike S3, §11). Preferred, because it needs no setup beyond one permission: read the active Focus automatically from `~/Library/DoNotDisturb/DB/` (`Assertions.json`, `ModeConfigurations.json`), which needs a one-time Full Disk Access grant and is undocumented, so S3 checks it on macOS 26 and the app watches for format changes. Fallback when that fails: a Shortcuts personal automation "When <Focus> turns on/off" running `agent-notify focus on|off`, set up once per Focus. `INFocusStatusCenter` is not used: it needs the Communication Notifications entitlement, which free teams cannot claim.
 
 ### 6.4 Frontmost suppression
 
@@ -248,7 +254,7 @@ Rules are applied in this order by the hub actor, one message at a time, so none
 2. **Supersede.** A message whose `correlationKey` matches an `open` or `acknowledged` message takes its slot: the old one resolves as `superseded`, the new one takes over its popup and native notification in place (same notification identifier, same ntfy sequence id). It does not re-ping unless its class is louder than the old one's. A live waiter of the old message gets `superseded`.
 3. **Fold.** A message with no live waiter never displaces one that has a live waiter: if its correlation key matches such a message, or it is a blocking message while the conversation has a blocking item with a live waiter, it is not stored as a new item and only increases that item's repeat counter.
 4. **Dedupe.** If the superseding message has the same class, title and summary as the old one and arrives within 10 s, it is dropped and only a repeat counter increases.
-5. **Completion resolves blocking items.** A `completion` resolves the conversation's `open`/`acknowledged` `action_blocking` messages that have no live waiter, with reason `completed`. A message with a live waiter stays open (the agent cannot have finished while it waits). `action_nonblocking` messages are left alone: questions that can wait must survive the end of the turn, or the digest would never show them.
+5. **Completion resolves blocking items.** A `completion` resolves the conversation's `open`/`acknowledged` `action_blocking` messages that have no live waiter, with reason `completed`. A message with a live waiter stays open (the agent cannot have finished while it waits). `action_nonblocking` messages are left alone: questions that can wait must survive the end of the turn.
 6. **Progress resolves.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) resolves, as `resolved_by_sender`, the conversation's `idle` item and its blocking items without a live waiter: something happened, so whatever they asked for was answered in the session. This covers a permission answered or denied in the terminal, where `PostToolUse` alone would not fire.
 7. **Explicit resolve.** `resolves: [keys]` on any message, or `POST /v1/messages/{id}/resolve`, closes those messages as `resolved_by_sender`.
 8. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest blocking item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
@@ -261,7 +267,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 - A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it.
 - The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
-- Remote listener, off by default (§9.3).
+- Remote listener for the own iOS app, off by default and only with Tailscale (§10, PR 6).
 
 **Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/AgentNotifier/API`, then `$XDG_STATE_HOME/agent-notifier/API` (`AGENT_NOTIFIER_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `HMAC-SHA256(token, nonce)`. The client sends its bearer token only after checking that proof, so a process of another user squatting on a port left behind by a crash learns nothing.
 
@@ -277,7 +283,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `POST /v1/conversations/{agent}/{id}/progress` | The conversation moved on (§7.6) |
 | `POST /v1/presence/focus` | `{ "focused": true }` from the Shortcuts automation |
 
-**No answer route for senders.** The sender token can post, wait and resolve, but cannot answer or list messages: an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone through the remote listener with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
+**No answer route for senders.** The sender token can post, wait and resolve, but cannot answer or list messages: an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
 
 **`Host` check.** On TCP, `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; on the Unix socket it is not checked (clients send `Host: localhost` or nothing).
 
@@ -296,7 +302,7 @@ sequenceDiagram
   participant U as You (Mac or phone)
   H->>N: POST /v1/messages (action_blocking, awaitsResponse)
   N-->>H: 201 {id, shouldWait: true}
-  N->>U: popup + notification (+ phone after grace)
+  N->>U: popup + notification (+ phone, silent-then-ping)
   loop until answered or the hook's own deadline
     H->>N: GET /v1/messages/{id}/response?wait=55
     N-->>H: {status: pending}
@@ -319,46 +325,57 @@ sequenceDiagram
 
 ### 9.3 Phone
 
-- The ntfy notification carries up to 3 buttons. On iOS only `view` and `http` actions exist [ntfy-ios Actions.swift]; `http` is sent by the phone itself (`URLSession`), so the target must be reachable from the phone [ntfy-ios ActionExecutor.swift].
-- The `http` action posts to the hub's **remote action endpoint**: `POST https://<mac>.<tailnet>.ts.net:<port>/r/v1/actions` with the action token in the body, never in the URL. The listener binds only to the Mac's Tailscale address (100.64.0.0/10 or the MagicDNS name) and is off until you turn it on in Settings.
-- **Action tokens.** `base64url(payload) "." base64url(HMAC-SHA256(key, payload))`, payload = message id, action id, nonce, expiry. The key is 256-bit, per hub, in the Keychain (Mac) or a 0600 file (daemon). Expiry = min(message `expiresAt`, 30 min); the nonce is recorded on first use, so a replay gets 409. Constant-time comparison.
-- **Self-answers are refused.** The remote listener rejects requests whose Tailscale source address is the hub's own node, so a process on the Mac cannot use it as a side door, and the ntfy topic and access token live in the Keychain, not in `config.toml`, so an agent cannot subscribe to the topic to read action tokens.
-- **Which actions go to the phone.** Never a one-tap answer you cannot read: in the default `minimal` payload mode the notification says only "Claude Code needs approval", so it carries no `http` answer buttons, only a `view` button (and the click URL) into the own iOS app's detail view, where you see what you approve. In `title` and `full` modes, where the notification shows what is asked, `approve`, `deny` (when not `destructive`), `choice` (at most 2) and `snooze` go out as `http` buttons, at most 3 in total. Never `reply` (no text input in ntfy), never `destructive` actions.
-- **Feedback.** ntfy on iOS gives no result for an `http` action and opens the ntfy app [ntfy-ios NotificationContent.swift:166]. The hub therefore republishes the same sequence id with "Approved from phone" (Spike S2: whether the iOS app honours updates is unverified).
+- The ntfy notification carries up to 3 buttons. On iOS only `view` and `http` actions exist [ntfy-ios Actions.swift]; `http` is sent by the phone itself (`URLSession`) [ntfy-ios ActionExecutor.swift].
+- **Answers travel back through ntfy; nothing reaches into the Mac.** Each `http` button posts to an **answer topic** on the same ntfy server, `POST https://ntfy.sh/<answerTopic>`, with the action token as the body. The hub keeps an outbound streaming subscription to that topic (`GET /<answerTopic>/json`, reconnecting with backoff) and redeems tokens as they arrive. No port is opened, no VPN is needed, and it works wherever the phone has internet. The answer topic is a second random 32-character secret; on a server with ACLs the button carries a write-only token for it in its `headers`.
+- **Action tokens.** `base64url(payload) "." base64url(HMAC-SHA256(key, payload))`, payload = message id, action id, nonce, expiry. The key is 256-bit, per hub, in the Keychain (Mac) or a 0600 file (daemon). Expiry = min(message `expiresAt`, 30 min); the nonce is recorded on first use, so a replay is ignored and logged. Constant-time comparison. Tokens are not secret from the ntfy server (they sit in the published button), which is why they are single-use, short-lived and bound to one message and action.
+- **Self-answers are refused.** Tokens are minted only by the hub and published only to the notification topic; both topic names and the ntfy credentials live in the Keychain, not in `config.toml`. An agent on the Mac can neither read a token nor forge one.
+- **Which actions go to the phone.** In the default `summary` payload mode the notification says what is needed (§10), so `approve`, `deny` (when not `destructive`), `choice` (at most 2) and `snooze` go out as `http` buttons, at most 3 in total. In `minimal` mode, and for `sensitive` messages, there are no answer buttons: you cannot read what you would approve. Never `reply` (no text input in ntfy), never `destructive` actions.
+- **Feedback.** ntfy on iOS gives no result for an `http` action and opens the ntfy app [ntfy-ios NotificationContent.swift:166]. Once the token is redeemed, the hub republishes the same sequence id with "Approved from phone" (Spike S2: whether the iOS app honours updates is unverified).
 
 ## 10. Phone relay
 
 ADR: [0005](adr/0005-ios-transport.md).
 
-**Relay trait** (`notifier-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`. Adapters: `ntfy` (Now), `apns` (Planned), `noop` (tests). Failures retry 3 times with backoff (1 s, 5 s, 30 s) and then show "Phone delivery failing" in the menu bar.
+**Relay trait** (`notifier-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`, `answers() -> Stream<ActionToken>`. Adapters: `ntfy` (Now; ntfy.sh by default, self-hosted supported), `pushover` (Planned option, ADR 0005), `apns` (Planned), `noop` (tests). Publish failures retry 3 times with backoff (1 s, 5 s, 30 s) and then show "Phone delivery failing" in the menu bar.
+
+**What a notification shows** (the user's spec, 2026-10-23; the same on the Mac's native notifications and the phone):
+
+| Message | Title |
+| --- | --- |
+| `action_blocking` with an `approve` or `deny` action | URGENT: Action required |
+| `action_blocking` otherwise (question, elicitation, needs input) | URGENT: Your input is needed |
+| `action_nonblocking` with an `approve` or `deny` action | Action required |
+| `action_nonblocking` otherwise | Your input is needed |
+| `completion`, `scope: task` (default) | Task complete |
+| `completion`, `scope: goal` | Goal complete |
+
+- **Description:** the message `summary`: what is needed, or what was done. Falls back to the message `title` when there is no summary. The message title and the project/conversation name appear as the Mac notification's subtitle and in popups; on the phone they are left out to keep it short.
+- **Icon:** the project icon by default, else the agent icon. The project icon is resolved by the hub from `conversation.cwd` (a per-project override in Settings, then `.agent-notifier/icon.png`, then common icon files the PR 4 work defines) and cached as a 256-px PNG; agent icons are bundled (Claude Code, Codex, a generic one). On the Mac popups and toasts show it, and native notifications carry it as an attachment thumbnail (the notification's app icon is always Agent Notifier's). On the phone the ntfy iOS app ignores ntfy's `icon` field but shows an image attachment as the thumbnail [ntfy-ios NotificationContent.swift:79-123]: agent icons are attached by URL from this public repository; a project icon is uploaded with the message (ntfy.sh keeps attachments 3 h), which shares only the icon itself with the ntfy server.
 
 **ntfy mapping.**
 
 | | ntfy field |
 | --- | --- |
-| Topic | Random 32-character base64url string, generated at setup; it acts as the password on servers without ACLs [ntfy-faq] |
+| Topics | Notification topic and answer topic: random 32-character base64url strings, generated at setup, kept in the Keychain; on servers without ACLs the topic acts as the password [ntfy-faq] |
 | Auth | `Authorization: Bearer tk_…` when the server has ACLs [ntfy-publish › Access tokens]; the token lives in the Keychain |
-| Priority | `action_blocking` 5, `completion` and digest 3. On iOS 5 maps to Time Sensitive (Critical if you enabled critical alerts in the ntfy app), 4 to Time Sensitive, 3 to Active [ntfy-ios NotificationContent.swift:44-68] |
+| Priority | Silent 2 (iOS: passive). Audible: `action_blocking` 5, others 3. On iOS 5 maps to Time Sensitive (Critical if you enabled critical alerts in the ntfy app), 4 to Time Sensitive, 3 to Active, 1–2 to Passive [ntfy-ios NotificationContent.swift:44-68] |
+| Escalation | Republish the same sequence id at the audible priority (Spike S2: does iOS re-alert on an update? If not, clear the silent one and publish a new message) |
 | Sequence id | The hub message id of the slot (kept across supersedes), so supersede updates and resolve clears the phone notification [ntfy-publish › Updating notifications] |
-| Click | Deep link into the own iOS app's detail view, when installed |
 | Markdown | Off: the iOS app has no markdown rendering in its source |
 
 **Payload modes** (Settings › Phone):
 
-- `minimal` (default): agent name and a class phrase only: "Claude Code needs approval", "Claude Code finished". No message title, no project, no body. The message title often contains the command or path being approved, and ntfy.sh is a third party.
-- `title`: adds the message title and the conversation title.
-- `full`: title and summary (never `body`, never `cwd`). Recommended only with a self-hosted ntfy server.
-- `sensitive: true` on a message forces `minimal`, whatever the mode.
+- `summary` (default, the user's choice): title phrase, summary, icon.
+- `minimal`: title phrase only, no answer buttons. For people who route through ntfy.sh and want it to learn nothing but "something happened".
+- `sensitive: true` on a message forces `minimal`, whatever the mode. `body` and `cwd` never go to the phone relay.
 
-Consequence: in `minimal` mode the phone answers only through the own iOS app (PR 6). Until it exists, approving from the phone needs `title` mode; `minimal` still pings you to go back to the Mac.
+**ntfy.sh or self-hosted.** Both are supported; ntfy.sh is the default because it needs no setup. With ntfy.sh, the summary and the action tokens pass through a third party (no end-to-end encryption, issue #69 open [ntfy-gh-69]). A self-hosted server keeps the content on your machine: instant iOS delivery then needs `upstream-base-url: https://ntfy.sh`, and only a poll request (message id and the SHA-256 of the topic URL) goes upstream; the phone fetches the content from your server, which it must be able to reach [ntfy-config › iOS instant notifications].
 
-**Limits that shape this** [ntfy-publish › Limitations]: message 4,096 bytes, title 1 KB; ntfy.sh allows 250 messages a day per visitor and a burst of 60 requests. The digest for `action_nonblocking` keeps a busy day far below that.
-
-**Self-hosted ntfy.** Instant iOS delivery needs `upstream-base-url: https://ntfy.sh`; only a poll request (message id and the SHA-256 of the topic URL) goes upstream, and the phone then fetches the content from your server, which it must be able to reach (for example over Tailscale) [ntfy-config › iOS instant notifications]. The text never transits ntfy.sh, which is why `full` is fine there.
+**Limits** [ntfy-publish › Limitations]: message 4,096 bytes, title 1 KB; ntfy.sh allows 250 messages a day per visitor and a burst of 60 requests. Silent-then-ping can publish a message twice; a busy day stays well below the cap.
 
 **Watch.** The Watch mirrors the iPhone's ntfy notifications (standard iOS behaviour for apps without a Watch app). Whether the `http` buttons work from the Watch is Spike S2.
 
-**Own iOS app** (PR 6). An inbox and detail viewer that talks to the remote listener over Tailscale with a device token issued by pairing (QR code in the Mac's Settings). It cannot receive push without APNs, so the ntfy app delivers the ping and the own app shows the detail and lets you reply with text. Transport is HTTPS with the Tailscale MagicDNS certificate (`tailscale cert`), which avoids App Transport Security exceptions; plain HTTP to a 100.x address would need an `NSExceptionDomains` entry, since ATS refuses IP-address connections by default from iOS 17 [ATS-local].
+**Own iOS app** (PR 6, optional). An inbox and detail viewer for full content and text replies. Unlike answers, it needs a network path from the phone to the Mac: Tailscale (a free VPN app that puts the phone and the Mac on one private network so they can reach each other from anywhere, without opening ports), with a device token issued by pairing (QR code in Settings) and HTTPS with the Tailscale MagicDNS certificate, which avoids App Transport Security exceptions [ATS-local]. It cannot receive push without APNs, so ntfy still delivers the ping. Nothing else in the design needs Tailscale.
 
 ## 11. Platform constraints and verified answers
 
@@ -369,14 +386,15 @@ Answers to the Phase 1 open questions, with sources (§13).
 - `INFocusStatusCenter` exists on macOS 12+ and reports only `isFocused: Bool?`, no Focus name; it is true only when a Focus is on and the app is not on that Focus's allowed list, and `nil` without authorisation [Apple-focus-doc].
 - It needs `NSFocusStatusUsageDescription` and the Communication Notifications entitlement [Apple-forum-685744]. Communication Notifications is not available to free (Personal Team) accounts on macOS or iOS [Apple-caps-macos, Apple-caps-ios]. **Not feasible on a Personal Team.** Claiming it without a profile gets the app killed at launch (restricted entitlement) [Vaultday signing.md › TN3125].
 - Time Sensitive Notifications is also paid-only [Apple-caps-macos], so our native notifications cannot break through Focus.
-- Chosen: Shortcuts Focus automation → `agent-notify focus on|off` (Spike S3: confirm macOS 26 Shortcuts offers the Focus trigger on the Mac; on the iPhone it does). Fallback: `Assertions.json` behind Full Disk Access, undocumented and unverified on current macOS [focus-cli].
+- Chosen (the user prefers no setup): read the active Focus from `~/Library/DoNotDisturb/DB/` behind a one-time Full Disk Access grant, undocumented and unverified on current macOS [focus-cli] (Spike S3). Fallback: a Shortcuts Focus automation → `agent-notify focus on|off` (S3 also confirms macOS 26 Shortcuts offers the Focus trigger on the Mac).
 - Idle seconds (`CGEventSourceSecondsSinceLastEventType`), screen lock (the `com.apple.screenIsLocked`/`screenIsUnlocked` distributed notifications, undocumented but long-standing) and the frontmost app (`NSWorkspace`) need no entitlement (unverified by a source; checked in PR 3).
 
 ### ntfy
 
 - Up to 3 action buttons per notification [ntfy-publish › Action buttons]; the iOS app takes at most 4 and only `view` and `http` [ntfy-ios].
 - `http` defaults to POST and supports `method`, `headers`, `body`, `clear` (clear only on success) [ntfy-publish › Send HTTP request]; on iOS the phone sends it directly, with no visible result, `clear` not implemented, and the tap opens the app [ntfy-ios ActionExecutor.swift, NotificationContent.swift].
-- Priorities 1–5 (min, low, default, high, max/urgent); iOS mapping in §10.
+- Priorities 1–5 (min, low, default, high, max/urgent); iOS mapping in §10, where 1–2 are passive (silent).
+- The iOS app ignores the `icon` field but shows image attachments as the notification thumbnail [ntfy-ios NotificationContent.swift:79-123].
 - ntfy.sh: anonymous use works with an unguessable topic; accounts and access tokens (`tk_…`) for ACLs; paid tiers raise limits and allow reserved topics [ntfy-publish, ntfy-config]. Self-hosted: `auth-file` + `auth-default-access: deny-all`, per-user topic ACLs and tokens [ntfy-config].
 - iOS instant delivery only through ntfy.sh's APNs/Firebase relay; self-hosted needs `upstream-base-url` [ntfy-config, ntfy-known-issues].
 - **Risk:** the ntfy FAQ calls the iOS app bare-bones and somewhat buggy with development paused, and known issues include notifications silently stopping until the subscription is re-added [ntfy-faq, ntfy-known-issues]. No end-to-end encryption (issue #69 open) [ntfy-gh-69]. See ADR 0005 for the contingency.
@@ -407,14 +425,14 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 | Threat | Mitigation |
 | --- | --- |
-| An agent approves its own permission prompt | The sender token cannot answer or list (§8); the remote listener refuses the hub's own Tailscale node; ntfy topic and token in the Keychain; Claude Code itself still evaluates deny rules after an allow [CC-hooks › PermissionRequest decision control] |
+| An agent approves its own permission prompt | The sender token cannot answer or list (§8); action tokens are minted only by the hub and published only to a topic whose name, like the ntfy credentials, lives in the Keychain; Claude Code itself still evaluates deny rules after an allow [CC-hooks › PermissionRequest decision control] |
 | Another user or a remote host posts messages | Ingest binds loopback only; Unix socket 0600 in a 0700 folder, preferred; bearer token 0600 (or the App Group container); TCP clients send the token only after the hub's challenge-response proof (§8) |
 | A web page in your browser posts to the loopback port (DNS rebinding, CSRF) | Bearer token required on every route but `hello`; `Host` must be `127.0.0.1:<port>` or `localhost:<port>` on TCP; no CORS headers, so browsers cannot read responses; `Content-Type: application/json` only |
 | A buggy agent floods you | Rate limits per agent and per conversation (§8); supersede and dedupe (§7); per-source mute rules |
 | Malicious content in a message | Markdown rendered without HTML, without remote images; links show their URL and need a click; `focus.url` limited to an allowlist of schemes; titles and summaries are plain text |
-| ntfy.sh (third party) reads notifications | `minimal` payload by default; `sensitive` forces it; full content only recommended with self-hosted ntfy; topic is a random 32-character secret; access token when ACLs exist |
-| Someone replays or forges a phone action | Remote endpoint off by default and bound to the Tailscale interface only; HMAC-signed, single-use, 30-min tokens bound to message and action; no secrets in URLs; destructive actions never one-tap |
-| A stolen phone answers | Tailscale device revocation; remote listener can be switched off; answers are logged with channel and device |
+| ntfy.sh (third party) reads notifications | By the user's choice it sees the title phrase, the summary, the icon and the action tokens, never `body` or `cwd`; `minimal` mode and `sensitive` messages reduce that to the phrase; a self-hosted server keeps content local; topics are random 32-character secrets; access token when ACLs exist; Pushover (end-to-end encrypted) is the alternative in ADR 0005 |
+| Someone replays or forges a phone action | HMAC-signed, single-use, 30-min tokens bound to message and action, so a token seen on the ntfy server is worth at most the one answer it encodes, and only before you give yours; no secrets in URLs; destructive actions never one-tap; no inbound port on the Mac |
+| A stolen phone answers | Rotate the topics in Settings (the old phone stops receiving and its buttons stop working); answers are logged with channel |
 | Secrets leak into logs or the store | Logs never contain bodies, tokens or `tool_input`; `metadata` is documented as non-secret; the token file is regenerated on demand from Settings |
 
 ## 13. Future paths
@@ -447,4 +465,4 @@ Answers to the Phase 1 open questions, with sources (§13).
 - [TN3179] Understanding local network privacy: https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy
 - [ATS-local] NSAllowsLocalNetworking: https://developer.apple.com/documentation/bundleresources/information-property-list/nsapptransportsecurity/nsallowslocalnetworking
 - [focus-cli] https://pkg.go.dev/github.com/legnoh/focus-cli
-- [Vaultday signing.md] `~/vaultday/docs/signing.md` (on Vaultday's PR branches), with TN3125 and the capabilities table
+- [Vaultday signing.md] the signing notes of the author's Vaultday project (private), which cite TN3125 and the capabilities table above

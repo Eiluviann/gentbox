@@ -8,4 +8,4 @@ One file per decision: context, decision, consequences, alternatives. A supersed
 | [0002](0002-ingest-transport.md) | Loopback HTTP + Unix socket, bearer token, long-poll for answers | Accepted |
 | [0003](0003-message-schema.md) | Message schema v1: camelCase JSON, sender-declared class, correlation keys | Accepted |
 | [0004](0004-policy-engine.md) | Pure, table-tested policy function; rules in TOML; no model | Accepted |
-| [0005](0005-ios-transport.md) | Phone push through ntfy now, APNs adapter later | Accepted |
+| [0005](0005-ios-transport.md) | Phone push through ntfy now (ntfy.sh default, answers via an answer topic), APNs adapter later | Accepted |

@@ -1,6 +1,6 @@
 # Implementation plan (Phase 3)
 
-The plan's seven PRs, refined against [`architecture.md`](architecture.md). PR 2 is split in two (store, then hub, ingest and daemon), a `notifier-hub` crate is added so the crate graph stays acyclic, pairing moves from the iOS PR into the relay PR (it is security code), and each PR names the spike it must close first. PR 0 (repo bootstrap) is done.
+The plan's seven PRs, refined against [`architecture.md`](architecture.md). PR 2 is split in two (store, then hub, ingest and daemon), a `notifier-hub` crate is added so the crate graph stays acyclic, phone answers come back through an ntfy answer topic (so PR 5 needs no inbound listener), the Tailscale listener and pairing move into the now optional iOS PR, and each PR names the spike it must close first. PR 0 (repo bootstrap) is done.
 
 Every PR passes, before merge:
 
@@ -25,11 +25,11 @@ Model column: the implementing session's `/model` and effort, per the routing ru
 | 2b | `notifier-hub` + `notifier-ingest` + `agent-notifierd`: hub actor, HTTP API, long-poll | 2a | Opus · high | — |
 | 3 | `notifier-ffi` + macOS app shell: menu-bar inbox, login item, presence | 2b | Opus · high | — |
 | 4 | Rich popups, native notifications, action round-trip, Focus endpoint | 3 | Sonnet · high | S3 |
-| 5 | `notifier-relay` ntfy adapter + Tailscale remote routes + pairing | 2b; its Settings pane after 4 | Opus · high | S2 |
-| 6 | iOS app: inbox and detail over Tailscale | 5 | Sonnet · high | — |
+| 5 | `notifier-relay` ntfy adapter, answer-topic subscription, action tokens, silent-then-ping | 2b; its Settings pane after 4 | Opus · high | S2 |
+| 6 | Optional: iOS app + Tailscale remote listener + pairing | 5 | Opus · high (listener, pairing), Sonnet · high (app) | — |
 | 7 | `agent-notify` CLI + stdio MCP server | 2b | Sonnet · medium | — |
 
-PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`). PR 5's Rust part (`notifier-relay`, the remote routes in `notifier-ingest`, token minting in `notifier-hub`) can too; its Mac Settings pane waits for PR 4, since both edit `apps/apple/AgentNotifier/`.
+PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`). PR 5's Rust part (`notifier-relay`, token minting and redemption in `notifier-hub`) can too; its Mac Settings pane waits for PR 4, since both edit `apps/apple/AgentNotifier/`.
 
 ## PR 1 · `notifier-core`
 
@@ -51,7 +51,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 **Tests.** Table-driven, one row each:
 
 - Classification: declared wins; user rule; `override = true` beats declared; built-in rule; fallback `generic`; `mute`; invalid TOML is an error value, not a panic.
-- Policy: every class × {present, away, locked} × {Focus off/on} × {quiet hours off/on}; blocking breakthrough setting; phone grace; frontmost suppression of completions.
+- Policy: every class × {present, away, locked} × {Focus off/on} × {quiet hours off/on}; blocking breakthrough setting; silent-then-ping (silent at once while the Mac is in use, escalation after 2 min if unaddressed, immediate when away); frontmost suppression of completions.
 - Coalescing: idempotency key; supersede in place; no re-ping unless louder; a message without a live waiter folds into one with a live waiter (same key, and blocking-into-blocking); dedupe within 10 s; completion resolves blocking items without a live waiter and leaves `action_nonblocking` alone; progress resolves `idle` and blocking items without a live waiter; `resolves`; parallel `permission:<agent>:<hash>` keys coexist.
 - Lifecycle: every allowed transition (including acknowledged → open when a snooze ends) and that every other one is rejected; `open` and `snooze` never resolve; the lifecycle → `actionResponse.status` table of architecture §5.2.
 - Action tokens: valid, expired, wrong message, wrong action, tampered payload, tampered MAC.
@@ -72,7 +72,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 ## PR 2b · `notifier-hub` + `notifier-ingest` + `agent-notifierd`
 
-**Scope.** Architecture §4, §5, §7, §8, §9.1: the hub actor in `notifier-hub` (commands, live-waiter tracking, timers for re-ping, grace, snooze, expiry and the digest flush hook for PR 5, dispatch to a `dyn Relay` and a UI delegate), the axum router on the Unix socket and loopback, sender-token auth, the challenge-response `hello`, `Host` check on TCP only, schema validation, rate limits, idempotency, long-poll with `watch`, `progress`, discovery files, the hub lock, the daemon binary. No answer route on the local router.
+**Scope.** Architecture §4, §5, §7, §8, §9.1: the hub actor in `notifier-hub` (commands, live-waiter tracking, timers for re-ping, phone escalation, snooze and expiry, dispatch to a `dyn Relay` and a UI delegate), the axum router on the Unix socket and loopback, sender-token auth, the challenge-response `hello`, `Host` check on TCP only, schema validation, rate limits, idempotency, long-poll with `watch`, `progress`, discovery files, the hub lock, the daemon binary. No answer route on the local router.
 
 **Files.**
 
@@ -113,7 +113,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Scope.** Architecture §6.2 Mac column, §7.7, §9.1, §9.2, §6.3: non-activating `NSPanel` persistent popups (stack of 3, "+N waiting"), transient toasts, `UNUserNotificationCenter` categories (approve, deny, reply with text input, open, snooze), sounds, re-ping, the "why this pinged" line, the open action (URL allowlist, then app activation), `POST /v1/presence/focus` and the `agentnotifier://focus` URL handler.
 
-**Spike S3 first.** Confirm that Shortcuts on macOS 26 offers a "When Focus turns on/off" personal automation that can run a shell command or open a URL. If not, ship the `Assertions.json` reader behind a Full Disk Access prompt and record the result in architecture §11.
+**Spike S3 first.** Automatic detection is preferred: check on macOS 26 that the active Focus can be read from `~/Library/DoNotDisturb/DB/` with Full Disk Access, and that changes can be watched. If it works, ship that reader with a one-time Full Disk Access prompt; if not, confirm that Shortcuts on macOS 26 offers a "When Focus turns on/off" automation that can run `agent-notify focus on|off` and ship that setup guide instead. Record the result in architecture §11.
 
 **Files.** `apps/apple/AgentNotifier/{Popups/, Toasts/, Notifications/, Actions/, Focus/}`.
 
@@ -121,27 +121,29 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** The plan's Mac verification items pass; answering from a native notification and from the popup both reach the waiting sender; late second answer shows "Already answered".
 
-## PR 5 · `notifier-relay` + remote endpoint + pairing
+## PR 5 · `notifier-relay` + phone answers
 
-**Scope.** Architecture §9.3, §10, §12: the `Relay` trait, ntfy adapter (publish, update by sequence id, clear, retries), payload modes and the phone action rules (no answer buttons in `minimal`), digest batching, the remote router in `notifier-ingest` bound to the Tailscale address and refusing the hub's own node, token minting and redemption in `notifier-hub` against the store's nonce ledger, device pairing (QR code with a device token for the iOS app), inbox, detail and answer routes for paired devices, the ntfy topic and token in the Keychain, and the Mac Settings pane for phone and Tailscale.
+**Scope.** Architecture §6.2 (phone column), §9.3, §10, §12: the `Relay` trait, the ntfy adapter (publish, update by sequence id, clear, retries, the answer-topic subscription with reconnect), the notification content (title phrases, summary, icon attachments: agent icons by URL, project icons uploaded), payload modes (`summary`, `minimal`, `sensitive`), silent-then-ping escalation, token minting and redemption in `notifier-hub` against the store's nonce ledger, topics and credentials in the Keychain, and the Mac Settings pane for the phone (ntfy.sh or self-hosted, QR code to subscribe the ntfy app, rotate topics).
 
-**Spike S2 first.** On the user's iPhone and Watch with the ntfy app: an `http` action reaches a Tailscale address; republishing the same sequence id updates the notification; `clear` removes it; buttons appear on the Watch and work there. Record results in architecture §11; if updates or Watch buttons fail, decide with the user whether to evaluate the Pushover adapter (ADR 0005 alternatives) before going on.
+**Spike S2 first.** On the user's iPhone and Watch with the ntfy app and ntfy.sh: an `http` button posting to an answer topic works; a priority-2 message arrives silently; republishing the same sequence id at priority 5 re-alerts (else: clear and publish anew); `clear` removes it; an image attachment shows as the thumbnail; buttons appear on the Watch and work there. Record the results in architecture §11; if delivery is unreliable, decide with the user whether to switch to the Pushover adapter (ADR 0005) before going on.
 
-**Files.** `core/crates/notifier-relay/src/{lib.rs, relay.rs, ntfy.rs, digest.rs, payload.rs}`, `core/crates/notifier-ingest/src/remote/{listener.rs, routes.rs, pairing.rs}`, `core/crates/notifier-hub/src/action_tokens.rs`, a mock ntfy server in `tests/`, `apps/apple/AgentNotifier/Settings/Phone*`.
+**Files.** `core/crates/notifier-relay/src/{lib.rs, relay.rs, ntfy.rs, answers.rs, content.rs, icons.rs, payload.rs}`, `core/crates/notifier-hub/src/{action_tokens.rs, escalation.rs}`, a mock ntfy server in `tests/`, `apps/apple/AgentNotifier/Settings/Phone*`.
 
-**Tests.** Payload modes (minimal never contains title, cwd or body and carries no `http` answer button; `body` never sent in any mode; `sensitive` forces minimal); priority mapping; digest timing; retries with backoff against the mock; tokens: valid, expired, wrong message, wrong action, tampered, replayed (409), constant-time compare used; requests from the hub's own Tailscale address refused; listener refuses to bind to anything but a 100.64.0.0/10 address or the configured MagicDNS name; pairing token revocation.
+**Tests.** Title phrase per class and action set (URGENT prefix only for blocking; Goal complete only for `scope: goal`); summary fallback to title; `minimal` and `sensitive` carry only the phrase and no answer button; `body` and `cwd` never sent; silent-then-ping: silent at once when the Mac is active, escalation after 2 min only if unaddressed, immediate audible when away, 60-s shared sound; priority mapping; retries with backoff against the mock; answer subscription reconnects; tokens: valid, expired, wrong message, wrong action, tampered, replayed (ignored and logged), constant-time compare used.
 
-**Acceptance.** End to end with the user's phone in `title` mode: blocking message pings with priority 5 when away, Approve on the phone reaches the waiting sender over Tailscale, replaying the same action is rejected. In `minimal` mode the notification shows no answer button.
+**Acceptance.** End to end with the user's phone on ntfy.sh: a blocking message arrives silently while the Mac is in use and pings 2 min later; Approve on the phone reaches the waiting sender through the answer topic; replaying the same token does nothing; with the Mac locked it pings at once.
 
-## PR 6 · iOS app
+## PR 6 · Optional: iOS app over Tailscale
 
-**Scope.** Inbox and detail viewer over the remote listener (HTTPS via the MagicDNS certificate), pairing by QR code, text reply and choice answers, deep link from the ntfy notification's click URL. Personal Team signing for iOS (7-day profile, weekly reinstall documented in `docs/signing.md`).
+Only if the user wants full content and text replies on the phone; it needs Tailscale on the Mac and the iPhone.
 
-**Files.** `apps/apple/AgentNotifierPhone/`, iOS target in `project.yml`, shared models in `NotifierCore` where possible (the iOS app does not embed the Rust hub; it is an HTTP client).
+**Scope.** The remote router in `notifier-ingest` bound to the Tailscale address (off by default; refuses the hub's own node), device pairing by QR code with revocable device tokens, inbox, detail and answer routes for paired devices; the iOS app (inbox, detail, reply and choice answers, deep link from the ntfy notification's click URL) over HTTPS with the MagicDNS certificate; Personal Team signing for iOS (7-day profile, weekly reinstall documented in `docs/signing.md`).
 
-**Tests.** XCTest for the API client against recorded fixtures; XCUITest smoke for inbox and detail.
+**Files.** `core/crates/notifier-ingest/src/remote/{listener.rs, routes.rs, pairing.rs}`, `apps/apple/AgentNotifierPhone/`, the iOS target in `project.yml`.
 
-**Acceptance.** Paired iPhone lists open messages, opens one from the ntfy notification, sends a reply that reaches the waiting sender.
+**Tests.** Listener refuses to bind to anything but a 100.64.0.0/10 address or the configured MagicDNS name; device token issue, use and revocation; XCTest for the API client against recorded fixtures; XCUITest smoke for inbox and detail.
+
+**Acceptance.** A paired iPhone lists open messages, opens one from the ntfy notification, and sends a reply that reaches the waiting sender.
 
 ## PR 7 · `agent-notify` CLI + stdio MCP server
 

@@ -18,12 +18,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-15-intel: the arm64 macOS runners (macos-latest) sat in the queue
-        # for the whole timeout on 2026-10-22 ("not acquired by Runner of type
-        # hosted", capacity notices); the Intel pool has capacity and the core
-        # has no architecture-specific code. The Apple app job picks its own
-        # runner when it arrives.
-        os: [ubuntu-latest, macos-15-intel]
+        # macos-15 is Apple silicon (arm64), the platform the app targets.
+        # Vaultday fell back to macos-15-intel on 2026-10-22 when the arm64
+        # pool sat in the queue for the whole timeout; do the same here if
+        # that recurs.
+        os: [ubuntu-latest, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
