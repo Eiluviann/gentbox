@@ -12,8 +12,8 @@
 <helmet>
 <style>
 body{margin:0}
-.sn-board{height:1080px}
-.win{height:1020px}
+.sn-board{height:1170px}
+.win{height:1110px}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 </style>
 </helmet>
@@ -60,6 +60,18 @@ body{margin:0}
 						<div><span class="popup">Glass<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
 						<div><span class="popup">None<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
 						<div class="na">Silent</div>
+
+						<div class="ml">Repeat sound</div>
+						<div><span class="popup">Until handled<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">3 times<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Once<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div class="na">—</div>
+
+						<div class="ml">Every</div>
+						<div><span class="popup">30 s<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">60 s<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div class="na">—</div>
+						<div class="na">—</div>
 
 						<div class="ml">iPhone</div>
 						<div><span class="popup">Normal<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
@@ -123,7 +135,7 @@ body{margin:0}
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1080}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1170}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {} };

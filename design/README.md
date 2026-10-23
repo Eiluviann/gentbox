@@ -49,7 +49,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | | `mac-generic-row` silent inbox rows | |
 | | `mac-topic` topic detail: its threads | `mac-thread` (thread detail: open items and a timeline across its sessions) |
 | | `mac-conversation` detail: pending action, timeline, markdown body | `mac-outcomes` (answered, done, deferred, dismissed and withdrawn, afterwards in History and the conversation) |
-| Settings | `settings-notifications` policy by type, blocking-level and urgent rules, presence | |
+| Settings | `settings-notifications` policy by type (with sound repeat: once, a number of times or until handled, and the spacing in seconds), blocking-level and urgent rules, presence | |
 | | `settings-quiet-focus` Focus status permission (`INFocusStatusCenter`); Full Disk Access only as a note for builds without the paid team | |
 | | `settings-sources` per-source switch, wait-for-answers timeout | |
 | | `settings-rules` rules set type, urgent and blocking, saved back to rules.toml | `settings-rules-error` |
