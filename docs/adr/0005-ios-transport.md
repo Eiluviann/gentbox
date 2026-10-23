@@ -1,6 +1,6 @@
 # 0005 Phone transport: ntfy now, APNs later
 
-Status: Superseded by [0006](0006-phone-apns.md), 2026-10-23. Its ntfy answer topic and ntfy delivery live on in 0006 as the answer channel and the fallback. (Earlier the same day: revised with the user's answers, ntfy.sh by default, answers through ntfy instead of Tailscale.)
+Status: Superseded by [0006](0006-phone-apns.md), 2026-10-23. Its ntfy answer topic and ntfy delivery live on in 0006 as the answer channel and the fallback. (Earlier the same day: revised with the user's answers, ntfy.sh by default, answers through ntfy instead of Tailscale.) Deferred, like its successor, to the mobile release (2026-10-24; v1 is desktop only, implementation plan › Later).
 
 ## Context
 

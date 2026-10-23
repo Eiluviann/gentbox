@@ -25,7 +25,7 @@ The schema is [`../schema/message-v1.json`](../schema/message-v1.json) (JSON Sch
 
 ## Consequences
 
-- One file validates both directions; the Rust types and the TypeScript types are generated or hand-written against it and tested on the examples (PR 1 and PR 7 load `examples/*.json`).
+- One file validates both directions; the Rust types and the TypeScript types are generated or hand-written against it and tested on the examples (PR 1 and PR 6 load `examples/*.json`).
 - Additive optional fields stay in v1. Anything that breaks a valid v1 sender is v2 on `/v2/`.
 - Strict validation means senders must upgrade deliberately; the 422 body names the failing JSON pointer.
 

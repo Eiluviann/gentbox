@@ -1,6 +1,6 @@
 # 0006 Phone transport: own iOS app over APNs, ntfy for answers and fallback
 
-Status: Accepted, 2026-10-23. Supersedes [0005](0005-ios-transport.md). Amended by [0007](0007-message-type-urgency-blocking.md): urgency and blocking replace the class, so Time Sensitive follows `urgent`, categories gain Done and Defer, and rescinds remove delivered notifications.
+Status: Accepted, 2026-10-23. Supersedes [0005](0005-ios-transport.md). Amended by [0007](0007-message-type-urgency-blocking.md): urgency and blocking replace the class, so Time Sensitive follows `urgent`, categories gain Done and Defer, and rescinds remove delivered notifications. Deferred to the mobile release (2026-10-24): v1 is desktop only and sends nothing to the phone; this design is the target for milestones M1–M3 (implementation plan › Later).
 
 ## Context
 

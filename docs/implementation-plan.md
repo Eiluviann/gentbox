@@ -1,6 +1,11 @@
 # Implementation plan (Phase 3)
 
-The plan's seven PRs, refined against [`architecture.md`](architecture.md). PR 2 is split in two (store, then hub, ingest and daemon), a `gentbox-hub` crate is added so the crate graph stays acyclic, the phone path follows ADR 0006 (paid Apple team, chosen 2026-10-23): our own iOS app over APNs is core, ntfy is the answer channel plus the delivery fallback, Tailscale is an optional extra PR, and each PR names the spike it must close first. PR 0 (repo bootstrap) is done.
+The plan's seven PRs, refined against [`architecture.md`](architecture.md) and split into two milestones by the user's scope decision (2026-10-24): "First version should only create the desktop app, mobile version come later", with **no phone delivery at all in v1** (not even ntfy).
+
+- **v1 · desktop:** the Rust core (domain, policy, topics and threads, rescind, title guard, action plans), the store, ingest with `gentboxd`, the FFI, the macOS app (menu-bar inbox, rich popups, native notifications, Settings), the `gentbox` CLI and `gentbox-mcp`, and the Phase 4 Claude Code integration. Every answer happens on the Mac.
+- **Later · mobile release:** the APNs adapter, the ntfy relay (delivery and the answer channel), action tokens, pairing, the iOS app with its extensions and the Watch, and Tailscale. Their specs below are kept intact, as milestones M1–M3, and the architecture keeps them as the target design (architecture §0).
+
+PR 2 is split in two (store, then hub, ingest and daemon), a `gentbox-hub` crate keeps the crate graph acyclic, and each PR names the spike it must close first. PR 0 (repo bootstrap) is done.
 
 Every PR passes, before merge:
 
@@ -18,48 +23,59 @@ Model column: the implementing session's `/model` and effort, per the routing ru
 
 ## Overview
 
+### v1 · desktop
+
 | PR | Title | Depends on | Model · effort | Spike |
 | --- | --- | --- | --- | --- |
-| 1 | `gentbox-core`: domain, classification, policy engine | 0 | Sonnet · high | — |
+| 1 | `gentbox-core`: domain, classification, policy, topics and threads, rescind, title guard, action plans | 0 | Sonnet · high | — |
 | 2a | `gentbox-store`: SQLite, migrations, retention | 1 | Sonnet · high | — |
 | 2b | `gentbox-hub` + `gentbox-ingest` + `gentboxd`: hub actor, HTTP API, long-poll | 2a | Opus · high | — |
 | 3 | `gentbox-ffi` + macOS app shell: menu-bar inbox, login item, presence, paid-team signing | 2b | Opus · high | — |
-| 4 | Rich popups, Time Sensitive native notifications, action round-trip, Focus via `INFocusStatusCenter` | 3 | Sonnet · high | S3 |
-| 5 | `gentbox-relay`: APNs adapter, ntfy answer channel and fallback delivery, action tokens, pairing registrations, silent-then-ping | 2b; its Settings pane after 4 | Opus · high | S2 |
-| 6 | iOS app (core): inbox, notification categories, Service Extension, optional Content Extension, pairing | 5 | Opus · high (pairing, extensions, crypto), Sonnet · high (inbox UI) | S2 |
-| 7 | `gentbox` CLI + `gentbox-mcp` stdio MCP server | 2b | Sonnet · medium | — |
-| 8 | Optional: Tailscale remote listener for full bodies and history | 6 | Opus · high | — |
+| 4 | Rich popups, Time Sensitive native notifications, action round-trip, steps view, Focus via `INFocusStatusCenter` | 3 | Sonnet · high | S3 |
+| 5 | Settings window | 4 | Sonnet · high | — |
+| 6 | `gentbox` CLI + `gentbox-mcp` stdio MCP server | 2b | Sonnet · medium | — |
+| Phase 4 | Claude Code integration: hook adapter, plugin | 4, 6 | Opus · high | S1 |
 
-PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`). PR 5's Rust part (`gentbox-relay`, token minting and redemption in `gentbox-hub`) can too; its Mac Settings pane waits for PR 4, since both edit `apps/apple/Gentbox/`. PR 6 needs PR 5 merged and the paid membership active (enrolment can take a day or two); until then the ntfy fallback carries the phone.
+PR 6 can run in parallel with 3 to 5 once 2b has merged (it only touches `cli/`). PR 5 waits for PR 4, since both edit `apps/apple/Gentbox/`.
 
-## PR 1 · `gentbox-core`
+### Later · mobile release
 
-**Scope.** The pure domain from architecture §1, §5, §6, §7: types, validation of semantic rules the JSON Schema cannot express, classification, the policy function, the `(type, urgent, blocking)` model with per-field classification and normalization (ADR 0007), lifecycle transitions (including snooze and defer), the coalescing decisions (supersede, fold, dedupe, and the implicit rescinds by completion and progress) as functions of the conversation's open items and their live-waiter flags, and action-token signing/verification over bytes. No IO, no async, no clock.
+| Milestone | Title | Depends on | Model · effort | Spike |
+| --- | --- | --- | --- | --- |
+| M1 | `gentbox-relay`: APNs adapter, ntfy answer channel and fallback delivery, action tokens, pairing registrations, silent-then-ping, Settings › Phone | v1 | Opus · high | S2 |
+| M2 | iOS app with Watch and extensions: inbox, notification categories, Service Extension, optional Content Extension, pairing, steps view | M1 | Opus · high (pairing, extensions, crypto), Sonnet · high (UI) | S2 |
+| M3 | Optional: Tailscale remote listener for full bodies and history | M2 | Opus · high | — |
+
+M2 needs M1 merged and the paid membership active (enrolment can take a day or two).
+
+## v1 · desktop
+
+### PR 1 · `gentbox-core`
+
+**Scope.** The pure domain from architecture §1, §5, §6, §7: types, validation of semantic rules the JSON Schema cannot express, classification, the policy function, the `(type, urgent, blocking)` model with per-field classification and normalization (ADR 0007), lifecycle transitions (including snooze and defer), and the coalescing decisions (supersede, fold, dedupe, and the implicit rescinds by completion and progress) as functions of the conversation's open items and their live-waiter flags. No IO, no async, no clock. v1 has no phone channel: `PolicyContext.phone` is `None`, and `decide` then plans no phone delivery and no escalation (the phone columns of architecture §6.2 arrive with M1).
 
 **Files.**
 
 - `core/crates/gentbox-core/src/lib.rs` (module map, re-exports)
-- `message.rs` (`Message`, `MessageClass`, `Source`, `Conversation`, `FocusTarget`, `Action`, `ActionKind`, serde camelCase)
+- `message.rs` (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `FocusTarget`, `Action`, `ActionKind`, serde camelCase)
 - `lifecycle.rs` (`LifecycleState`, `ResolutionReason`, the transition function returning `Result`)
 - `classify.rs` (`Rule`, `RuleSet` parsed from TOML, `classify(&Message, &RuleSet, &BuiltInRules) -> Classification` with the source of each field: declared, rule name, default, normalized)
 - `builtin_rules.toml` (the Claude Code table of architecture §5.3, `include_str!`)
 - `policy.rs` (`Policy`, `PolicyContext`, `Presence`, `DeliveryPlan`, `decide`)
 - `coalesce.rs` (`CoalesceOutcome`: new, superseded, folded, duplicate; completion, progress and explicit rescind effects)
 - `rescind.rs` (`RescindReason`, rescind by id or correlation keys, the effects list consumed by the hub)
-- `action_token.rs` (payload encoding, HMAC-SHA256 sign and constant-time verify; the nonce ledger is the store's)
 - `tests/` table tests; `tests/schema_examples.rs` deserialises every `docs/schema/examples/*.json`
-- Dependencies: `serde`, `serde_json`, `toml`, `globset`, `regex`, `thiserror`, `time` (types only), `hmac`, `sha2`, `subtle`, `base64`.
+- Dependencies: `serde`, `serde_json`, `toml`, `globset`, `regex`, `thiserror`, `time` (types only).
 
 **Tests.** Table-driven, one row each:
 
 - Field combinations: all 15 valid `(type, urgent, blocking)` combinations accepted; every invalid one (`task_completed`/`generic` with `deferrable` or `blocking`, urgent `generic`, `scope` on another type) rejected when declared and normalized when filled by rules, with the normalization recorded.
 - Classification, per field: declared wins field by field; a rule fills only missing fields; later rules fill what earlier ones left; `override = true` replaces declared fields; built-in rules after user rules; defaults `generic`/`false`/`non_blocking`; `mute`; invalid TOML is an error value, not a panic; the Claude Code table of architecture §5.3 row by row.
-- Policy: each of the 15 combinations × {present, away, locked} × {Focus off/on} × {quiet hours off/on}, checking popup vs banner vs toast vs inbox, re-ping cadence by blocking level, Defer offered only on `deferrable`, Time Sensitive and the URGENT prefix only when urgent, quiet-hours and Focus breakthrough only when urgent; silent-then-ping (silent at once while the Mac is in use, escalation after 2 min if unaddressed, immediate when away); frontmost suppression of `task_completed` toasts.
+- Policy: each of the 15 combinations × {present, away, locked} × {Focus off/on} × {quiet hours off/on}, checking popup vs banner vs toast vs inbox, re-ping cadence by blocking level, Defer offered only on `deferrable`, Time Sensitive and the URGENT prefix only when urgent, quiet-hours and Focus breakthrough only when urgent; frontmost suppression of `task_completed` toasts; with no phone channel, every plan has `phone: none` and no escalation timer.
 - Coalescing: idempotency key; supersede in place; no re-ping unless louder; a message without a live waiter folds into one with a live waiter (same key, and blocking-into-blocking); dedupe within 10 s; `task_completed` rescinds `blocking` and `deferrable` items without a live waiter as `obsolete` and leaves `non_blocking` ones alone; progress rescinds `idle` and `blocking`/`deferrable` items without a live waiter as `resolved_elsewhere`; parallel `permission:<agent>:<hash>` keys coexist.
-- Rescind: by id and by correlation keys, each reason; via the `rescinds` field; a rescinded message rejects later answers; rescinding never produces an answer; the effects list (popup, toast, native notification, inbox "Withdrawn", phone removal or fallback notice) per channel and state.
+- Rescind: by id and by correlation keys, each reason; via the `rescinds` field; a rescinded message rejects later answers; rescinding never produces an answer; the effects list (popup, toast, native notification, inbox "Withdrawn"; phone entries only when a phone channel exists) per channel and state.
 - Defer: only on `deferrable`; turns `blocking` into `non_blocking` and re-runs the policy; the waiter gets `deferred` once and `pending` after; a later real answer still closes the message.
 - Lifecycle: every allowed transition (including acknowledged → open when a snooze ends) and that every other one is rejected; `open` and `snooze` never close a message or reach the sender; the lifecycle → `actionResponse.status` table of architecture §5.2.
-- Action tokens: valid, expired, wrong message, wrong action, tampered payload, tampered MAC.
 
 **Acceptance.** `cargo test -p gentbox-core` green; the examples deserialise; `decide` and `classify` are free of `std::time::SystemTime::now`, IO and `unsafe` (a test greps the crate source).
 
@@ -69,13 +85,13 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Action plans (ADR 0011).** `steps` validation (1–12, text through the title guard, link schemes), the fallback step, `step_rewritten`, Done added to `action_required`, steps making `action_required` the default type, and the secret scan over title, summary, steps and body. Tests: tables for each rule and each secret pattern (positives and near misses), and that a redacted or rewritten field still passes the guard.
 
-## PR 2a · `gentbox-store`
+### PR 2a · `gentbox-store`
 
-**Scope.** SQLite persistence for messages, conversations, actions, responses, deliveries and the action-token ledger; migrations; retention sweep.
+**Scope.** SQLite persistence for messages, conversations, actions, responses and deliveries; migrations; retention sweep. (The action-token ledger and the device registry arrive with M1, in their own migration.)
 
 **Files.** `core/crates/gentbox-store/{Cargo.toml, src/lib.rs, src/migrations/0001_init.sql, src/repository.rs, src/retention.rs}`, `tests/`. `rusqlite` with `bundled`, WAL mode, `foreign_keys = ON`.
 
-**Tests.** Round-trip every core type; open messages listed by conversation, type, urgency and blocking level; rescinded messages kept with their reason; supersede chain recorded; retention deletes only answered, dismissed, rescinded and expired messages older than the cutoff; token nonce insert is unique (second insert reports reuse); migration from an empty file and re-open of an existing file.
+**Tests.** Round-trip every core type; open messages listed by conversation, type, urgency and blocking level; rescinded messages kept with their reason; supersede chain recorded; retention deletes only answered, dismissed, rescinded and expired messages older than the cutoff; migration from an empty file and re-open of an existing file.
 
 **Acceptance.** Store API returns `Result` for not-found and constraint outcomes and only throws (panics) on broken invariants; temp-dir tests; no SQL outside the crate.
 
@@ -83,9 +99,9 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Topics and threads (ADRs 0008, 0009).** Tables `topics` (nullable unique key, kind, implicit, status, style, mute, mark-read, created-by) and `threads` (topic id, nullable key unique per topic, kind, implicit, status, closed-by-topic, mute, mark-read, created-by), `conversation_default_threads (conversation, topic) → thread`, and on messages a non-null `thread_id` plus a denormalised `topic_id`, all in the first migration. Tests: upserts by key; the takeover moves messages and deletes the implicit thread in one transaction; moving a thread moves its messages' `topic_id`; mark read per topic and per thread; closing a topic closes its threads and reopening reopens only those; retention keeps anything with messages and deletes closed or implicit empty topics and threads after the retention period.
 
-## PR 2b · `gentbox-hub` + `gentbox-ingest` + `gentboxd`
+### PR 2b · `gentbox-hub` + `gentbox-ingest` + `gentboxd`
 
-**Scope.** Architecture §4, §5, §7, §8, §9.1: the hub actor in `gentbox-hub` (commands, live-waiter tracking, timers for re-ping, phone escalation, snooze and expiry, dispatch to a `dyn Relay` and a UI delegate), the axum router on the Unix socket and loopback, sender-token auth, the challenge-response `hello`, `Host` check on TCP only, schema validation, rate limits, idempotency, long-poll with `watch`, `progress`, discovery files, the hub lock, the daemon binary. No answer route on the local router.
+**Scope.** Architecture §4, §5, §7, §8, §9.1: the hub actor in `gentbox-hub` (commands, live-waiter tracking, timers for re-ping, snooze and expiry, dispatch to the UI delegate and to an optional `dyn Relay`, which v1 leaves unset), the axum router on the Unix socket and loopback, sender-token auth, the challenge-response `hello`, `Host` check on TCP only, schema validation, rate limits, idempotency, long-poll with `watch`, `progress`, discovery files, the hub lock, the daemon binary. No answer route on the local router.
 
 **Files.**
 
@@ -97,9 +113,10 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Tests.**
 
+- Without a relay, a message is delivered to the Mac only and `shouldWait` reflects the Mac's answer channel alone.
 - 401 without or with a wrong token; 400 on a foreign `Host` over TCP and no check on the socket; `hello` proof verifies and never needs the token; 413; 422 with the JSON pointer; 429 with `Retry-After`; no route answers or lists messages with the sender token.
 - Every example in `docs/schema/examples/` through the real router (one per type and per blocking level); store state after each; `DELETE` and the conversation `rescind` route wake waiters with `rescinded`; Defer wakes them with `deferred`.
-- Long-poll: `pending` after `wait`; `answered` when an answer (injected through the hub handle, as the UI does) lands mid-wait; two concurrent answers → one accepted, one 409; `superseded`, `resolved` and `expired` wake the waiter; the live waiter lapses 10 s after the last poll; snooze and open never wake it.
+- Long-poll: `pending` after `wait`; `answered` when an answer (injected through the hub handle, as the UI does) lands mid-wait; two concurrent answers → one accepted, one 409; `rescinded`, `dismissed` and `expired` wake the waiter; the live waiter lapses 10 s after the last poll; snooze and open never wake it.
 - Second hub on the same state folder exits non-zero naming the lock holder.
 - Discovery: `token` 0600, folder 0700, `port` removed on clean shutdown.
 
@@ -111,7 +128,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Action plans (ADR 0011).** `steps` and `stepsCompleted` stored per message; `steps_missing` and strict `actionPlan = "reject"` in the pipeline. Tests: a missing plan gets the fallback step and a warning, strict mode answers 422, ticks persist and never reach the long-poll.
 
-## PR 3 · `gentbox-ffi` + macOS app shell
+### PR 3 · `gentbox-ffi` + macOS app shell
 
 **Scope.** UniFFI bindings (`Hub` object: start, stop, inbox queries, answer, presence updates; `HubDelegate` callback interface for delivery plans and state changes), the XCFramework build script, the `GentboxCore` Swift package, the XcodeGen project with signing for the paid team (Vaultday's xcconfig layout, the shipped identifiers), the menu-bar extra with the inbox list, login item, and presence sensing (frontmost app, idle, lock) pushed into the core.
 
@@ -121,7 +138,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 - `apps/apple/{project.yml, Signing.xcconfig, Signing.personal-team.xcconfig, Signing/*.entitlements, scripts/build-xcframework.sh}`
 - `apps/apple/GentboxCore/` (Swift package wrapping the generated bindings)
 - `apps/apple/Gentbox/` (app: `MenuBarInbox`, `PresenceMonitor`, `LoginItem`)
-- `docs/signing.md`: the paid team as the default (bundle id `com.eiluviann.gentbox`, App Group `group.com.eiluviann.gentbox`, 1-year development profiles, Time Sensitive and Communication Notifications on the Mac), and Vaultday's Personal Team recipe kept as the fallback for builds without a membership (ntfy delivery only)
+- `docs/signing.md`: the paid team as the default (bundle id `com.eiluviann.gentbox`, App Group `group.com.eiluviann.gentbox`, 1-year development profiles, Time Sensitive and Communication Notifications on the Mac), and Vaultday's Personal Team recipe kept as the fallback for builds without a membership (no Time Sensitive and no Focus status; Focus falls back to the Shortcuts automation)
 - `.github/workflows/ci.yml`: an Apple job building and testing with signing disabled
 
 **Tests.** Rust tests for the FFI surface (no Swift needed); XCTest for `PresenceMonitor` mapping; XCUITest smoke: app launches, menu-bar inbox shows a message posted with `curl`.
@@ -130,7 +147,7 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Topics and threads (ADRs 0008, 0009).** FFI inbox queries grouped topic → thread → messages (conversation as row metadata); mute, mark read, close and reopen at both levels; move a thread or a message. The menu-bar inbox shows topic and thread header rows and a Closed section. Tests: XCUITest for grouping, General, and muting by topic and by thread.
 
-## PR 4 · Popups, native notifications, round-trip
+### PR 4 · Popups, native notifications, round-trip
 
 **Scope.** Architecture §6.2 Mac column, §7.7, §9.1, §9.2, §6.3: non-activating `NSPanel` persistent popups (stack of 3, "+N waiting"), transient toasts, `UNUserNotificationCenter` categories (approve, deny, reply with text input, open, snooze) with Time Sensitive for blocking items, the notification content of architecture §10 (title phrase, subtitle, summary, icon thumbnail), sounds, re-ping, the "why this pinged" line, the open action (URL allowlist, then app activation), Focus from `INFocusStatusCenter` (authorisation prompt, polling on presence changes), and for Personal Team builds the fallbacks `POST /v1/presence/focus` and the `gentbox://focus` URL handler.
 
@@ -146,9 +163,64 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Action plans (ADR 0011).** The steps view on the Mac: "Do it" as the default button of `action_required` popups and rows, numbered tickable steps with details and links, Done, Reply and Defer at the bottom. Tests: XCUITest ticking steps and finishing with Done.
 
-## PR 5 · `gentbox-relay`: APNs, ntfy answers and fallback
+### PR 5 · Settings window
 
-**Scope.** Architecture §6.2 (phone column), §9.3, §10, §12 and ADR 0006 (Rust side):
+**Scope.** The macOS Settings window over the core's configuration (architecture §6, §5.3–§5.6, §12), read and written through FFI, validated by the core and saved to `config.toml` and `rules.toml`:
+
+- **General:** login item, the away threshold (`awayAfter`), sounds.
+- **Notifications:** the policy table per `(type, urgent, blocking)` (Mac surface, re-ping cadence, Defer), with "reset to defaults".
+- **Quiet hours** schedule, and **Focus:** the Focus Status permission (`INFocusStatusCenter`) and, for Personal Team builds, the Shortcuts fallback guide.
+- **Rules:** list, form and raw-TOML views of `rules.toml`, parse errors from the core shown in place, and the built-in rules read-only.
+- **Topics and threads:** muted and closed ones, unmute and reopen.
+- **Sources:** per agent, mute and the strict modes (`titleGuard`, `actionPlan`).
+- **Integrations:** the CLI install path and the Claude Code plugin status (Phase 4).
+- **About.**
+
+No Phone pane in v1 (it comes with M1).
+
+**Files.** `apps/apple/Gentbox/Settings/`, `core/crates/gentbox-core/src/config.rs` (the config model and validation), FFI additions in `gentbox-ffi`.
+
+**Tests.** Rust: config round trip, defaults, invalid values as `Result` errors, rules parse errors with line numbers. XCTest: view models against fixtures. XCUITest smoke: change a policy cell and see the next message follow it; add a rule in the form and see it in the raw TOML.
+
+**Acceptance.** Every setting the architecture names for v1 can be changed in the window, survives a relaunch, and takes effect on the next message without restarting the hub.
+
+### PR 6 · `gentbox` CLI + `gentbox-mcp` stdio MCP server
+
+**Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `gentbox send|ask|wait|rescind|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and the `gentbox-mcp` stdio MCP server (a second bin in the same package) with `notify` (explicit `type`, `urgent`, `blocking`), `ask` (`decision_required` with `awaitsResponse`; `blocking` or `deferrable` chosen by the agent; waits up to a timeout and returns the answer, `deferred`, or "no answer") and `rescind`. Types written against the schema and checked against the examples.
+
+**Files.** `cli/src/{discovery.ts, hub-client.ts, message-types.ts, commands/*.ts, mcp-server.ts, main.ts}`, Vitest tests next to each.
+
+**Tests.** Vitest: discovery order, socket preference and the `hello` proof (a wrong proof never sends the token); request building per command; the examples parse into the TS types; MCP tool schemas; `ask` timeout path. One integration test against `gentboxd` (skipped when the binary is absent).
+
+**Acceptance.** `gentbox send --type task_completed --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
+
+**Topics and threads (ADRs 0008, 0009).** MCP tools `create_topic`, `close_topic`, `create_thread` (with `kind` and a flag to stand for the current conversation) and `close_thread`, and `topic` and `thread` parameters on `notify` and `ask`; CLI `gentbox topic …`, `gentbox thread create|close|reopen|list|move`, and `--topic`/`--thread` on `send` and `ask`. Tests: Vitest for request building and the inline shortcuts.
+
+**Title guard (ADR 0010).** The `notify`, `ask`, `create_topic` and `create_thread` tool descriptions and `title` parameters state the rule with one good and one bad example, and the tool results pass the hub's `warnings` to the model verbatim. Tests: Vitest that warnings reach the tool result.
+
+**Action plans (ADR 0011).** `notify` and `ask` require `steps` in their input schema when `type` is `action_required`, with an example in the description; CLI `--step` (repeatable). Tests: Vitest for the conditional requirement.
+
+### Phase 4 · Claude Code integration (part of v1)
+
+Runs as its own phase after PRs 1–6, as the plan set out; these are its inputs.
+
+- **Spike S1** (first task of Phase 4): in a terminal CLI session, does Claude Code show its permission prompt while a `PermissionRequest` hook is still running? It decides whether the hook may wait long when you are at the terminal (architecture §11).
+- Fixed action plans for the adapter's `action_required` events (`elicitation_url_dialog`, `quota_auto_resume_stale`, `StopFailure`; architecture §5.3), with Vitest checks that each passes the guard.
+- Title builders per hook event (architecture §5.3, ADR 0010), with Vitest tables: Bash with and without `description`, a `description` that itself fails the guard, Edit/Write paths reduced to file names, WebFetch hosts, MCP tool names in words, `Stop` titles from `last_assistant_message`; no raw `tool_input` ever in a title or summary, always in the body.
+- Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook resolving its own message whenever it stops waiting.
+- Packaging as a Claude Code plugin (hooks + MCP), merged with the existing user hooks, never replacing them.
+
+## Later · mobile release
+
+Kept as specified; nothing in v1 depends on it (architecture §0).
+
+### M1 · `gentbox-relay`: APNs, ntfy answers and fallback
+
+**Scope.** Architecture §6.2 (phone column), §9.3, §10, §12 and ADR 0006 (Rust side), plus the pieces v1 leaves out of PRs 1, 2a and 2b:
+
+- **From PR 1:** `action_token.rs` in `gentbox-core` (payload encoding, HMAC-SHA256 sign and constant-time verify), and the phone columns of the policy with silent-then-ping. Tests: tokens valid, expired, wrong message, wrong action, tampered payload, tampered MAC; silent at once while the Mac is in use, escalation after 2 min if unaddressed, immediate when away.
+- **From PR 2a:** the action-token nonce ledger and the device registry, as a new migration (a second insert of a nonce reports reuse).
+- **From PR 2b:** the phone escalation timer, and registering the configured `Relay`.
 
 - **`apns` adapter:**
   - ES256 JWT from the `.p8` key (header `kid`, claims `iss`, `iat`), cached and refreshed between 20 and 60 min, never more often.
@@ -159,9 +231,9 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 - **`ntfy` adapter:** the ntfy answer-topic subscription (action tokens and device registrations, reconnect with backoff), and fallback delivery (publish, update by sequence id, clear, icon attachments) used until a device is paired or when APNs has no valid token.
 - **Content and policy:** title phrases, subtitle, summary, icon references, payload modes (`summary`, `minimal`, `sensitive`), silent-then-ping (passive, then the same collapse id at the audible level).
 - **Hub side (`gentbox-hub`):** token minting and redemption against the store's nonce ledger; device registry with environment, pairing-secret HMAC check and revocation.
-- **Settings › Phone pane on the Mac:** APNs key (`.p8`, key id, team id, stored in the Keychain and shown masked), ntfy server and token, the pairing QR code, devices, delivery channel choice, payload mode.
+- **Settings › Phone pane on the Mac** (in the PR 5 Settings window): APNs key (`.p8`, key id, team id, stored in the Keychain and shown masked), ntfy server and token, the pairing QR code, devices, delivery channel choice, payload mode.
 
-**Spike S2 first** (needs the membership active; runs with a minimal test app or the PR 6 skeleton):
+**Spike S2 first** (needs the membership active; runs with a minimal test app or the M2 skeleton):
 
 - A collapsed replacement at `time-sensitive` alerts again after a `passive` push.
 - A background push can remove a delivered notification, and how reliably.
@@ -186,7 +258,7 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 - **Silent-then-ping:** silent at once while the Mac is in use; escalation after 2 min only if unaddressed; immediate audible when away; the 60-s shared sound.
 - **Tokens:** valid, expired, wrong message, wrong action, tampered, replayed (ignored and logged); constant-time compare.
 
-**Acceptance.** Against the mock servers, every flow above passes. With the user's phone once PR 6 exists:
+**Acceptance.** Against the mock servers, every flow above passes. With the user's phone once M2 exists:
 
 - A blocking message arrives silently while the Mac is in use and pings as Time Sensitive 2 min later.
 - Approve from the lock screen asks for Face ID and reaches the waiting sender through the ntfy answer topic.
@@ -197,7 +269,7 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 
 **Action plans (ADR 0011).** Up to 5 step texts in the APNs payload ahead of the body excerpt; the `action` category with "Do it" and Done; numbered steps in the ntfy fallback text; signed tick envelopes accepted from the answer topic. Tests: payload budget with 12 long steps, tick envelopes verified.
 
-## PR 6 · iOS app (core)
+### M2 · iOS app, Watch and extensions
 
 **Scope.** ADR 0006, iOS side:
 
@@ -218,29 +290,13 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 
 XCUITest smoke for inbox and detail.
 
-**Acceptance.** The PR 5 acceptance flows pass on the user's iPhone and Watch, including text reply from the lock screen, choices from the expanded view, and the project icon as the thumbnail.
+**Acceptance.** The M1 acceptance flows pass on the user's iPhone and Watch, including text reply from the lock screen, choices from the expanded view, and the project icon as the thumbnail.
 
 **Topics and threads (ADRs 0008, 0009).** Inbox and detail grouped topic → thread, notifications grouped by `thread-id`, mute and mark read at both levels in the app. Tests: XCTest for grouping from payload fixtures.
 
 **Action plans (ADR 0011).** The iOS steps view (from the notification's "Do it" and from the inbox), ticks synced through the answer topic, details and links in the Content Extension. Tests: XCTest for steps rendering from fixtures and tick envelopes.
 
-## PR 7 · `gentbox` CLI + `gentbox-mcp` stdio MCP server
-
-**Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `gentbox send|ask|wait|rescind|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and the `gentbox-mcp` stdio MCP server (a second bin in the same package) with `notify` (explicit `type`, `urgent`, `blocking`), `ask` (`decision_required` with `awaitsResponse`; `blocking` or `deferrable` chosen by the agent; waits up to a timeout and returns the answer, `deferred`, or "no answer") and `rescind`. Types written against the schema and checked against the examples.
-
-**Files.** `cli/src/{discovery.ts, hub-client.ts, message-types.ts, commands/*.ts, mcp-server.ts, main.ts}`, Vitest tests next to each.
-
-**Tests.** Vitest: discovery order, socket preference and the `hello` proof (a wrong proof never sends the token); request building per command; the examples parse into the TS types; MCP tool schemas; `ask` timeout path. One integration test against `gentboxd` (skipped when the binary is absent).
-
-**Acceptance.** `gentbox send --type task_completed --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
-
-**Topics and threads (ADRs 0008, 0009).** MCP tools `create_topic`, `close_topic`, `create_thread` (with `kind` and a flag to stand for the current conversation) and `close_thread`, and `topic` and `thread` parameters on `notify` and `ask`; CLI `gentbox topic …`, `gentbox thread create|close|reopen|list|move`, and `--topic`/`--thread` on `send` and `ask`. Tests: Vitest for request building and the inline shortcuts.
-
-**Title guard (ADR 0010).** The `notify`, `ask`, `create_topic` and `create_thread` tool descriptions and `title` parameters state the rule with one good and one bad example, and the tool results pass the hub's `warnings` to the model verbatim. Tests: Vitest that warnings reach the tool result.
-
-**Action plans (ADR 0011).** `notify` and `ask` require `steps` in their input schema when `type` is `action_required`, with an example in the description; CLI `--step` (repeatable). Tests: Vitest for the conditional requirement.
-
-## PR 8 · Optional: Tailscale remote listener
+### M3 · Optional: Tailscale remote listener
 
 Only if the user wants full bodies beyond the push excerpt and the inbox history on the phone; it needs Tailscale on the Mac and the iPhone.
 
@@ -249,11 +305,3 @@ Only if the user wants full bodies beyond the push excerpt and the inbox history
 **Files.** `core/crates/gentbox-ingest/src/remote/{listener.rs, routes.rs}`, `apps/apple/GentboxPhone/Remote/`.
 
 **Tests.** Listener refuses to bind to anything but a 100.64.0.0/10 address or the configured MagicDNS name; revoked devices are refused; the app falls back cleanly when the Mac is unreachable.
-
-## After Phase 3: Phase 4 inputs
-
-- **Spike S1** (first task of Phase 4): in a terminal CLI session, does Claude Code show its permission prompt while a `PermissionRequest` hook is still running? It decides whether the hook may wait long when you are at the terminal (architecture §11).
-- Fixed action plans for the adapter's `action_required` events (`elicitation_url_dialog`, `quota_auto_resume_stale`, `StopFailure`; architecture §5.3), with Vitest checks that each passes the guard.
-- Title builders per hook event (architecture §5.3, ADR 0010), with Vitest tables: Bash with and without `description`, a `description` that itself fails the guard, Edit/Write paths reduced to file names, WebFetch hosts, MCP tool names in words, `Stop` titles from `last_assistant_message`; no raw `tool_input` ever in a title or summary, always in the body.
-- Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook resolving its own message whenever it stops waiting.
-- Packaging as a Claude Code plugin (hooks + MCP), merged with the existing user hooks, never replacing them.

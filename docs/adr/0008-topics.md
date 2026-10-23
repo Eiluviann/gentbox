@@ -67,7 +67,7 @@ So the inbox groups one level deep, **topic → messages**, and each message row
   - `{ "key": …, "title": …, "kind": … }` creates the topic on first use and joins it after that. Without `title` the key becomes the title.
   - The inline form never changes an existing topic, and never takes over a conversation's implicit topic (only `POST /v1/topics` with `conversation.id` does).
 - **A message sent to a closed topic reopens it,** and the reopen is recorded.
-- **MCP tools** (PR 7): `create_topic` (key, title, summary, kind, style, and whether it stands for the current conversation), `close_topic` (key or id, `rescindOpenMessages`), and a `topic` parameter on `notify` and `ask`. **CLI:** `gentbox topic create|close|reopen|list` and `--topic` on `send` and `ask`.
+- **MCP tools** (PR 6): `create_topic` (key, title, summary, kind, style, and whether it stands for the current conversation), `close_topic` (key or id, `rescindOpenMessages`), and a `topic` parameter on `notify` and `ask`. **CLI:** `gentbox topic create|close|reopen|list` and `--topic` on `send` and `ask`.
 
 ### Rules
 

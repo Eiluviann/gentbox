@@ -6,6 +6,27 @@ Status tags: **Now** is built in Phase 3, **Planned** comes later, **Spike** mus
 
 **Principle: no shared infrastructure, bring your own keys.** The project hosts nothing for its users: no server, relay, account system or asset host that other people would depend on. Each user brings their own credentials (an APNs key from their own Apple team, an ntfy topic or account, optionally a Pushover app token or a Tailscale network), entered in Settings and kept in the Keychain. Users may run infrastructure for themselves (a self-hosted ntfy server, a personal relay, an always-on box), and the design supports that where it helps, but no feature requires it: everything works with your Mac plus public services you pick (Apple's push service, ntfy.sh).
 
+## 0. v1 scope
+
+The user's decision (2026-10-24): "First version should only create the desktop app, mobile version come later", with no phone delivery at all in v1. This document keeps the mobile design as the target; the [implementation plan](implementation-plan.md) builds v1 first and the mobile release later (milestones M1–M3).
+
+| Ships in v1 | Deferred to the mobile release |
+| --- | --- |
+| Rust core: messages, classification, policy (Mac columns), topics and threads, rescind and Defer, title guard and secret scan, action plans | The phone columns of the policy and silent-then-ping (§6.2) |
+| Store, hub actor, ingest on the Unix socket and loopback, `gentboxd` | Action tokens and their nonce ledger, the device registry |
+| FFI and the macOS app: menu-bar inbox, rich popups, Time Sensitive native notifications, steps view, Settings window, Focus via `INFocusStatusCenter` | The `apns` and `ntfy` adapters (delivery and the ntfy answer channel), pairing, Settings › Phone (§9.3, §10) |
+| `gentbox` CLI and `gentbox-mcp` | The iOS app, its Service and Content Extensions, the Watch (ADR 0006) |
+| Claude Code integration (Phase 4) | Tailscale and the remote listener |
+
+**Nothing in v1 depends on a deferred piece:**
+
+- **The action round-trip is Mac-only.** The sender long-polls the hub; you answer in the popup, the native notification, the popover or the steps view, all in-process through FFI (§9.1). No action token, relay or network path is involved.
+- **The `Relay` trait stays in `gentbox-relay` with no adapter registered.** The hub holds an `Option<dyn Relay>` that v1 leaves empty.
+- **The policy sees no phone channel.** `PolicyContext.phone` is `None`, so `decide` plans `phone: none` and schedules no phone escalation. Mac re-pings, Defer, quiet hours, Focus and mute work as specified.
+- **`shouldWait` counts only the Mac's answer channel,** which v1 always has while the app runs.
+- **Rescinds and ticks touch the Mac only.** Rescind effects list phone entries only when a phone channel exists, and ticks are stored without the iPhone sync.
+- **The schema is unchanged.** Phone-only settings such as `sensitive` and the payload modes are accepted and have no effect until the mobile release.
+
 ## 1. Message type, urgency and blocking
 
 ADR: [0007](adr/0007-message-type-urgency-blocking.md). Three independent fields describe every message:
@@ -33,7 +54,7 @@ A message also belongs to its **conversation** (one agent session, kept as metad
 flowchart LR
   subgraph senders[Senders]
     hook[Claude Code hook<br/>Phase 4]
-    mcp[gentbox CLI · gentbox-mcp<br/>PR 7]
+    mcp[gentbox CLI · gentbox-mcp<br/>PR 6]
     other[Any agent<br/>HTTP API]
   end
   subgraph mac[Mac: Gentbox.app]
@@ -82,9 +103,9 @@ The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/
 | --- | --- | --- | --- |
 | `gentbox-core` | Now (PR 1) | Domain types (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
 | `gentbox-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, topics and threads, the single-use action-token ledger | `gentbox-core` |
-| `gentbox-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the ntfy answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `gentbox-core` |
+| `gentbox-relay` | Trait and `noop` in v1 (PR 2b); adapters in the mobile release (M1) | `Relay` trait, `ntfy` adapter (publish, update, clear, the ntfy answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `gentbox-core` |
 | `gentbox-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `gentbox-core`, `gentbox-store`, `gentbox-relay` (trait only) |
-| `gentbox-ingest` | Now (PR 2b; optional remote routes for the iOS app in PR 8) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `gentbox-hub` |
+| `gentbox-ingest` | Now (PR 2b; optional remote routes for the iOS app in M3) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `gentbox-hub` |
 | `gentboxd` | Now (PR 2b) | Binary: config, lock, logging, signal handling; wires hub, ingest and the configured relay | `gentbox-ingest`, `gentbox-hub`, `gentbox-relay` |
 | `gentbox-ffi` | Now (PR 3) | UniFFI bindings for Swift. The only crate allowed `unsafe` (generated scaffolding); it has its own `[lints]` table | `gentbox-hub`, `gentbox-ingest`, `gentbox-relay` |
 | `gentbox-node` | Planned | napi-rs bindings for the Linux Electron client | as `gentbox-ffi` |
@@ -235,7 +256,7 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 | `SessionStart` | — | — | — | Registers or renames the conversation (`PUT /v1/conversations/{agent}/{id}`), sends no message |
 | `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` (all `async`) | — | — | — | `POST /v1/conversations/{agent}/{id}/progress`, sends no message (§7.6) |
 
-The MCP `ask` tool (PR 7) declares the fields itself: `decision_required` by default, with `blocking` chosen by the agent, `deferrable` when it can continue with other work.
+The MCP `ask` tool (PR 6) declares the fields itself: `decision_required` by default, with `blocking` chosen by the agent, `deferrable` when it can continue with other work.
 
 ### 5.4 Topics and threads
 
@@ -292,6 +313,8 @@ The three fields do separate jobs: **`type`** picks the surface and the title ph
 Timers (re-ping, phone escalation, snooze, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered or rescinded in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
 
 ### 6.2 Defaults
+
+The Phone column is the mobile-release target; in v1 there is no phone channel and every plan's phone part is `none` (§0).
 
 By blocking level (for `decision_required` and `action_required`) and type:
 
@@ -355,7 +378,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 - A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it.
 - The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
-- Remote listener for the own iOS app's full bodies, off by default and only with Tailscale (§10, optional PR 8).
+- Remote listener for the own iOS app's full bodies, off by default and only with Tailscale (§10, optional M3).
 
 **Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/Gentbox/API`, then `$XDG_STATE_HOME/gentbox/API` (`GENTBOX_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `HMAC-SHA256(token, nonce)`. The client sends its bearer token only after checking that proof, so a process of another user squatting on a port left behind by a crash learns nothing.
 
@@ -426,6 +449,8 @@ sequenceDiagram
 
 ### 9.3 Phone
 
+Mobile release (M1, M2); not in v1 (§0).
+
 Two paths, both ending at the **ntfy answer topic** the hub subscribes to (outbound, no inbound port, no VPN):
 
 - **Own iOS app (APNs, the default with the paid team).** Notification buttons (Approve, Deny, choices, Reply with text) run in the app's background handler, which posts the action token and the reply text to the ntfy answer topic and finishes. Approve requires an unlocked device (`.authenticationRequired`). Details in ADR 0006.
@@ -439,6 +464,8 @@ Common to both:
 - **Feedback.** Once the token is redeemed, the hub replaces the notification (same collapse or sequence id) with a passive "Approved from phone".
 
 ## 10. Phone relay
+
+Mobile release (M1–M3); not in v1 (§0). The notification content rules below (title phrases, subtitle, blocking badge, icons) also apply to the Mac's native notifications in v1.
 
 ADRs: [0006](adr/0006-phone-apns.md) (current), [0005](adr/0005-ios-transport.md) (superseded; its ntfy design lives on as the fallback).
 
@@ -494,7 +521,7 @@ Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the 
 
 **Watch.** With no watchOS app, the Watch mirrors the iPhone's notifications, buttons and text reply included; the Content Extension does not run there (ADR 0006). A watchOS app with custom notification scenes is Planned.
 
-**Own iOS app** (PR 6, core). Inbox and detail viewer, notification categories and their background handlers, the Service Extension (icon, optional decryption), the optional Content Extension (expanded view, dynamic choice buttons), and pairing by QR code: the app posts its device token, HMAC-signed with the pairing secret, to the ntfy answer topic, so pairing needs no network path to the Mac. Optional (PR 8): with Tailscale on both devices (a free VPN that lets the phone reach the Mac directly), the app also loads full bodies beyond the payload excerpt and the inbox history from the hub's remote listener, over HTTPS with the MagicDNS certificate [ATS-local]. Nothing else needs Tailscale.
+**Own iOS app** (M2, core). Inbox and detail viewer, notification categories and their background handlers, the Service Extension (icon, optional decryption), the optional Content Extension (expanded view, dynamic choice buttons), and pairing by QR code: the app posts its device token, HMAC-signed with the pairing secret, to the ntfy answer topic, so pairing needs no network path to the Mac. Optional (M3): with Tailscale on both devices (a free VPN that lets the phone reach the Mac directly), the app also loads full bodies beyond the payload excerpt and the inbox history from the hub's remote listener, over HTTPS with the MagicDNS certificate [ATS-local]. Nothing else needs Tailscale.
 
 ## 11. Platform constraints and verified answers
 
@@ -566,7 +593,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 - **APNs** moved from Planned to Now with the paid team (ADR 0006). The rule stays: the Mac pushes with your own key to your own signed build, so a build for other people needs their own team and key; this project runs no push relay.
 - **watchOS app (Planned).** Custom notification scenes and a glanceable inbox on the Watch.
 - **Windows (Planned, unscheduled).** Same as Linux with toast notifications.
-- **Other agents.** Any agent can POST the v1 schema; the `gentbox` CLI and the `gentbox-mcp` MCP server (PR 7) cover agents that can run a command or an MCP tool.
+- **Other agents.** Any agent can POST the v1 schema; the `gentbox` CLI and the `gentbox-mcp` MCP server (PR 6) cover agents that can run a command or an MCP tool.
 
 ## 14. Sources
 
