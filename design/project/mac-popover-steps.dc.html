@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popover · action steps</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.pp-board{height:800px}
+</style>
+</helmet>
+<div class="board desk pp-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:47</span>
+	</div>
+
+	<div class="popover pp-pop">
+		<div class="pp-head">
+			<a class="pp-back" href="mac-popover-undo.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg>Inbox</a>
+			<span style="flex: 1"></span>
+			<span class="pp-progress">1 of 4 done</span>
+		</div>
+
+		<div class="pp-hero pp-steps-head">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="headline">Sign in to the payments sandbox so the end-to-end tests can run</div>
+				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <svg class="i" viewBox="{{bm.claude.vb}}" aria-label="Claude Code" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>9 min ago</div>
+			</div>
+			<svg class="i pp-state-icon c-paused" viewBox="0 0 100 100" aria-label="Paused, can defer"><path d="{{ic.pause_circle}}"></path></svg>
+		</div>
+
+		<div class="pp-steps">
+			<div class="pp-step done">
+				<svg class="i c-done" viewBox="0 0 100 100" aria-label="Done"><path d="{{ic.checkmark_circle}}"></path></svg>
+				<div>
+					<div class="pp-step-text">1. Open the payments sandbox dashboard</div>
+					<div class="pp-step-detail"><a class="link" href="#">dashboard.sandbox.example.com</a></div>
+				</div>
+			</div>
+			<div class="pp-step">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-label="Not done"><path d="{{ic.circle}}"></path></svg>
+				<div>
+					<div class="pp-step-text">2. Sign in with the shared test account</div>
+					<div class="pp-step-detail">It is in your password manager as Payments sandbox</div>
+				</div>
+			</div>
+			<div class="pp-step">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-label="Not done"><path d="{{ic.circle}}"></path></svg>
+				<div>
+					<div class="pp-step-text">3. Check the banner at the top reads Test mode</div>
+					<div class="pp-step-detail">If it reads Live, sign out and ask in Reply instead</div>
+				</div>
+			</div>
+			<div class="pp-step">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-label="Not done"><path d="{{ic.circle}}"></path></svg>
+				<div>
+					<div class="pp-step-text">4. Press Done</div>
+					<div class="pp-step-detail">Claude reruns the end-to-end tests with your session</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="pp-actbar">
+			<button class="btn primary">Done<span class="kbd">↩</span></button>
+			<button class="btn">Reply<span class="kbd">R</span></button>
+			<button class="btn">Defer<span class="kbd">D</span></button>
+			<span style="flex: 1"></span>
+			<button class="btn icon" aria-label="Open conversation"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
+		</div>
+	</div>
+
+	<div class="pp-note">
+		<div class="board-label">Action steps</div>
+		<ul>
+			<li>Every action required message carries an action plan from the agent. Do it, the default button on its card and popup, turns the whole popover into that plan</li>
+			<li>Steps can be ticked off as you go; ticks stay with the message and are never sent to the agent</li>
+			<li>Done, Reply and Defer sit at the bottom and go through the same 3 s undo. ‹ Inbox goes back without answering</li>
+		</ul>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":800}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

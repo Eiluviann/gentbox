@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Apple Watch</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.wb{width:880px;height:460px;padding:28px 40px;display:flex;flex-direction:column;gap:18px}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:30px}
+.col{display:flex;flex-direction:column;align-items:center;gap:16px}
+.watch{height:282px}
+.wc{padding:12px 12px 0;display:flex;flex-direction:column;gap:5px}
+.wapp{display:flex;align-items:center;gap:6px;font-size:13px;color:#a7a7ad}
+.wapp .notif-appicon{width:20px;height:20px;border-radius:50%}
+.wapp .notif-appicon svg{left:4px;top:4px;width:12px;height:12px}
+.wt{font-size:15px;line-height:19px;font-weight:600}
+.wsub{font-size:14px;line-height:18px;color:#fff;font-weight:500}
+.wbody{font-size:14px;line-height:18px;color:#d1d1d6}
+.wbtn{height:34px}
+.cap{text-align:center;max-width:240px}
+</style>
+</helmet>
+<div class="board wb">
+	<div>
+		<div class="title">Apple Watch</div>
+		<div class="body">The iPhone notification mirrored with its buttons; no Watch app yet, a custom Watch UI is Planned</div>
+	</div>
+	<div class="three">
+		<div class="col">
+			<div class="watch">
+				<div class="wc">
+					<div class="wapp"><span class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></span>Time Sensitive</div>
+					<div class="wt" style="color: #8e8cff">Your input is needed</div>
+					<div class="wsub">api · fix flaky test</div>
+					<div class="wbody">Claude Code wants to run a command</div>
+					<div class="wbtn" style="margin-top: 2px; color: #0a84ff">Approve</div>
+					<div class="wbtn" style="color: #ff453a">Deny</div>
+				</div>
+			</div>
+			<div class="cap"><div class="headline">Decision · waiting · urgent</div><div class="caption">Time Sensitive with a haptic; scroll for Reply by dictation, Scribble or keyboard</div></div>
+		</div>
+		<div class="col">
+			<div class="watch">
+				<div class="wc">
+					<div class="wapp"><span class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></span>9m ago</div>
+					<div class="wt" style="color: #40c8b0">Action required</div>
+					<div class="wsub">web · WEB-142 checkout</div>
+					<div class="wbody">Sign in to the payments sandbox</div>
+					<div class="wbtn" style="margin-top: 2px">Defer</div>
+					<div class="wbtn">Done</div>
+				</div>
+			</div>
+			<div class="cap"><div class="headline">Action · paused, can defer</div><div class="caption">Defer lets the agent keep working; scroll for Open</div></div>
+		</div>
+		<div class="col">
+			<div class="watch">
+				<div class="wc">
+					<div class="wapp"><span class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></span>20m ago</div>
+					<div class="wt" style="color: #30d158">Task complete</div>
+					<div class="wsub">web · WEB-139 search filters</div>
+					<div class="wbody">Search filters persist in the URL</div>
+					<div class="wbtn" style="margin-top: 2px">Open</div>
+					<div class="wbtn">Dismiss</div>
+				</div>
+			</div>
+			<div class="cap"><div class="headline">Task completed</div><div class="caption">Open hands off to the iPhone app</div></div>
+		</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":460}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blocking popup without a waiter</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.bn-board{width:520px;height:600px}
+.stack{position:absolute;top:40px;right:16px;width:380px;display:flex;flex-direction:column;gap:16px}
+.bp{padding:14px;display:flex;flex-direction:column;gap:10px}
+.bp-head{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start}
+.bp-head > .i{margin-top:1px}
+.bp-acts{display:flex;gap:6px;align-items:center}
+.lbl{font-size:11px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:-8px}
+</style>
+</helmet>
+<div class="board desk bn-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">1</span></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:52</span>
+	</div>
+
+	<div class="stack">
+		<div class="lbl">No waiting agent</div>
+		<div class="panel bp">
+			<div class="bp-head">
+				<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+				<div>
+					<div class="headline">Your input is needed</div>
+					<div class="tags" style="margin-top: 2px"><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude desktop</span><span class="tag plain">1 min</span></div>
+				</div>
+				<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+			</div>
+			<div class="title" style="font-size: 15px; line-height: 20px">Choose a payment provider for the test run</div>
+			<div class="callout">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+				<div class="body">Answer this one in the session; the agent waits there, not on Gentbox, so Defer and the answer buttons are hidden</div>
+				<span></span>
+			</div>
+			<div class="bp-acts">
+				<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg>Open conversation</button>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg>Snooze</button>
+				<button class="btn">Mark done</button>
+			</div>
+		</div>
+
+		<div class="lbl">Answered elsewhere</div>
+		<div class="panel bp" style="gap: 8px">
+			<div class="bp-head">
+				<svg class="i c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>
+				<div>
+					<div class="headline">Answered in the terminal at 18:43</div>
+					<div class="tags" style="margin-top: 2px"><span class="tag plain">Allow Bash to run the ingest tests</span></div>
+				</div>
+				<button class="btn plain sm icon" aria-label="Close"><svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></button>
+			</div>
+			<div class="progress"><span style="width: 45%; background: var(--accent)"></span></div>
+			<div class="caption">Closing; the first answer wins, so the buttons are gone</div>
+		</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":600}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

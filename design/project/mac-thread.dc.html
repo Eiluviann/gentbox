@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Thread detail</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.th-board{width:1180px;height:880px;padding:30px}
+.win{width:1120px;height:820px}
+.toolbar{height:66px}
+.tl-body{display:flex;flex-direction:column;gap:4px}
+.acts{display:flex;gap:6px;margin-top:8px}
+</style>
+</helmet>
+<div class="board desk th-board">
+	<div class="window win">
+		<nav class="sidebar" aria-label="Sidebar">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-popover.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray}}"></path></svg><span class="grow">Inbox</span><span class="badge">1</span></a>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snoozed</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg><span class="grow">History</span></div>
+			<div class="side-head">Topics</div>
+			<a class="side-item" href="mac-topic.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg><span class="grow">Gentbox</span></a>
+			<div class="side-item sub sel"><span class="grow">Phase 3 · ingest</span><span class="badge">1</span></div>
+			<div class="side-item sub"><span class="grow">v1.1</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bubble_left_and_bubble_right}}"></path></svg><span class="grow">General</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-deps)"><path d="{{ic.wrench_and_screwdriver}}"></path></svg><span class="grow">Dependency upgrades</span><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bell_slash}}"></path></svg></div>
+			<span style="flex: 1"></span>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">Settings</span></a>
+		</nav>
+
+		<main class="content">
+			<div class="toolbar">
+				<div style="flex: 1; min-width: 0">
+					<div class="caption"><a class="link" href="mac-topic.dc.html">Gentbox</a> ›</div>
+					<div class="headline" style="font-size: 15px">Phase 3 · ingest</div>
+					<div class="caption">Opened by Claude Code</div>
+				</div>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>Mute</button>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close thread</button>
+				<button class="btn icon" aria-label="More"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+			</div>
+
+			<div class="pane">
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray_full}}"></path></svg>
+						<div><div class="headline">Open in this thread</div></div>
+						<span></span>
+					</div>
+					<div class="row" style="border-top: 1px solid var(--line-faint)">
+						<span class="icol"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><svg class="i urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.figure_walk_motion}}"></path></svg></span>
+						<div>
+							<div class="headline">Allow Bash to run the ingest tests?</div>
+							<div class="tags"><span class="tag wait">Agent waiting</span><span class="tag plain">2 min</span></div>
+							<div class="acts"><button class="btn sm primary">Approve</button><button class="btn sm danger">Deny</button><button class="btn sm">Reply</button></div>
+						</div>
+						<button class="btn plain sm icon" aria-label="Open conversation"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
+					</div>
+				</div>
+
+				<div class="eyebrow" style="margin-top: 4px">Timeline</div>
+				<div class="tl">
+					<div class="tl-line"></div>
+					<div class="tl-item"><span class="tl-time">18:42</span><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><div class="tl-body"><div class="headline">Allow Bash to run the ingest tests?</div><div class="tags" style="margin-top: 0"><span class="tag wait">Open</span></div></div></div>
+					<div class="tl-item"><span class="tl-time">18:04</span><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg><div class="tl-body"><div class="headline">Task complete: ingest auth accepts rotated tokens</div><div class="tags" style="margin-top: 0"><span class="tag plain">Codex</span></div></div></div>
+					<div class="tl-item"><span class="tl-time">17:51</span><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><div class="tl-body"><div class="headline" style="font-weight: 500">Allow editing auth.rs?</div><div class="tags" style="margin-top: 0"><span class="tag">Approved on Mac</span></div></div></div>
+					<div class="tl-item"><span class="tl-time">17:40</span><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><div class="tl-body"><div class="headline" style="font-weight: 500; color: var(--ink-3)">Allow fetching a page from docs.rs?</div><div class="tags" style="margin-top: 0"><span class="tag gone">Withdrawn · No longer needed</span></div></div></div>
+					<div class="tl-item"><span class="tl-time">17:20</span><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg><div class="tl-body"><div class="headline" style="font-weight: 500">Thread opened by Claude Code in Gentbox</div></div></div>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":880}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

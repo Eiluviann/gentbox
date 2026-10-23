@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings sources</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.ss-board{height:820px}
+.win{height:760px}
+</style>
+</helmet>
+<div class="board desk set-board ss-board">
+	<div class="window set-win win">
+		<nav class="sidebar" aria-label="Settings">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-conversation.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg><span class="grow">Inbox</span></a>
+			<div class="side-head">Settings</div>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg><span class="grow">Notifications</span></a>
+			<a class="side-item" href="settings-quiet-focus.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg><span class="grow">Quiet hours and Focus</span></a>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></div>
+			<a class="side-item" href="settings-rules.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></a>
+			<a class="side-item" href="settings-phone.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span><span class="tag">Planned</span></a>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
+		</nav>
+		<main class="content">
+			<div class="toolbar"><div class="headline" style="font-size: 15px">Sources</div></div>
+			<div class="set-pane">
+				<p class="lede">Agents that may send to Gentbox. Turning one off drops its messages; mute rules quiet it without losing history</p>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>
+						<div>
+							<div class="headline">Claude Code</div>
+							<div class="tags"><span class="tag">Plugin 0.1 · hooks and MCP</span><span class="tag plain">6 conversations today</span></div>
+						</div>
+						<span class="toggle on"></span>
+					</div>
+					<div class="card-row"><div class="grow"><div>Built-in rules</div><div class="caption">13 mappings from hook events to classes; yours can override them</div></div><a class="link" href="settings-rules.dc.html" style="font-size: 13px">Show in Rules</a></div>
+					<div class="card-row"><div class="grow"><div>Wait for answers from Gentbox</div><div class="caption">How long the hook holds a waiting decision before Claude Code shows its own prompt</div></div><span class="popup">9 min<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span><span class="toggle on"></span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>
+						<div>
+							<div class="headline">Codex</div>
+							<div class="tags"><span class="tag">MCP server gentbox-mcp</span><span class="tag plain">last message 21 min ago</span></div>
+						</div>
+						<span class="toggle on"></span>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.network}}"></path></svg>
+						<div><div class="headline">Local API</div><div class="caption">For any agent that can run a command or send HTTP</div></div>
+						<a class="link" href="#api-reference" style="font-size: 13px">API reference</a>
+					</div>
+					<div class="card-row"><span style="width: 120px">Socket</span><span class="grow mono" style="color: var(--ink-2)">~/Library/Group Containers/…/API/hub.sock</span><button class="btn sm icon" aria-label="Copy socket path"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.doc_on_doc}}"></path></svg></button></div>
+					<div class="card-row"><span style="width: 120px">HTTP</span><span class="grow mono" style="color: var(--ink-2)">127.0.0.1:52817</span><button class="btn sm icon" aria-label="Copy address"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.doc_on_doc}}"></path></svg></button></div>
+					<div class="card-row">
+						<span style="width: 120px">Sender token</span>
+						<div class="grow"><div class="mono" style="color: var(--ink-2)">••••••••••••••••3fQ</div><div class="caption">Can post and wait, never answer or list</div></div>
+						<button class="btn sm icon" aria-label="Copy token"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.doc_on_doc}}"></path></svg></button>
+						<button class="btn sm">Regenerate</button>
+					</div>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":820}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

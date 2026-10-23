@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings quiet hours and Focus</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.sq-board{height:820px}
+.win{height:760px}
+</style>
+</helmet>
+<div class="board desk set-board sq-board">
+	<div class="window set-win win">
+		<nav class="sidebar" aria-label="Settings">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-conversation.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg><span class="grow">Inbox</span></a>
+			<div class="side-head">Settings</div>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg><span class="grow">Notifications</span></a>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg><span class="grow">Quiet hours and Focus</span></div>
+			<a class="side-item" href="settings-sources.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></a>
+			<a class="side-item" href="settings-rules.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></a>
+			<a class="side-item" href="settings-phone.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span><span class="tag">Planned</span></a>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
+		</nav>
+		<main class="content">
+			<div class="toolbar"><div class="headline" style="font-size: 15px">Quiet hours and Focus</div></div>
+			<div class="set-pane">
+				<p class="lede">While quiet, the Mac makes no sound, and toasts and banners wait in the inbox</p>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg>
+						<div><div class="headline">Quiet hours</div><div class="caption">A weekly schedule</div></div>
+						<span class="toggle on"></span>
+					</div>
+					<div class="card-row">
+						<span class="grow">Days</span>
+						<div class="chips"><span class="chip on">M</span><span class="chip on">T</span><span class="chip on">W</span><span class="chip on">T</span><span class="chip on">F</span><span class="chip">S</span><span class="chip">S</span></div>
+					</div>
+					<div class="card-row">
+						<span class="grow">From</span>
+						<span class="field" style="width: 80px; justify-content: center; font-variant-numeric: tabular-nums">22:00</span>
+						<span class="caption">to</span>
+						<span class="field" style="width: 80px; justify-content: center; font-variant-numeric: tabular-nums">07:30</span>
+					</div>
+					<div class="card-row">
+						<div class="grow"><div style="display: flex; align-items: center; gap: 6px"><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.figure_walk_motion}}"></path></svg>Urgent</span>Urgent items break through</div><div class="caption">Popup without sound on the Mac</div></div>
+						<span class="toggle on"></span>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg>
+						<div>
+							<div class="headline">Follow Focus</div>
+							<div class="tags"><span class="tag">Focus on</span><span class="tag plain">reported by macOS</span></div>
+						</div>
+						<span class="toggle on"></span>
+					</div>
+					<div class="card-row">
+						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+						<div class="grow"><div>Focus status shared with Gentbox</div><div class="caption">Allowed once in System Settings › Focus › Focus Status; macOS tells it when any Focus turns on or off</div></div>
+						<button class="btn sm">Open System Settings</button>
+					</div>
+					<div class="card-row"><span class="grow caption">Builds without a paid Apple team cannot use this; they read Focus with Full Disk Access instead</span></div>
+				</div>
+
+				<div class="callout">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+					<div class="body">Urgent notifications are Time Sensitive, so they break through a Focus that allows it; these settings decide what Gentbox's own popups and toasts do</div>
+					<span></span>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":820}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

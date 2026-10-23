@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone silent arrival</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.lock{background:#1f2630}
+.notif{grid-template-columns:38px minmax(0,1fr) 36px}
+.thumb{width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;align-self:center}
+.legend{position:absolute;left:20px;right:20px;bottom:40px;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
+.step{position:absolute;left:20px;top:20px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+</style>
+</helmet>
+<div class="lock">
+	<div class="step">1 · 18:42 · silent</div>
+	<div style="height: 90px"></div>
+	<div class="nc-head"><span>Notification Centre</span><span>18:42</span></div>
+
+	<div class="notif passive">
+		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+		<div>
+			<div class="notif-title">Your input is needed<span class="when">now</span></div>
+			<div class="notif-sub">Agent waiting · Gentbox · Phase 3 · ingest</div>
+			<div class="notif-body">Claude Code wants to run a command in api</div>
+		</div>
+		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+	</div>
+
+	<div class="legend">While you use the Mac, the push arrives passive: straight into Notification Centre, no sound, no screen wake. Approving it here already counts, and nothing rings later</div>
+	<div class="home" style="background: #fff"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

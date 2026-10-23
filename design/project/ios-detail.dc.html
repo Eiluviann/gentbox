@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone detail</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.d-body{padding:8px 16px 0;display:flex;flex-direction:column;gap:12px}
+.d-head{display:grid;grid-template-columns:22px minmax(0,1fr);column-gap:10px;align-items:start}
+.d-acts{position:absolute;left:16px;right:16px;bottom:34px;display:flex;flex-direction:column;gap:10px}
+.row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ios .tag{height:20px;font-size:12px}
+</style>
+</helmet>
+<div class="ios">
+	<div style="height: 54px"></div>
+	<div class="navbar">
+		<a href="ios-inbox.dc.html" style="display: flex; align-items: center; gap: 4px; color: var(--accent); text-decoration: none"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg>Inbox</a>
+		<button class="btn plain icon" aria-label="More" style="color: var(--accent)"><svg class="i i22" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg></button>
+	</div>
+	<div class="d-body">
+		<div class="d-head">
+			<span class="icol"><svg class="i i22 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><svg class="i i22 urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.figure_walk_motion}}"></path></svg></span>
+			<div>
+				<div style="font-size: 15px; font-weight: 600">Your input is needed</div>
+				<div class="tags"><span class="tag wait">Agent waiting</span></div>
+			</div>
+		</div>
+		<div style="font-size: 22px; line-height: 28px; font-weight: 700">Allow Bash to run the ingest tests?</div>
+		<div class="code" style="font-size: 14px; line-height: 20px; background: #fff; padding: 12px">cargo test -p ingest -- --nocapture</div>
+		<div style="font-size: 17px; color: var(--ink-2)">Run the ingest tests with output</div>
+		<div class="caption" style="font-size: 13px">Claude Code · Ghostty · 2 min · excerpt from the notification</div>
+	</div>
+	<div class="d-acts">
+		<div class="row2">
+			<button class="ibtn danger"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
+			<button class="ibtn primary"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve</button>
+		</div>
+		<div class="row2">
+			<button class="ibtn"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
+			<button class="ibtn"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg>Snooze</button>
+		</div>
+		<div class="caption" style="text-align: center; font-size: 13px">Snooze only reminds you on this iPhone; the agent keeps waiting</div>
+	</div>
+	<div class="home"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

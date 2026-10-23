@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Generic silent inbox rows</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.gr-board{width:460px;height:460px}
+.pop{position:absolute;top:30px;left:40px;width:380px}
+.pop-head{display:flex;align-items:center;gap:8px;padding:10px 12px 6px 8px;border-bottom:1px solid var(--line)}
+.note{position:absolute;left:40px;bottom:24px;width:380px}
+</style>
+</helmet>
+<div class="board desk gr-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:50</span>
+	</div>
+
+	<div class="popover pop">
+		<div class="pop-head">
+			<button class="btn plain sm icon" aria-label="Back"><svg class="i i14 c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg></button>
+			<div style="flex: 1" class="headline">Silent updates</div>
+			<button class="btn sm">Clear all</button>
+		</div>
+		<div class="row">
+			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+			<div>
+				<div class="headline" style="font-weight: 500">Subagent Explore finished</div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag plain">4 min</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="row">
+			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+			<div>
+				<div class="headline" style="font-weight: 500">Paused while a background build runs</div>
+				<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag plain">9 min</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="row">
+			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+			<div>
+				<div class="headline" style="font-weight: 500">Subagent code-reviewer finished</div>
+				<div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag plain">21 min</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="row">
+			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+			<div>
+				<div class="headline" style="font-weight: 500">Lint plugin: 0 problems</div>
+				<div class="tags"><span class="tag">docs · release notes</span><span class="tag plain">40 min</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+	</div>
+
+	<div class="note">
+		<div class="board-label">Generic</div>
+		<div class="caption" style="color: var(--ink-2)">No sound, badge or popup; rows arrive already seen and leave after 24 h</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":460}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

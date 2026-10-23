@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone inbox · undo before sending</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.conn{display:flex;align-items:center;gap:6px;padding:2px 16px 0;font-size:13px;line-height:18px;color:var(--ink-3)}
+.ios .irow{padding:9px 16px}
+.thead{display:flex;align-items:center;gap:8px;padding:14px 32px 2px;font-size:15px;font-weight:600}
+.thead .k{font-size:13px;font-weight:400;color:var(--ink-3)}
+.thead .grow{flex:1;display:flex;align-items:center;gap:6px}
+.sub{padding:8px 32px 4px 58px;font-size:13px;font-weight:600;color:var(--ink-2);display:flex;gap:6px}
+.sub .k{font-weight:400;color:var(--ink-3)}
+.ios .group{margin-left:42px}
+.legend-ios{margin:18px 32px 0;font-size:13px;line-height:18px;color:var(--ink-3)}
+</style>
+</helmet>
+<div class="ios">
+	<div style="height: 54px"></div>
+	<div class="large" style="margin-top: 10px">Inbox</div>
+	<div class="conn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.laptopcomputer}}"></path></svg>From your notifications · mac-mini</div>
+
+	<div class="undo-box">
+		<div class="undo-row" style="position: relative">
+			<svg class="i i22 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+			<div style="min-width: 0"><div class="pp-one"><span class="verb">Approved</span> Allow Bash to run the ingest tests</div><div class="pp-ctx">Sending in 2 s</div></div>
+			<span class="undo-btn">Undo</span>
+			<div class="pp-bar"><span style="width: 67%"></span></div>
+		</div>
+	</div>
+
+	<div class="thead"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg><span class="grow">Gentbox</span><svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg></div>
+	<div class="sub">v1.1</div>
+	<div class="group">
+		<div class="irow">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+			<div><div class="irow-title clamp2">Sign in to the payments sandbox</div><div class="tags"><span class="tag paused">Paused · can defer</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+		<div class="irow">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div><div class="irow-title" style="font-weight: 500">Which title for the 1.1 release notes?</div><div class="tags"><span class="tag working">Agent working</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+	</div>
+
+	<div class="thead"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bubble_left_and_bubble_right}}"></path></svg><span class="grow">General</span><svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg></div>
+	<div class="sub">infra · rotate staging certs</div>
+	<div class="group">
+		<div class="irow">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div><div class="irow-title clamp2">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag paused">Paused · can defer</span><span class="tag plain" style="font-size: 12px">Codex · 6 min</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+	</div>
+
+	<div class="thead" style="color: var(--ink-3)"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-deps)"><path d="{{ic.wrench_and_screwdriver}}"></path></svg><span class="grow" style="color: var(--ink)">Dependency upgrades<span class="tag muted">Muted</span></span><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_right}}"></path></svg></div>
+
+	<div class="legend-ios">Approve, Deny, a choice, Reply, Done, Defer and Dismiss all wait 3 s in this box before anything is sent. Undo puts the message back where it was</div>
+	<nav class="tabbar" aria-label="Tabs">
+		<span class="tab on"><svg class="i i24" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray_full}}"></path></svg>Inbox</span>
+		<a class="tab" href="ios-history.dc.html"><svg class="i i24" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>History</a>
+		<span class="tab"><svg class="i i24" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg>Settings</span>
+	</nav>
+	<div class="home"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

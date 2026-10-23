@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popover all clear</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.pe-board{width:460px;height:440px}
+.pop{position:absolute;top:30px;left:40px;width:380px}
+.pop-head{display:flex;align-items:center;gap:8px;padding:12px 12px 8px 14px;border-bottom:1px solid var(--line)}
+.pop-foot{display:flex;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-top:1px solid var(--line);background:#fafafa}
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:36px 24px 40px;text-align:center}
+</style>
+</helmet>
+<div class="board desk pe-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="slash-knock" d="{{ic.agent_slash}}"></path><path class="slash" d="{{ic.agent_slash}}"></path></svg></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 22:10</span>
+	</div>
+
+	<div class="popover pop">
+		<div class="pop-head">
+			<div style="flex: 1">
+				<div class="title">Inbox</div>
+				<div class="caption">Nothing open</div>
+			</div>
+			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
+		</div>
+		<div class="row" style="background: var(--track); margin: 0 10px; border-radius: 10px">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg>
+			<div>
+				<div class="headline">Quiet hours until 07:30</div>
+				<div class="caption">Urgent items still reach you</div>
+			</div>
+			<button class="btn sm">End now</button>
+		</div>
+		<div class="empty">
+			<svg class="i i32" viewBox="0 0 100 100" aria-hidden="true" style="color: #c7c7cc"><path d="{{ic.tray}}"></path></svg>
+			<div class="headline" style="margin-top: 4px">No agent needs you</div>
+			<div class="caption">Finished work and silent updates stay in History</div>
+		</div>
+		<div class="pop-foot">
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_triangle}}"></path></svg>
+			<span class="caption" style="flex: 1; color: var(--ink)">Codex hook not responding · retry in 30 s</span>
+			<a class="link" href="settings-sources.dc.html" style="font-size: 12px">Details</a>
+		</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":440}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

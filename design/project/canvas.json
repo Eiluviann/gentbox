@@ -1,0 +1,401 @@
+{
+	"v": 3,
+	"createdOnFiles": {
+		"v": 1,
+		"at": "2026-10-23T18:40:00Z"
+	},
+	"title": "Gentbox GUI",
+	"launch": {
+		"view": "canvas"
+	},
+	"pages": [],
+	"boards": {
+		"Main.dc.html": {
+			"x": 0,
+			"y": 0,
+			"w": 760,
+			"h": 1350,
+			"title": "Foundations · type, blocking level, urgent"
+		},
+		"mac-menubar-icons.dc.html": {
+			"x": 840,
+			"y": 0,
+			"w": 600,
+			"h": 460,
+			"title": "Menu-bar icon states"
+		},
+		"mac-popover.dc.html": {
+			"x": 1520,
+			"y": 0,
+			"w": 460,
+			"h": 760,
+			"title": "Menu-bar inbox popover · next up"
+		},
+		"mac-popover-empty.dc.html": {
+			"x": 1520,
+			"y": 3400,
+			"w": 460,
+			"h": 440,
+			"title": "Popover · all clear, quiet hours"
+		},
+		"mac-blocking-popup.dc.html": {
+			"x": 2060,
+			"y": 0,
+			"w": 520,
+			"h": 540,
+			"title": "Popup · decision, waiting, urgent",
+			"is_interactive": true
+		},
+		"mac-blocking-stacked.dc.html": {
+			"x": 2060,
+			"y": 660,
+			"w": 520,
+			"h": 720,
+			"title": "Popup · stacked"
+		},
+		"mac-blocking-reply.dc.html": {
+			"x": 2060,
+			"y": 1500,
+			"w": 520,
+			"h": 560,
+			"title": "Popup · reply"
+		},
+		"mac-blocking-no-waiter.dc.html": {
+			"x": 2060,
+			"y": 2180,
+			"w": 520,
+			"h": 600,
+			"title": "Popup · agent waits in the session, answered elsewhere"
+		},
+		"mac-completion-toast.dc.html": {
+			"x": 2660,
+			"y": 0,
+			"w": 520,
+			"h": 320,
+			"title": "Toast · task completed"
+		},
+		"mac-native-banner.dc.html": {
+			"x": 3260,
+			"y": 0,
+			"w": 520,
+			"h": 440,
+			"title": "Native notification · decision, agent working; urgent"
+		},
+		"mac-native-banner-expanded.dc.html": {
+			"x": 3260,
+			"y": 560,
+			"w": 520,
+			"h": 440,
+			"title": "Non-blocking · expanded with actions"
+		},
+		"mac-generic-row.dc.html": {
+			"x": 3860,
+			"y": 0,
+			"w": 460,
+			"h": 460,
+			"title": "Generic · silent inbox rows"
+		},
+		"mac-conversation.dc.html": {
+			"x": 4400,
+			"y": 1900,
+			"w": 1180,
+			"h": 880,
+			"title": "Conversation detail"
+		},
+		"settings-notifications.dc.html": {
+			"x": 5900,
+			"y": 0,
+			"w": 1100,
+			"h": 1060,
+			"title": "Settings · policy by type, blocking level, urgent"
+		},
+		"settings-quiet-focus.dc.html": {
+			"x": 7080,
+			"y": 0,
+			"w": 1100,
+			"h": 820,
+			"title": "Settings · quiet hours and Focus"
+		},
+		"settings-sources.dc.html": {
+			"x": 8260,
+			"y": 0,
+			"w": 1100,
+			"h": 820,
+			"title": "Settings · sources"
+		},
+		"settings-rules.dc.html": {
+			"x": 9440,
+			"y": 0,
+			"w": 1100,
+			"h": 1000,
+			"title": "Settings · rules"
+		},
+		"settings-rules-error.dc.html": {
+			"x": 9440,
+			"y": 1120,
+			"w": 1100,
+			"h": 520,
+			"title": "Settings · rules with a parse error"
+		},
+		"ios-inbox.dc.html": {
+			"x": 14880,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · inbox"
+		},
+		"ios-detail.dc.html": {
+			"x": 15350,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · detail"
+		},
+		"ios-detail-answered.dc.html": {
+			"x": 15350,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · detail answered"
+		},
+		"ios-lock-screen.dc.html": {
+			"x": 12510,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · 2 Time Sensitive ping"
+		},
+		"ios-lock-screen-expanded.dc.html": {
+			"x": 12510,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · long press, approval"
+		},
+		"watch.dc.html": {
+			"x": 13450,
+			"y": 0,
+			"w": 880,
+			"h": 460,
+			"title": "Apple Watch · mirrored notifications"
+		},
+		"ios-history.dc.html": {
+			"x": 15820,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · history"
+		},
+		"ios-lock-screen-reply.dc.html": {
+			"x": 12510,
+			"y": 3856,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · text reply from the lock screen"
+		},
+		"ios-escalation-silent.dc.html": {
+			"x": 12040,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · 1 silent arrival"
+		},
+		"ios-escalation-handled.dc.html": {
+			"x": 12980,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · 3 handled replacement"
+		},
+		"ios-pairing.dc.html": {
+			"x": 14410,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · pairing"
+		},
+		"ios-faceid.dc.html": {
+			"x": 12510,
+			"y": 1928,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · Approve asks for Face ID"
+		},
+		"ios-lock-screen-choices.dc.html": {
+			"x": 12510,
+			"y": 2892,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · long press, choices and Defer"
+		},
+		"mac-popup-deferrable.dc.html": {
+			"x": 2060,
+			"y": 2900,
+			"w": 520,
+			"h": 640,
+			"title": "Popup · action, paused, Defer"
+		},
+		"mac-popup-rescinded.dc.html": {
+			"x": 2060,
+			"y": 3660,
+			"w": 1040,
+			"h": 620,
+			"title": "Withdrawn by agent"
+		},
+		"mac-outcomes.dc.html": {
+			"x": 4400,
+			"y": 2900,
+			"w": 1180,
+			"h": 600,
+			"title": "Outcomes afterwards · inbox and conversation"
+		},
+		"mac-topic.dc.html": {
+			"x": 4400,
+			"y": 0,
+			"w": 1180,
+			"h": 780,
+			"title": "Topic detail · Gentbox and its threads"
+		},
+		"ios-lock-screen-stacked.dc.html": {
+			"x": 12510,
+			"y": 4820,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · stacked by thread"
+		},
+		"mac-thread.dc.html": {
+			"x": 4400,
+			"y": 900,
+			"w": 1180,
+			"h": 880,
+			"title": "Thread detail · Phase 3 · ingest across two sessions"
+		},
+		"mac-popover-undo.dc.html": {
+			"x": 1520,
+			"y": 880,
+			"w": 460,
+			"h": 800,
+			"title": "Popover · undo before sending"
+		},
+		"mac-popover-item-menu.dc.html": {
+			"x": 1520,
+			"y": 2720,
+			"w": 460,
+			"h": 560,
+			"title": "Popover · item menu, mute and close"
+		},
+		"ios-inbox-undo.dc.html": {
+			"x": 14880,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · undo before sending"
+		},
+		"ios-lock-screen-undo.dc.html": {
+			"x": 12510,
+			"y": 5784,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · undo after a lock-screen action"
+		},
+		"mac-popover-steps.dc.html": {
+			"x": 1520,
+			"y": 1800,
+			"w": 460,
+			"h": 800,
+			"title": "Popover · action steps after Do it"
+		},
+		"settings-phone.dc.html": {
+			"x": 10620,
+			"y": 0,
+			"w": 1100,
+			"h": 560,
+			"title": "Settings · iPhone, planned for the mobile release"
+		},
+		"mobile-settings-phone.dc.html": {
+			"x": 16290,
+			"y": 0,
+			"w": 1100,
+			"h": 1140,
+			"title": "Later · iPhone settings: delivery, paired iPhones, push key"
+		},
+		"mobile-settings-pairing.dc.html": {
+			"x": 16290,
+			"y": 1260,
+			"w": 1100,
+			"h": 640,
+			"title": "Later · pair an iPhone"
+		}
+	},
+	"order": [
+		"Main.dc.html",
+		"mac-menubar-icons.dc.html",
+		"mac-popover.dc.html",
+		"mac-popover-undo.dc.html",
+		"mac-popover-steps.dc.html",
+		"mac-popover-item-menu.dc.html",
+		"mac-popover-empty.dc.html",
+		"mac-blocking-popup.dc.html",
+		"mac-blocking-stacked.dc.html",
+		"mac-blocking-reply.dc.html",
+		"mac-blocking-no-waiter.dc.html",
+		"mac-popup-deferrable.dc.html",
+		"mac-popup-rescinded.dc.html",
+		"mac-completion-toast.dc.html",
+		"mac-native-banner.dc.html",
+		"mac-native-banner-expanded.dc.html",
+		"mac-generic-row.dc.html",
+		"mac-topic.dc.html",
+		"mac-thread.dc.html",
+		"mac-conversation.dc.html",
+		"mac-outcomes.dc.html",
+		"settings-notifications.dc.html",
+		"settings-quiet-focus.dc.html",
+		"settings-sources.dc.html",
+		"settings-rules.dc.html",
+		"settings-rules-error.dc.html",
+		"settings-phone.dc.html",
+		"ios-escalation-silent.dc.html",
+		"ios-lock-screen.dc.html",
+		"ios-lock-screen-expanded.dc.html",
+		"ios-faceid.dc.html",
+		"ios-lock-screen-choices.dc.html",
+		"ios-lock-screen-reply.dc.html",
+		"ios-lock-screen-stacked.dc.html",
+		"ios-escalation-handled.dc.html",
+		"watch.dc.html",
+		"ios-pairing.dc.html",
+		"ios-inbox.dc.html",
+		"ios-detail.dc.html",
+		"ios-detail-answered.dc.html",
+		"ios-history.dc.html",
+		"ios-inbox-undo.dc.html",
+		"ios-lock-screen-undo.dc.html",
+		"mobile-settings-phone.dc.html",
+		"mobile-settings-pairing.dc.html"
+	],
+	"notes": {
+		"group-mac": {
+			"x": 0,
+			"y": -300,
+			"text": "Mac",
+			"kind": "title1",
+			"maxW": 5580
+		},
+		"group-settings": {
+			"x": 5900,
+			"y": -300,
+			"text": "Settings, inside the main window",
+			"kind": "title1",
+			"maxW": 5820
+		},
+		"group-phone": {
+			"x": 12040,
+			"y": -300,
+			"text": "Later · mobile release (iPhone and Watch)",
+			"kind": "title1",
+			"maxW": 5350
+		}
+	},
+	"designSystems": []
+}

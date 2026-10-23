@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone long press choices</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.blur{position:absolute;inset:0;background:rgba(20,26,34,.55)}
+.legend{position:relative;margin:12px 22px 0;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
+.md{font-size:15px;line-height:20px;color:#3c3c43}
+.md ul{margin:2px 0;padding-left:20px;color:#3c3c43}
+</style>
+</helmet>
+<div class="lock">
+	<div class="blur"></div>
+	<div style="height: 90px"></div>
+
+	<div class="xcard">
+		<div class="xhead">
+			<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+			<span style="flex: 1">GENTBOX</span><span>now</span>
+		</div>
+		<div class="xbody">
+			<div style="display: flex; align-items: center; gap: 8px">
+				<svg class="i i18 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+				<span style="font-weight: 600; flex: 1">Your input is needed</span>
+				<svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>
+			</div>
+			<div class="tags" style="margin-top: 0"><span class="tag paused" style="height: 20px; font-size: 12px">Paused · can defer</span><span class="tag plain" style="font-size: 12px">Codex</span></div>
+			<div style="font-size: 17px; line-height: 22px; font-weight: 600">Which cluster gets the new certificates first?</div>
+			<div class="md">
+				Both clusters serve staging traffic:
+				<ul><li><b>staging-eu</b> has the expiring cert, 3 days left</li><li><b>staging-us</b> takes the load test tonight</li></ul>
+			</div>
+		</div>
+	</div>
+	<div class="xactions">
+		<div><span>staging-eu</span></div>
+		<div><span>staging-us</span></div>
+		<div><span>Defer</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg></div>
+		<div><span>Reply</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg></div>
+		<div><span>Open</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></div>
+	</div>
+	<div class="legend">One button per choice, set by the Content Extension at display time, plus Defer because the agent can carry on. Without the extension a choice message offers Reply and Open, and the reply is matched against the choices</div>
+	<div class="home" style="background: #fff"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

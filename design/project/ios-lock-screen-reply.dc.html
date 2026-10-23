@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone text reply from the lock screen</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.blur{position:absolute;inset:0;background:rgba(20,26,34,.55)}
+.notif{grid-template-columns:38px minmax(0,1fr) 36px;position:relative}
+.thumb{width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;align-self:center}
+.inputbar{position:absolute;left:0;right:0;bottom:290px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(210,213,219,.96)}
+.inputbar .fieldx{flex:1;height:36px;border-radius:18px;background:#fff;display:flex;align-items:center;padding:0 14px;font-size:16px;color:#000}
+.send{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center}
+.kb{position:absolute;left:0;right:0;bottom:0;height:290px;background:#d1d4da;display:flex;align-items:center;justify-content:center;color:#3c3c43;font-size:13px}
+</style>
+</helmet>
+<div class="lock">
+	<div class="blur"></div>
+	<div style="height: 110px"></div>
+
+	<div class="notif">
+		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+		<div>
+			<div class="notif-title">Your input is needed<span class="when">now</span></div>
+			<div class="notif-sub">Gentbox · v1.1</div>
+			<div class="notif-body">Pick a title for the 1.1 notes; I used “Faster inbox” for now</div>
+		</div>
+		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+	</div>
+
+	<div class="inputbar">
+		<div class="fieldx">Use “Inbox, quieter”</div>
+		<span class="send" aria-label="Send"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_circle}}"></path></svg></span>
+	</div>
+	<div class="kb">[System keyboard · dictation]</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

@@ -7,3 +7,6 @@ target/
 apps/apple/*.xcodeproj
 apps/apple/build/
 apps/apple/Signing.local.xcconfig
+
+# Generated from SF Pro and third-party brand marks; rebuild with design/tools
+design/project/sf-symbols.js

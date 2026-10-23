@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundations</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.found{width:760px;height:1350px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.appicon{width:44px;height:44px;border-radius:11px;background:#1d1d1f;position:relative;flex:none}
+.appicon svg{position:absolute;left:10px;top:10px;width:24px;height:24px}
+.swatch{width:10px;height:10px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.08)}
+.sw{width:14px;height:14px;border-radius:4px;flex:none;border:1px solid rgba(0,0,0,.08)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.act{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--line-faint)}
+.act .grow{flex:1;min-width:0}
+</style>
+</helmet>
+<div class="board found">
+	<div style="display: flex; align-items: center; gap: 12px">
+		<div class="appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+		<div style="flex: 1">
+			<div class="title-large">Gentbox</div>
+			<div class="body">An inbox for your AI agents</div>
+			<div class="caption">Every message has a type, a blocking level and an urgent flag</div>
+		</div>
+		<div style="display: flex; flex-direction: column; align-items: center; gap: 4px" aria-label="iPhone home screen icon">
+			<div class="appicon" style="width: 52px; height: 52px; border-radius: 12px"><svg viewBox="0 0 100 100" aria-hidden="true" style="left: 12px; top: 12px; width: 28px; height: 28px"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+			<span class="caption" style="color: var(--ink)">Gentbox</span>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-head">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg>
+			<div><div class="headline">Type</div><div class="caption">One colour and one SF Symbol each, wherever the message shows</div></div>
+			<span></span>
+		</div>
+		<div class="row" style="border-top: 1px solid var(--line-faint)">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div>
+				<div class="headline">Decision required <span class="mono c-ink3" style="font-weight: 400">decision_required</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #5856d6"></span>Indigo #5856D6</span><span class="tag mono">arrow.triangle.branch</span><span class="tag plain">The agent needs your answer: approve or deny, choose, reply · titled “Your input is needed”</span></div>
+			</div>
+			<span class="tag dec">Decision</span>
+		</div>
+		<div class="row">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+			<div>
+				<div class="headline">Permission <span class="mono c-ink3" style="font-weight: 400">decision_required with approve and deny</span></div>
+				<div class="tags"><span class="tag mono">checkmark.shield</span><span class="tag plain">A decision that asks to run a tool; indigo like every decision, usually Agent waiting</span></div>
+			</div>
+			<span class="tag dec">Decision</span>
+		</div>
+		<div class="row">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+			<div>
+				<div class="headline">Action required <span class="mono c-ink3" style="font-weight: 400">action_required</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #0a8270"></span>Teal #0A8270</span><span class="tag mono">hand.tap</span><span class="tag plain">You do something outside the conversation, then press Done · titled “Action required”</span></div>
+			</div>
+			<span class="tag act">Action</span>
+		</div>
+		<div class="row">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+			<div>
+				<div class="headline">Task completed <span class="mono c-ink3" style="font-weight: 400">task_completed</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #2e9e4f"></span>Green #2E9E4F</span><span class="tag mono">checkmark.circle</span><span class="tag plain">Always non-blocking · titled “Task complete” or “Goal complete”</span></div>
+			</div>
+			<span class="tag done">Completed</span>
+		</div>
+		<div class="row">
+			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+			<div>
+				<div class="headline">Generic <span class="mono c-ink3" style="font-weight: 400">generic</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #8e8e93"></span>Grey #8E8E93</span><span class="tag mono">info.circle</span><span class="tag plain">Inbox only, never urgent, always non-blocking</span></div>
+			</div>
+			<span class="tag info">Other</span>
+		</div>
+	</div>
+
+	<div class="grid2">
+		<div class="card">
+			<div class="card-head">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>
+				<div><div class="headline">Blocking level</div><div class="caption">A label on line two; it drives popups, re-pings and Defer</div></div>
+				<span></span>
+			</div>
+			<div class="act" style="align-items: flex-start"><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><div class="grow caption" style="color: var(--ink-2)"><span class="mono">blocking</span> · work stops until you decide: persistent popup, re-pings</div></div>
+			<div class="act" style="align-items: flex-start"><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Paused · can defer</span><div class="grow caption" style="color: var(--ink-2)"><span class="mono">deferrable</span> · popup with Defer, which lets the agent carry on</div></div>
+			<div class="act" style="align-items: flex-start"><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.play_circle}}"></path></svg>Agent working</span><div class="grow caption" style="color: var(--ink-2)"><span class="mono">non_blocking</span> · the agent planned for the wait: banner and inbox</div></div>
+		</div>
+		<div class="card">
+			<div class="card-head">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.figure_walk_motion}}"></path></svg>
+				<div><div class="headline">Urgent</div><div class="caption">A red walking figure under the type icon, and the item sorts to the top; any type but generic</div></div>
+				<span></span>
+			</div>
+			<div class="act"><span class="icol"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><svg class="i urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.figure_walk_motion}}"></path></svg></span><span class="grow">Allow Bash to run the ingest tests?</span><span class="mono c-ink3">urgent: true</span></div>
+			<div class="act"><span class="grow">Time Sensitive on the Mac; titles carry no URGENT prefix, native banners lead the subtitle with “Urgent ·”</span></div>
+			<div class="act"><span class="grow">Breaks through quiet hours and Focus</span></div>
+			<div class="act"><span class="grow">The popup ripples, red when waiting, orange when paused</span></div>
+		</div>
+	</div>
+
+	<div class="grid2">
+		<div class="card">
+			<div class="card-head">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg>
+				<div><div class="headline">Actions</div><div class="caption">Answers reach the agent; Snooze stays on your devices</div></div>
+				<span></span>
+			</div>
+			<div class="act"><svg class="i c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg><span class="grow">Approve</span><span class="mono c-ink3">checkmark</span></div>
+			<div class="act"><svg class="i c-danger" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg><span class="grow">Deny</span><span class="mono c-ink3">xmark</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg><span class="grow">Reply</span><span class="mono c-ink3">arrowshape.turn.up.left</span></div>
+			<div class="act"><svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg><span class="grow">Done · on action items: you did it, the agent is told</span><span class="mono c-ink3">checkmark.circle</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg><span class="grow">Defer · the agent keeps working on what needs no input</span><span class="mono c-ink3">forward</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snooze · remind me later; the agent is not told</span><span class="mono c-ink3">moon.zzz</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg><span class="grow">Open</span><span class="mono c-ink3">arrow.up.forward.app</span></div>
+			<div class="act"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><span class="grow">Withdrawn by agent</span><span class="mono c-ink3">arrow.uturn.backward.circle</span></div>
+		</div>
+		<div style="display: flex; flex-direction: column; gap: 16px">
+			<div class="card">
+				<div class="card-head">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.slider_horizontal_3}}"></path></svg>
+					<div><div class="headline">Grounds and type</div><div class="caption">Light greys, 1 px borders, no box inside a box</div></div>
+					<span></span>
+				</div>
+				<div class="act"><span class="sw" style="background: #f2f2f7"></span><span class="grow">Track and code ground</span><span class="mono c-ink3">#F2F2F7</span></div>
+				<div class="act"><span class="sw" style="background: #e0e0e0"></span><span class="grow">Card and panel border</span><span class="mono c-ink3">#E0E0E0</span></div>
+				<div class="act"><span class="sw" style="background: #007aff"></span><span class="grow">Accent, controls only</span><span class="mono c-ink3">#007AFF</span></div>
+				<div class="act"><span class="grow">SF Pro · 13 body, 11 floor, 22 title</span><span class="mono c-ink3">system font</span></div>
+			</div>
+			<div class="card">
+				<div class="card-head">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg>
+					<div><div class="headline">Sources</div><div class="caption">Brand marks stay SVG</div></div>
+					<span></span>
+				</div>
+				<div class="act"><svg class="i" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg><span class="grow">Claude Code</span></div>
+				<div class="act"><svg class="i" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg><span class="grow">Codex</span></div>
+			</div>
+		</div>
+	</div>
+
+	<div class="callout">
+		<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+		<div class="body">Lists are one sorted list, waiting first, without category headers; each row carries its blocking label. Type colours stay on symbols, red marks urgent and waiting, and Deny keeps the system red</div>
+		<span></span>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1350}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>
