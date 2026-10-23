@@ -1,0 +1,287 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Eiluviann/agent-notifier/docs/schema/message-v1.json",
+	"title": "Agent Notifier message v1",
+	"description": "What a sender POSTs to /v1/messages. Field names are camelCase. Unknown top-level fields are rejected so a typo never passes silently; `metadata` is the open extension point. See docs/architecture.md and docs/adr/0003-message-schema.md.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["version", "source", "conversation", "title"],
+	"properties": {
+		"version": {
+			"description": "Schema major version. The hub rejects any other value with 422.",
+			"const": 1
+		},
+		"id": {
+			"description": "Sender-chosen idempotency key. A retry with the same id and source returns the stored message instead of creating a second one. The hub assigns a ULID when it is absent.",
+			"$ref": "#/$defs/token"
+		},
+		"source": {
+			"$ref": "#/$defs/source"
+		},
+		"conversation": {
+			"$ref": "#/$defs/conversation"
+		},
+		"class": {
+			"description": "Declared class. When present it wins over every rule. When absent, the user's rules decide, then `generic`.",
+			"$ref": "#/$defs/messageClass"
+		},
+		"event": {
+			"description": "The sender's own event name, dotted, for rules to match (e.g. `claude-code.notification.idle_prompt`). Never shown to the user.",
+			"type": "string",
+			"pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$"
+		},
+		"title": {
+			"description": "One line shown in every channel. Plain text.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 120
+		},
+		"summary": {
+			"description": "Plain text shown as the native notification body and in the inbox row. Never sent to the phone in the default minimal payload.",
+			"type": "string",
+			"maxLength": 400
+		},
+		"body": {
+			"description": "Markdown shown in the conversation detail and the rich popup. Stays on the hub unless the relay runs in full-payload mode.",
+			"type": "string",
+			"maxLength": 65536
+		},
+		"actions": {
+			"description": "Buttons, in display order. Phone channels show the first three that make sense remotely (see docs/architecture.md › Phone relay).",
+			"type": "array",
+			"maxItems": 6,
+			"items": {
+				"$ref": "#/$defs/action"
+			}
+		},
+		"awaitsResponse": {
+			"description": "True when the sender will long-poll /v1/messages/{id}/response. Answer buttons (approve, deny, reply, choice) are only offered while a sender waits; without a waiter they are hidden and only open and snooze remain.",
+			"type": "boolean",
+			"default": false
+		},
+		"correlationKey": {
+			"description": "Dedupe and supersede key within the conversation. A new message with the key of an open message replaces it in place (same notification, updated content) instead of pinging again.",
+			"$ref": "#/$defs/token"
+		},
+		"resolves": {
+			"description": "Correlation keys of open messages in the same conversation that this message resolves (e.g. a permission was answered in the terminal).",
+			"type": "array",
+			"maxItems": 32,
+			"items": {
+				"$ref": "#/$defs/token"
+			}
+		},
+		"sensitive": {
+			"description": "True when even the title must not leave the Mac. The phone then gets only the class and the agent name, whatever the relay payload mode.",
+			"type": "boolean",
+			"default": false
+		},
+		"createdAt": {
+			"description": "When the sender produced the event. The hub records its own receivedAt and orders by that.",
+			"type": "string",
+			"format": "date-time"
+		},
+		"expiresAt": {
+			"description": "After this instant the message moves to `expired`, its popup closes and a waiting sender gets status `expired`. Defaults per class (docs/architecture.md › Lifecycle).",
+			"type": "string",
+			"format": "date-time"
+		},
+		"metadata": {
+			"description": "Flat sender facts for rules and display (tool name, model, exit code). No secrets: metadata is stored and may be shown.",
+			"type": "object",
+			"maxProperties": 32,
+			"propertyNames": {
+				"pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+			},
+			"additionalProperties": {
+				"type": ["string", "number", "boolean"],
+				"maxLength": 1024
+			}
+		}
+	},
+	"$defs": {
+		"token": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+		},
+		"messageClass": {
+			"type": "string",
+			"enum": ["completion", "action_blocking", "action_nonblocking", "generic"]
+		},
+		"source": {
+			"description": "Who sent it.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["agent"],
+			"properties": {
+				"agent": {
+					"description": "Stable agent id, lowercase (e.g. `claude-code`, `codex`). Rules and per-source settings key on it.",
+					"type": "string",
+					"pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+				},
+				"displayName": {
+					"type": "string",
+					"maxLength": 64
+				},
+				"version": {
+					"type": "string",
+					"maxLength": 64
+				},
+				"host": {
+					"description": "Machine name, when the sender runs on another machine than the hub.",
+					"type": "string",
+					"maxLength": 255
+				}
+			}
+		},
+		"conversation": {
+			"description": "The agent session the message belongs to. Coalescing, supersede and resolve all work within one conversation.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id"],
+			"properties": {
+				"id": {
+					"description": "The agent's session id (Claude Code `session_id`). Unique per source.agent.",
+					"$ref": "#/$defs/token"
+				},
+				"title": {
+					"type": "string",
+					"maxLength": 120
+				},
+				"cwd": {
+					"description": "Working directory. Shown as the project name; never sent to the phone.",
+					"type": "string",
+					"maxLength": 4096
+				},
+				"focus": {
+					"$ref": "#/$defs/focusTarget"
+				}
+			}
+		},
+		"focusTarget": {
+			"description": "How the `open` action brings the conversation forward. The hub tries `url`, then `terminal`, then activates `bundleId`.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"url": {
+					"description": "Deep link that opens the conversation (custom scheme or https). Only schemes on the user's allowlist are opened.",
+					"type": "string",
+					"format": "uri",
+					"maxLength": 2048
+				},
+				"bundleId": {
+					"description": "macOS bundle id of the app hosting the session (e.g. `com.mitchellh.ghostty`, `com.anthropic.claudefordesktop`).",
+					"type": "string",
+					"maxLength": 255
+				},
+				"terminal": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"tty": {
+							"type": "string",
+							"pattern": "^/dev/[A-Za-z0-9/]+$"
+						},
+						"tmuxPane": {
+							"type": "string",
+							"pattern": "^%[0-9]+$"
+						},
+						"pid": {
+							"type": "integer",
+							"minimum": 1
+						}
+					}
+				}
+			}
+		},
+		"action": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["id", "label", "kind"],
+			"properties": {
+				"id": {
+					"description": "Unique within the message; returned to the sender as `actionId`.",
+					"type": "string",
+					"pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+				},
+				"label": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 40
+				},
+				"kind": {
+					"$ref": "#/$defs/actionKind"
+				},
+				"value": {
+					"description": "For `choice`: the value returned to the sender. For `snooze`: minutes, as a string.",
+					"type": "string",
+					"maxLength": 256
+				},
+				"placeholder": {
+					"description": "For `reply`: the text field's placeholder.",
+					"type": "string",
+					"maxLength": 80
+				},
+				"destructive": {
+					"description": "Shown in the destructive style and never offered as an ntfy one-tap button.",
+					"type": "boolean",
+					"default": false
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"kind": {
+								"const": "choice"
+							}
+						}
+					},
+					"then": {
+						"required": ["value"]
+					}
+				}
+			]
+		},
+		"actionKind": {
+			"description": "approve, deny and choice answer with a fixed value; reply answers with text; open focuses the conversation and answers nothing; snooze hides the message and re-pings later.",
+			"type": "string",
+			"enum": ["approve", "deny", "choice", "reply", "open", "snooze"]
+		},
+		"actionResponse": {
+			"description": "Body of GET /v1/messages/{id}/response. Not part of the POST body; defined here so senders validate both ends against one file.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["messageId", "status"],
+			"properties": {
+				"messageId": {
+					"$ref": "#/$defs/token"
+				},
+				"status": {
+					"description": "`pending`: the long-poll timed out with no answer, poll again. `answered`: see actionId. `resolved`, `superseded`, `expired`: closed without an answer; the sender falls back to its own prompt.",
+					"type": "string",
+					"enum": ["pending", "answered", "resolved", "superseded", "expired"]
+				},
+				"actionId": {
+					"type": "string"
+				},
+				"actionKind": {
+					"$ref": "#/$defs/actionKind"
+				},
+				"value": {
+					"description": "The choice value or the reply text.",
+					"type": "string",
+					"maxLength": 8192
+				},
+				"answeredVia": {
+					"type": "string",
+					"enum": ["mac", "phone", "watch", "cli"]
+				},
+				"answeredAt": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
+		}
+	}
+}

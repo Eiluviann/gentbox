@@ -1,0 +1,39 @@
+{
+	"version": 1,
+	"source": {
+		"agent": "claude-code",
+		"displayName": "Claude Code"
+	},
+	"conversation": {
+		"id": "c2e81d44-0a7b-4f19-8d3e-6b5a9f2c1e07",
+		"title": "Rename the relay crate",
+		"cwd": "/Users/me/Developer/agent-notifier"
+	},
+	"class": "action_nonblocking",
+	"event": "mcp.ask",
+	"title": "Which name for the relay trait?",
+	"summary": "I used Relay for now and kept going; tell me if you prefer another name",
+	"actions": [
+		{
+			"id": "keep",
+			"label": "Keep Relay",
+			"kind": "choice",
+			"value": "Relay"
+		},
+		{
+			"id": "push",
+			"label": "PushChannel",
+			"kind": "choice",
+			"value": "PushChannel"
+		},
+		{
+			"id": "other",
+			"label": "Other…",
+			"kind": "reply",
+			"placeholder": "Trait name"
+		}
+	],
+	"awaitsResponse": true,
+	"correlationKey": "ask-relay-name",
+	"expiresAt": "2026-10-24T18:00:00Z"
+}

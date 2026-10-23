@@ -1,0 +1,31 @@
+{
+	"version": 1,
+	"source": {
+		"agent": "claude-code",
+		"displayName": "Claude Code",
+		"version": "2.3.0"
+	},
+	"conversation": {
+		"id": "7f3a9c1e-5b2d-4e8a-9c61-2f0d8e4b7a10",
+		"title": "Fix flaky ingest test",
+		"cwd": "/Users/me/Developer/agent-notifier",
+		"focus": {
+			"bundleId": "com.mitchellh.ghostty",
+			"terminal": {
+				"tty": "/dev/ttys004"
+			}
+		}
+	},
+	"class": "completion",
+	"event": "claude-code.stop",
+	"title": "Done: Fix flaky ingest test",
+	"summary": "The long-poll test now waits on a notify instead of sleeping; 42 tests pass",
+	"actions": [
+		{
+			"id": "open",
+			"label": "Open session",
+			"kind": "open"
+		}
+	],
+	"createdAt": "2026-10-23T18:47:31Z"
+}
