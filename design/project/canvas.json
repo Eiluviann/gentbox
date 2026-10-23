@@ -28,12 +28,12 @@
 			"x": 1520,
 			"y": 0,
 			"w": 460,
-			"h": 1160,
+			"h": 1060,
 			"title": "Menu-bar inbox popover"
 		},
 		"mac-popover-empty.dc.html": {
 			"x": 1520,
-			"y": 1940,
+			"y": 1840,
 			"w": 460,
 			"h": 440,
 			"title": "Popover · all clear, quiet hours"
@@ -264,7 +264,7 @@
 		},
 		"mac-popover-topic-menu.dc.html": {
 			"x": 1520,
-			"y": 1280,
+			"y": 1180,
 			"w": 460,
 			"h": 540,
 			"title": "Popover · thread menu, muted and closed"

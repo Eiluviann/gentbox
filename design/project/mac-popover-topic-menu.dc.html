@@ -39,10 +39,6 @@ body{margin:0}
 			<div class="thread-title">v1.1<span class="tag muted"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>Muted</span></div>
 			<div class="tmenu"><svg class="i i10" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_right}}"></path></svg></div>
 		</div>
-		<div class="thread-row closed" style="padding-bottom: 10px">
-			<div class="thread-title">v1.0 · closed 21 Oct</div>
-			<div class="tmenu"><a class="link" href="mac-thread.dc.html" style="font-size: 12px">History</a><svg class="i i10" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_right}}"></path></svg></div>
-		</div>
 		<div class="topic-row topic-sep closed">
 			<svg class="i c-deps" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wrench_and_screwdriver}}"></path></svg>
 			<div><div class="topic-title" style="color: var(--ink)">Dependency upgrades<span class="tag muted"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>Muted</span></div><div class="topic-counts" style="margin-top: 2px"><span>Muting a topic covers all its threads</span></div></div>
@@ -61,7 +57,7 @@ body{margin:0}
 
 	<div class="note">
 		<div class="board-label">Thread menu, muted and closed</div>
-		<div class="caption" style="color: var(--ink-2)">Thread rows have the same menu as topic rows. Mute sends non-urgent messages to the inbox only; a muted topic covers its threads. Close asks whether to withdraw open messages too, then collapses the thread to one row whose History still opens it</div>
+		<div class="caption" style="color: var(--ink-2)">Thread rows have the same menu as topic rows. Mute sends non-urgent messages to the inbox only; a muted topic covers its threads. Close asks whether to withdraw open messages too; a closed thread leaves the popover and stays in History in the main window</div>
 	</div>
 </div>
 </x-dc>
