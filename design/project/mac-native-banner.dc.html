@@ -12,7 +12,8 @@
 <helmet>
 <style>
 body{margin:0}
-.nb-board{width:520px;height:320px}
+.nb-board{width:520px;height:440px}
+.nn.second{top:170px}
 .nn{position:absolute;top:40px;right:16px;width:350px;padding:11px 12px;border-radius:18px;background:rgba(246,246,248,.96);border:1px solid var(--line);box-shadow:var(--shadow-panel);display:grid;grid-template-columns:34px minmax(0,1fr) 40px;column-gap:10px;align-items:start}
 .appicon{width:34px;height:34px;border-radius:8px;background:#1d1d1f;position:relative}
 .appicon svg{position:absolute;left:8px;top:8px;width:18px;height:18px}
@@ -40,13 +41,23 @@ body{margin:0}
 		<div class="attach" style="background: #fff; border: 1px solid var(--line)"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
 	</div>
 
+	<div class="nn second">
+		<div class="appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+		<div>
+			<div class="nn-title">Your input is needed<span>now</span></div>
+			<div class="nn-text" style="font-weight: 500">Urgent · Agent waiting · Gentbox · Phase 3 · ingest</div>
+			<div class="nn-text" style="color: var(--ink-2)">Allow Bash to run the ingest tests?</div>
+		</div>
+		<div class="attach" style="background: #fff; border: 1px solid var(--line)"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+	</div>
+
 	<div class="note">
 		<div class="board-label">Native banner</div>
-		<div class="caption" style="color: var(--ink-2)">macOS draws it and Focus filters it. Decision, agent working: it kept going. A fixed title per type; the subtitle carries the question, the topic, the thread and the session, since a native notification cannot show a chip; the thumbnail is the project icon, else the agent icon</div>
+		<div class="caption" style="color: var(--ink-2)">macOS draws it and Focus filters it. Decision, agent working: it kept going. A fixed title per type; the subtitle carries the question, the topic, the thread and the session, since a native notification cannot show a chip; the thumbnail is the project icon, else the agent icon. A banner has no badge slot, so an urgent one (below) leads its subtitle with “Urgent ·” before the blocking badge; the title stays plain</div>
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":320}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":440}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };

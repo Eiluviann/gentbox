@@ -1044,7 +1044,7 @@ a.side-item { text-decoration: none; }
 .menu-pop div.hl { background: var(--accent); color: #fff; }
 .menu-pop hr { border: none; border-top: 1px solid var(--line); margin: 4px 6px; }
 
-/* Urgent: the item gets a red background and URGENT in caps at its bottom right; no pill */
+/* Urgent: shown only by the red figure.walk.motion badge under the type icon (see .urgent-mark below) */
 
 /* Threads: indented label rows under a topic header, then their messages; no cards, no counters */
 .thread-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: center; padding: 6px 12px 2px 40px; }

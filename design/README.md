@@ -21,14 +21,14 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | `deferrable` | Paused · can defer, orange `#E8710A`, `pause.circle` | popup with Defer |
 | `non_blocking` | Agent working, grey, `play.circle` | as the type says |
 
-- **Urgent** puts a red `figure.walk.motion` under the type symbol, in the same column, and pulls the item to the top of its list; no background, border or URGENT label. It combines with any type but generic: Time Sensitive on the Mac (and later the iPhone and Watch), through quiet hours and Focus, "URGENT:" before the notification title, and looped ripple rings around the whole popup (red when waiting, orange when paused).
+- **Urgent** puts a red `figure.walk.motion` under the type symbol, in the same column, and pulls the item to the top of its list; no background, border, label or "URGENT:" title prefix anywhere (the user's choice, badge only). Native Mac banners have no badge slot, so an urgent one leads its subtitle with "Urgent ·" before the blocking badge. It combines with any type but generic: Time Sensitive on the Mac (and later the iPhone and Watch), through quiet hours and Focus, and looped ripple rings around the whole popup (red when waiting, orange when paused).
 - **Popover (next up):** the message an agent is blocked on gets the full card on white, in a row's order (type symbol, title, breadcrumb, state) with its body and buttons below; everything else is a two-line list on light grey with a rule between items, urgent first, then waiting. Line two is the breadcrumb: topic › thread · agent mark · time ago, with faded dots. Only paused (orange) and waiting (red) show a state icon, a centred `pause.circle` on the right. No section titles, no counters.
 - **Defer** (`forward`) is an answer on deferrable items (on the Mac in v1; the iPhone push and the Watch later); the item then reads as Agent working. **Snooze** (`moon.zzz`) is local and never reaches the agent, so it is not a push button.
 - **Withdrawn** (`arrow.uturn.backward.circle`): the popup says why and slides out, the inbox row is struck through with the reason in words, a native notification for it is removed; superseded messages fold into their replacement.
 - **Topics and threads** (ADRs 0008 and 0009): a topic is a project or bigger undertaking, or the General category for simple conversations; a thread is a version, a phase or a single conversation. In the popover they appear only as the breadcrumb; Mute, Close and Move to topic sit in each message's menu (`mac-popover-item-menu`), and the main window lists topics with their threads in the sidebar (`mac-topic`, `mac-thread`). Muting a topic covers its threads. The popover lists only open, unhandled items; handled messages, closed threads and silent updates live in History. Popups and toasts carry a topic · thread chip. "Topic" alone always means a Gentbox topic.
 - Actions: Approve `checkmark` (Face ID on the iPhone, later), Deny `xmark`, Reply `arrowshape.turn.up.left`, Done (the `done` answer on action items: you did it, the agent is told), Open `arrow.up.forward.app`. Deny keeps the system red.
 - **Outcomes afterwards**, the same tag wherever the message is listed: "Approved on Mac" or "Answered in the terminal" (answered, with where), "Done on Mac" (done), "Deferred · agent working" (still open, now non-blocking), "Marked done, no answer" (dismissed), "Withdrawn · No longer needed" (rescinded, reason in words).
-- "URGENT:" follows the urgent flag only; the blocking label is separate, so the boards show an urgent item that does not block (the completed hotfix) and blocking items that are not urgent (the stacked Allow Edit).
+- Urgent and blocking are separate: the boards show an urgent item that does not block (the completed hotfix) and blocking items that are not urgent (the stacked Allow editing cart.ts).
 - **Titles are descriptive summaries, never commands.** A title says in plain words what the agent asks or did ("Allow Bash to run the ingest tests?", "Ingest auth accepts rotated tokens; 12 tests pass"), short enough for one line in the popover; the command, path or raw input only appears in a code box in the body, never in a title, row or notification line.
 - **Action plans.** Every action_required message carries an action plan: numbered steps saying how to do it. Its card and popup offer **Do it**, Done and Defer; Do it turns the whole popover into the plan; steps can be ticked off (stored with the message, shared with the iPhone later, never sent to the agent), and Done, Reply and Defer sit at the bottom (through the 3 s undo). Settled in ADR 0011 (§5.6): 1 to 12 steps, each a plain instruction with optional markdown detail and a link opened only on tap; the hub supplies a one-step plan when the agent sends none.
 - Icons are outline SF Symbols by default, never the filled variants.
@@ -70,7 +70,7 @@ The same 3 s hold applies on the Mac, and on the iPhone in the mobile release. A
 
 ## Conflicts with the Phase 1 docs
 
-None open. ADR 0007 settled Snooze (local) versus Defer (an answer), permission prompts (decision_required + blocking), the per-source switch and the "wait for answers" timeout (Settings › Sources), and rules edited in the app. Still to confirm there: whether "URGENT:" follows the urgent flag, as drawn.
+None open. ADR 0007 settled Snooze (local) versus Defer (an answer), permission prompts (decision_required + blocking), the per-source switch and the "wait for answers" timeout (Settings › Sources), and rules edited in the app. Urgency is badge only, with no "URGENT:" prefix in any title (the user's choice).
 
 Open: the undo window. `architecture.md` has the UI send answers straight to the hub actor, which closes the message on the first answer ("first answer wins"). Holding an answer for 3 s needs a decision on where the hold lives (in the app before the command is sent, or as a pending state in the hub), what the agent's own session shows meanwhile, and what happens if the answer arrives there during the window (the held answer would then get 409 and show "Already answered on <channel>"). Later, on iOS, the hold also has to fit the background time an action response gets.
 
@@ -81,10 +81,9 @@ Settled: descriptive titles (ADR 0010, architecture §5.5). The hub enforces the
 1. Is the agent mark (speech bubble with `>_`) right?
 2. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
 3. Dark-mode boards for popups and windows before Phase 3?
-4. Popups say "Action required" without "URGENT:"; should they use the exact notification phrase?
-5. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
-6. Should Mac popups get the same 3 s undo window as the popover?
-7. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
+4. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
+5. Should Mac popups get the same 3 s undo window as the popover?
+6. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
 
 ## Tools
 
