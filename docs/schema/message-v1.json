@@ -94,8 +94,9 @@
 			"$ref": "#/$defs/token"
 		},
 		"rescinds": {
-			"description": "Withdraws other open messages of the same conversation by correlation key, as part of sending this one. The same as POST /v1/conversations/{agent}/{id}/rescind.",
-			"$ref": "#/$defs/rescindRequest"
+			"description": "Withdraws other open messages of the same conversation by correlation key, as part of sending this one, so `correlationKeys` is required here. The same as POST /v1/conversations/{agent}/{id}/rescind.",
+			"$ref": "#/$defs/rescindRequest",
+			"required": ["reason", "correlationKeys"]
 		},
 		"sensitive": {
 			"description": "True when even the title must not leave the Mac. The phone then gets only the title phrase for the type, whatever the payload mode.",

@@ -231,7 +231,7 @@ override = true
 [[rule]]
 name = "Mute auth success"
 match = { event = "claude-code.notification.auth_success" }
-mute = true          # stored as generic, never shown outside the inbox history
+mute = true          # routed like a muted topic: non-urgent to the inbox only, urgent still breaks through; type, urgent and blocking are unchanged
 ```
 
 Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute`, `topic` and `thread`, the last two as templates with `{project}` (working-directory name), `{agent}` and `{conversation}` placeholders, e.g. `topic = { key = "project:{project}", title = "{project}", kind = "project" }`; only for what the message did not name. Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
