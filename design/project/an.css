@@ -1143,3 +1143,6 @@ a.side-item { text-decoration: none; }
 .pp-state-icon { align-self: center; }
 .pp-ctx .i[aria-label="Codex"] { color: var(--ink-2); }
 .pp-dot { font-size: 14px; font-weight: 700; line-height: 0; }
+/* Rows that need nothing from you now (agent working, finished): very gently greyed */
+.pp-line.idle .pp-one { color: var(--ink-2); }
+.pp-line.idle > .i, .pp-line.idle > .icol { opacity: 0.72; }
