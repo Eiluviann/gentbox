@@ -2,7 +2,7 @@
 
 Visual design for every surface, as a Design canvas: <https://claude.ai/artifact/MnphbLb4m2WCubpkVWg9cu> (private; share it from the page's Share menu). `project/` holds the canvas sources; the published canvas also carries `project/sf-symbols.js`, which is generated (see Tools) and kept out of git because it holds Apple's SF Symbols outlines and third-party brand marks.
 
-The canvas reads left to right in three groups: Mac, Settings (inside the main window), iPhone and Watch. Consecutive screens sit in a row, alternative states 120 px below their screen. It follows `docs/architecture.md`, ADR 0006 and ADR 0007 as of `58bfda3`.
+The canvas reads left to right in three groups: Mac, Settings (inside the main window), iPhone and Watch. Consecutive screens sit in a row, alternative states 120 px below their screen. It follows `docs/architecture.md` and ADRs 0006 to 0008 as of `09981d8`.
 
 ## Foundations
 
@@ -25,6 +25,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 - Lists are one sorted list, waiting first, with no category headers; each row shows its blocking label, and the type symbol leads it.
 - **Defer** (`forward`) is an answer on deferrable items, on the Mac, the iPhone push and the Watch; the item then reads as Agent working. **Snooze** (`moon.zzz`) is local and never reaches the agent, so it is not a push button.
 - **Withdrawn** (`arrow.uturn.backward.circle`): the popup says why and slides out, the inbox row is struck through with the reason in words, the iPhone removes the notification; superseded messages fold into their replacement.
+- **Topics** (ADR 0008): whatever grouping the agent chooses. The inbox is one level, topic then messages; a message without one sits in its conversation's implicit topic, which looks like any topic row. A header row shows the agent's symbol and colour hint (Release 1.4 `shippingbox.fill`, a conversation `bubble.left.and.bubble.right.fill`, Dependency upgrades `wrench.and.screwdriver.fill`), the title, the `kind` as a quiet tag, a count per type, and a menu with Open topic, Mark all read, Mute topic and Close topic. Muted topics show a `bell.slash.fill` marker and are listed in Settings › Notifications; closed topics collapse to one `archivebox` row with History. Popups and toasts carry a topic chip; native and iPhone notifications put the topic in the subtitle (blocking label · topic · session), and the iPhone stacks notifications by topic. "Topic" alone always means a Gentbox topic; ntfy's is always called the ntfy topic.
 - Actions: Approve `checkmark` (Face ID on the iPhone), Deny `xmark`, Reply `arrowshape.turn.up.left`, Done (the `done` answer on action items: you did it, the agent is told), Open `arrow.up.forward.app`. Deny keeps the system red.
 - **Outcomes afterwards**, the same tag on the Mac and the iPhone: "Approved on iPhone" (answered, with where), "Done on Mac" (done), "Deferred · agent working" (still open, now non-blocking), "Marked done, no answer" (dismissed), "Withdrawn · No longer needed" (rescinded, reason in words).
 - "URGENT:" follows the urgent flag only; the blocking label is separate, so the boards show an urgent item that does not block (the completed hotfix) and blocking items that are not urgent (the stacked Allow Edit).
@@ -38,11 +39,12 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | --- | --- | --- |
 | Mac | `Main` foundations | |
 | | `mac-menubar-icons` | |
-| | `mac-popover` inbox, blocked first, one row per conversation | `mac-popover-empty` |
+| | `mac-popover` inbox grouped by topic | `mac-popover-topic-menu` (topic menu, muted and closed topics), `mac-popover-empty` |
 | | `mac-blocking-popup` decision, waiting, urgent | `mac-blocking-stacked`, `mac-blocking-reply`, `mac-blocking-no-waiter`, `mac-popup-deferrable` (action, paused, Defer), `mac-popup-rescinded` (withdrawn transition and rows) |
 | | `mac-completion-toast` | |
 | | `mac-native-banner` decision, agent working | `mac-native-banner-expanded` |
 | | `mac-generic-row` silent inbox rows | |
+| | `mac-topic` topic detail: open items and a timeline across sessions | |
 | | `mac-conversation` detail: pending action, timeline, markdown body | `mac-outcomes` (answered, done, deferred, dismissed and withdrawn, afterwards in History and the conversation) |
 | Settings | `settings-notifications` policy by type, blocking-level and urgent rules, presence | |
 | | `settings-quiet-focus` Focus status permission (`INFocusStatusCenter`); Full Disk Access only as a note for builds without the paid team | |
@@ -50,7 +52,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | | `settings-rules` rules set type, urgent and blocking, saved back to rules.toml | `settings-rules-error` |
 | | `settings-phone` delivery (our app or the ntfy app), paired iPhones with Revoke, Apple push key (`.p8`, Key ID, Team ID, masked), ntfy server and token, Summary or Minimal, end-to-end encryption and project icon as big icon (both off), Load full messages over Tailscale (off) | `settings-phone-pairing` |
 | iPhone and Watch | `ios-escalation-silent` 1: passive arrival in Notification Centre | |
-| | `ios-lock-screen` 2: the Time Sensitive ping 2 min later | `ios-lock-screen-expanded` (long press, approval: Approve, Deny, Reply), `ios-faceid` (Approve asks for Face ID), `ios-lock-screen-choices` (one button per choice, Defer, Reply, Open), `ios-lock-screen-reply` (text reply field) |
+| | `ios-lock-screen` 2: the Time Sensitive ping 2 min later | `ios-lock-screen-expanded` (long press, approval: Approve, Deny, Reply), `ios-faceid` (Approve asks for Face ID), `ios-lock-screen-choices` (one button per choice, Defer, Reply, Open), `ios-lock-screen-reply` (text reply field), `ios-lock-screen-stacked` (stacked by topic) |
 | | `ios-escalation-handled` 3: replaced by "Approved from phone" or "Handled on Mac" | |
 | | `watch` mirrored notifications with buttons; reply by dictation, Scribble or keyboard | |
 | | `ios-pairing` scan the Mac's QR code; the ntfy app only as a fallback link | |
