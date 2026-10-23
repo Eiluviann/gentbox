@@ -1147,3 +1147,9 @@ a.side-item { text-decoration: none; }
 .pp-hero { background: #fff; }
 .pp-line { background: #f8f8fa; }
 .pp-cmd { background: var(--track); border-radius: 6px; padding: 6px 9px; margin-top: 8px; color: var(--ink); }
+/* The active card keeps a row's order (icon, title, breadcrumb, state) and adds its body below, so a row can grow into it */
+.pp-hero { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 12px 14px 14px; }
+.pp-hero > .i, .pp-hero > .icol { margin-top: 2px; }
+.pp-hero > .pp-state-icon { align-self: center; margin-top: 0; }
+.pp-hero-body { grid-column: 2 / 4; }
+.pp-hero .pp-acts { margin-left: 0; }
