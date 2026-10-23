@@ -41,7 +41,7 @@ body{margin:0}
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline">Decision required <span class="mono c-ink3" style="font-weight: 400">decision_required</span></div>
-				<div class="tags"><span class="tag"><span class="swatch" style="background: #5856d6"></span>Indigo #5856D6</span><span class="tag mono">questionmark.bubble.fill</span><span class="tag plain">The agent needs your answer: approve or deny, choose, reply</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #5856d6"></span>Indigo #5856D6</span><span class="tag mono">questionmark.bubble.fill</span><span class="tag plain">The agent needs your answer: approve or deny, choose, reply · titled “Your input is needed”</span></div>
 			</div>
 			<span class="tag dec">Decision</span>
 		</div>
@@ -49,7 +49,7 @@ body{margin:0}
 			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
 			<div>
 				<div class="headline">Action required <span class="mono c-ink3" style="font-weight: 400">action_required</span></div>
-				<div class="tags"><span class="tag"><span class="swatch" style="background: #0a8270"></span>Teal #0A8270</span><span class="tag mono">list.bullet.clipboard.fill</span><span class="tag plain">You do something outside the conversation: sign in, add a key, review a PR</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #0a8270"></span>Teal #0A8270</span><span class="tag mono">list.bullet.clipboard.fill</span><span class="tag plain">You do something outside the conversation, then press Done · titled “Action required”</span></div>
 			</div>
 			<span class="tag act">Action</span>
 		</div>
@@ -57,7 +57,7 @@ body{margin:0}
 			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
 			<div>
 				<div class="headline">Task completed <span class="mono c-ink3" style="font-weight: 400">task_completed</span></div>
-				<div class="tags"><span class="tag"><span class="swatch" style="background: #2e9e4f"></span>Green #2E9E4F</span><span class="tag mono">checkmark.circle.fill</span><span class="tag plain">Always non-blocking</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #2e9e4f"></span>Green #2E9E4F</span><span class="tag mono">checkmark.circle.fill</span><span class="tag plain">Always non-blocking · titled “Task complete” or “Goal complete”</span></div>
 			</div>
 			<span class="tag done">Completed</span>
 		</div>
@@ -65,7 +65,7 @@ body{margin:0}
 			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
 			<div>
 				<div class="headline">Generic <span class="mono c-ink3" style="font-weight: 400">generic</span></div>
-				<div class="tags"><span class="tag"><span class="swatch" style="background: #8e8e93"></span>Grey #8E8E93</span><span class="tag mono">info.circle.fill</span><span class="tag plain">Inbox only, always non-blocking</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #8e8e93"></span>Grey #8E8E93</span><span class="tag mono">info.circle.fill</span><span class="tag plain">Inbox only, never urgent, always non-blocking</span></div>
 			</div>
 			<span class="tag info">Other</span>
 		</div>
@@ -89,8 +89,8 @@ body{margin:0}
 				<span></span>
 			</div>
 			<div class="act"><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="grow caption" style="color: var(--ink-2)"><span class="mono">urgent: true</span></span></div>
-			<div class="act"><span class="grow">Time Sensitive on the iPhone and the Watch</span></div>
-			<div class="act"><span class="grow">Breaks through quiet hours on the Mac</span></div>
+			<div class="act"><span class="grow">Time Sensitive on the Mac, the iPhone and the Watch; “URGENT:” before the title</span></div>
+			<div class="act"><span class="grow">Breaks through quiet hours and Focus</span></div>
 			<div class="act"><span class="grow">Popup symbol ripples, red when waiting, orange when paused</span></div>
 		</div>
 	</div>
