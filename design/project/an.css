@@ -1092,7 +1092,7 @@ a.side-item { text-decoration: none; }
 .pp-one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-quiet { font-weight: 500; }
 .pp-acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.pp-foot { display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 14px; border-top: 1px solid var(--line); background: #fafafa; margin-top: 6px; }
+.pp-foot { display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 14px; border-top: 1px solid var(--line); background: #fafafa; }
 .pp-note { position: absolute; left: 40px; bottom: 24px; width: 380px; }
 .pp-note .caption { color: var(--ink-2); }
 .pp-note ul { margin: 4px 0 0; padding-left: 16px; font-size: 11px; line-height: 16px; color: var(--ink-2); }
@@ -1143,6 +1143,6 @@ a.side-item { text-decoration: none; }
 .pp-state-icon { align-self: center; }
 .pp-ctx .i[aria-label="Codex"] { color: var(--ink-2); }
 .pp-dot { font-size: 14px; font-weight: 700; line-height: 0; color: #c7c7cc; }
-/* Rows that need nothing from you now (agent working, finished): very gently greyed */
-.pp-line.idle .pp-one { color: var(--ink-2); }
-.pp-line.idle > .i, .pp-line.idle > .icol { opacity: 0.72; }
+/* The top card is the active item on white; the rest of the list sits on a very light grey */
+.pp-hero { background: #fff; }
+.pp-line { background: #f8f8fa; }
