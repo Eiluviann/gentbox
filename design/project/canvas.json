@@ -33,7 +33,7 @@
 		},
 		"mac-popover-empty.dc.html": {
 			"x": 1520,
-			"y": 1920,
+			"y": 1940,
 			"w": 460,
 			"h": 440,
 			"title": "Popover · all clear, quiet hours"
@@ -96,7 +96,7 @@
 		},
 		"mac-conversation.dc.html": {
 			"x": 4400,
-			"y": 1020,
+			"y": 1900,
 			"w": 1180,
 			"h": 880,
 			"title": "Conversation detail"
@@ -257,7 +257,7 @@
 		},
 		"mac-outcomes.dc.html": {
 			"x": 4400,
-			"y": 2020,
+			"y": 2900,
 			"w": 1180,
 			"h": 600,
 			"title": "Outcomes afterwards · inbox and conversation"
@@ -266,22 +266,29 @@
 			"x": 1520,
 			"y": 1280,
 			"w": 460,
-			"h": 520,
-			"title": "Popover · topic menu, muted and closed topics"
+			"h": 540,
+			"title": "Popover · thread menu, muted and closed"
 		},
 		"mac-topic.dc.html": {
 			"x": 4400,
 			"y": 0,
 			"w": 1180,
-			"h": 900,
-			"title": "Topic detail · Release 1.4 across three sessions"
+			"h": 780,
+			"title": "Topic detail · Gentbox and its threads"
 		},
 		"ios-lock-screen-stacked.dc.html": {
 			"x": 12510,
 			"y": 4820,
 			"w": 390,
 			"h": 844,
-			"title": "iPhone · stacked by topic"
+			"title": "iPhone · stacked by thread"
+		},
+		"mac-thread.dc.html": {
+			"x": 4400,
+			"y": 900,
+			"w": 1180,
+			"h": 880,
+			"title": "Thread detail · Phase 3 · ingest across two sessions"
 		}
 	},
 	"order": [
@@ -301,6 +308,7 @@
 		"mac-native-banner-expanded.dc.html",
 		"mac-generic-row.dc.html",
 		"mac-topic.dc.html",
+		"mac-thread.dc.html",
 		"mac-conversation.dc.html",
 		"mac-outcomes.dc.html",
 		"settings-notifications.dc.html",

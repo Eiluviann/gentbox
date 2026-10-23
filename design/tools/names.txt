@@ -106,3 +106,8 @@ bell.slash.fill
 bubble.left.and.bubble.right.fill
 checkmark.shield
 hand.tap
+shippingbox
+wrench.and.screwdriver
+paperplane
+xmark.circle
+arrow.up.circle

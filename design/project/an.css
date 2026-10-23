@@ -1053,3 +1053,11 @@ a.side-item { text-decoration: none; }
 .panel.urgent-item::after { right: 14px; bottom: 10px; }
 .ios a.irow.urgent-item { display: grid; }
 .ios .urgent-item::after { right: 16px; bottom: 10px; font-size: 11px; }
+
+/* Threads: indented label rows under a topic header, then their messages; no cards, no counters */
+.thread-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: center; padding: 6px 12px 2px 40px; }
+.thread-title { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.thread-row + .row { border-top: none; }
+.row.in-thread { padding-left: 40px; }
+.thread-row.closed .thread-title { color: var(--ink-3); font-weight: 500; }
+.side-item.sub { padding-left: 32px; font-size: 12px; height: 24px; }

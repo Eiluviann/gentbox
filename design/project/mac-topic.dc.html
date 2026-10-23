@@ -12,10 +12,8 @@
 <helmet>
 <style>
 body{margin:0}
-.tp-board{width:1180px;height:900px;padding:30px}
-.win{width:1120px;height:840px}
-.tl-body{display:flex;flex-direction:column;gap:4px}
-.acts{display:flex;gap:6px;margin-top:8px}
+.tp-board{width:1180px;height:780px;padding:30px}
+.win{width:1120px;height:720px}
 </style>
 </helmet>
 <div class="board desk tp-board">
@@ -23,24 +21,24 @@ body{margin:0}
 		<nav class="sidebar" aria-label="Sidebar">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
 			<a class="side-item" href="mac-popover.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray}}"></path></svg><span class="grow">Inbox</span><span class="badge">1</span></a>
-			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snoozed</span><span class="caption">1</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snoozed</span></div>
 			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg><span class="grow">History</span></div>
 			<div class="side-head">Topics</div>
-			<div class="side-item sel"><svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox_fill}}"></path></svg><span class="grow">Release 1.4</span><span class="badge">1</span></div>
-			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bubble_left_and_bubble_right_fill}}"></path></svg><span class="grow">infra · rotate staging certs</span></div>
-			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-deps)"><path d="{{ic.wrench_and_screwdriver_fill}}"></path></svg><span class="grow">Dependency upgrades</span><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bell_slash_fill}}"></path></svg></div>
-			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bubble_left_and_bubble_right_fill}}"></path></svg><span class="grow">web · WEB-139 search filters</span></div>
-			<div class="side-item" style="color: var(--ink-3)"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.archivebox}}"></path></svg><span class="grow">Release 1.3 · closed</span></div>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg><span class="grow">Gentbox</span><span class="badge">1</span></div>
+			<a class="side-item sub" href="mac-thread.dc.html"><span class="grow">Phase 3 · ingest</span></a>
+			<div class="side-item sub"><span class="grow">v1.1</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bubble_left_and_bubble_right}}"></path></svg><span class="grow">General</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-deps)"><path d="{{ic.wrench_and_screwdriver}}"></path></svg><span class="grow">Dependency upgrades</span><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--ink-3)"><path d="{{ic.bell_slash}}"></path></svg></div>
 			<span style="flex: 1"></span>
 			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">Settings</span></a>
 		</nav>
 
 		<main class="content">
 			<div class="toolbar">
-				<svg class="i i20 c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox_fill}}"></path></svg>
+				<svg class="i i20 c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox}}"></path></svg>
 				<div style="flex: 1; min-width: 0">
-					<div class="headline" style="font-size: 15px">Release 1.4</div>
-					<div class="caption">Project · ship the checkout rounding fix and the ingest test fix · opened by Claude Code</div>
+					<div class="headline" style="font-size: 15px">Gentbox</div>
+					<div class="caption">Project · an inbox for your AI agents · opened by Claude Code</div>
 				</div>
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>Mute</button>
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close topic</button>
@@ -48,57 +46,40 @@ body{margin:0}
 			</div>
 
 			<div class="pane">
-				<div class="tags" style="margin-top: 0"><span class="caption" style="margin-right: 4px">Sessions</span><span class="tag">api · fix flaky test</span><span class="tag">web · WEB-142 checkout</span><span class="tag">docs · release notes</span></div>
-
+				<div class="eyebrow">Threads</div>
 				<div class="card">
-					<div class="card-head">
-						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray_full}}"></path></svg>
-						<div><div class="headline">Open in this topic</div></div>
-						<span></span>
-					</div>
-					<div class="row urgent-item" style="border-top: 1px solid var(--line-faint)">
-						<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+					<a class="row" href="mac-thread.dc.html" style="color: inherit; text-decoration: none">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
 						<div>
-							<div class="headline">Allow Bash: cargo test -p ingest -- --nocapture?</div>
-							<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait">Agent waiting</span><span class="tag plain">2 min</span></div>
-							<div class="acts"><button class="btn sm primary">Approve</button><button class="btn sm danger">Deny</button><button class="btn sm">Reply</button></div>
+							<div class="headline">Phase 3 · ingest <span class="tag kind">Phase</span></div>
+							<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag">api · ingest auth</span><span class="tag wait">Agent waiting</span></div>
 						</div>
-						<button class="btn plain sm icon" aria-label="Open conversation"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
+						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_right}}"></path></svg>
+					</a>
+					<div class="row">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+						<div>
+							<div class="headline">v1.1 <span class="tag kind">Version</span></div>
+							<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag">docs · release notes</span><span class="tag paused">Paused · can defer</span></div>
+						</div>
+						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_right}}"></path></svg>
 					</div>
 					<div class="row">
-						<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>
 						<div>
-							<div class="headline">Sign in to the payments sandbox so the end-to-end tests can run</div>
-							<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag paused">Paused · can defer</span><span class="tag plain">9 min</span></div>
-							<div class="acts"><button class="btn sm">Done</button><button class="btn sm">Defer</button></div>
+							<div class="headline" style="color: var(--ink-3); font-weight: 500">v1.0 <span class="tag kind">Version · closed 21 Oct</span></div>
+							<div class="tags"><span class="tag plain">History stays reachable</span></div>
 						</div>
-						<button class="btn plain sm icon" aria-label="Open conversation"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
-					</div>
-					<div class="row">
-						<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
-						<div>
-							<div class="headline">Which title for the 1.4 release notes?</div>
-							<div class="tags"><span class="tag">docs · release notes</span><span class="tag working">Agent working</span><span class="tag plain">12 min</span></div>
-						</div>
-						<button class="btn plain sm icon" aria-label="Open conversation"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
+						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_right}}"></path></svg>
 					</div>
 				</div>
-
-				<div class="eyebrow" style="margin-top: 4px">Timeline across sessions</div>
-				<div class="tl">
-					<div class="tl-line"></div>
-					<div class="tl-item"><span class="tl-time">18:42</span><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><div class="tl-body"><div class="headline">Allow Bash: cargo test -p ingest?</div><div class="tags" style="margin-top: 0"><span class="tag">api · fix flaky test</span><span class="tag wait">Open</span></div></div></div>
-					<div class="tl-item"><span class="tl-time">18:35</span><svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg><div class="tl-body"><div class="headline">Sign in to the payments sandbox</div><div class="tags" style="margin-top: 0"><span class="tag">web · WEB-142 checkout</span><span class="tag paused">Open</span></div></div></div>
-					<div class="tl-item urgent-item"><span class="tl-time">18:31</span><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg><div class="tl-body"><div class="headline">Task complete: the long-poll test waits on a notify</div><div class="tags" style="margin-top: 0"><span class="tag">api · fix flaky test</span></div></div></div>
-					<div class="tl-item"><span class="tl-time">18:20</span><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><div class="tl-body"><div class="headline" style="font-weight: 500">Allow Edit: src/checkout/cart.ts?</div><div class="tags" style="margin-top: 0"><span class="tag">web · WEB-142 checkout</span><span class="tag">Approved on Mac</span></div></div></div>
-					<div class="tl-item"><span class="tl-time">17:58</span><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox_fill}}"></path></svg><div class="tl-body"><div class="headline" style="font-weight: 500">Topic opened by Claude Code in api · fix flaky test</div></div></div>
-				</div>
+				<div class="caption">A topic is the bigger undertaking; each thread is a version, a phase or a single conversation. The label on a thread is its most pressing open item</div>
 			</div>
 		</main>
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":780}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {} };

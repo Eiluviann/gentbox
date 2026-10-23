@@ -30,9 +30,9 @@ body{margin:0}
 		<div>
 			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
 			<div class="notif-title">URGENT: Your input is needed<span class="when">now</span></div>
-			<div class="notif-sub">Agent waiting · Release 1.4 · api · fix flaky test</div>
+			<div class="notif-sub">Agent waiting · Gentbox · Phase 3 · ingest</div>
 			<div class="notif-body">Claude Code wants to run a command in api</div>
-			<div class="more">2 more from Release 1.4</div>
+			<div class="more">1 more from Phase 3 · ingest</div>
 		</div>
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
 	</div>
@@ -43,13 +43,13 @@ body{margin:0}
 		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-title">Your input is needed<span class="when">6m ago</span></div>
-			<div class="notif-sub">Paused · can defer · infra · rotate staging certs</div>
+			<div class="notif-sub">Paused · can defer · General · infra · rotate staging certs</div>
 			<div class="notif-body">Which cluster gets the new certificates first?</div>
 		</div>
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg></div>
 	</div>
 
-	<div class="legend">Notifications stack by topic: the push's thread-id is the topic, so Release 1.4 groups its three sessions into one stack, and a conversation topic stacks on its own. The subtitle reads blocking label · topic · session, dropping the session when it names the topic. Tap the stack to fan it out</div>
+	<div class="legend">Notifications stack by thread: Phase 3 · ingest groups its two sessions into one stack, and each General conversation stacks on its own. The subtitle reads blocking label · topic · thread, dropping repeats. Tap the stack to fan it out</div>
 	<div class="home" style="background: #fff"></div>
 </div>
 </x-dc>
