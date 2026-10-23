@@ -992,7 +992,7 @@ a.side-item { text-decoration: none; }
 .nc-head { position: relative; margin: 0 22px 8px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.85); display: flex; justify-content: space-between; }
 .faceid { position: absolute; left: 50%; top: 300px; width: 160px; height: 160px; margin-left: -80px; border-radius: 32px; background: rgba(40, 40, 44, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: 15px; font-weight: 500; }
 
-/* Message model: type (colour and symbol), blocking level (label), urgent (red clock badge) */
+/* Message model: type (colour and symbol), blocking level (label), urgent (red figure.walk.motion) */
 :root {
 	--dec: #5856d6; --dec-ink: #4644b8; --dec-soft: #efeffd;
 	--act: #0a8270; --act-ink: #076b5c; --act-soft: #e3f4f1;
@@ -1130,7 +1130,7 @@ a.side-item { text-decoration: none; }
 .ios .undo-row .pp-bar, .xundo .pp-bar { height: 3px; }
 .xundo { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 16px; font-size: 15px; line-height: 20px; border-top: 0.5px solid rgba(60, 60, 67, 0.2); }
 
-/* Urgent: a red clock badge under the type icon, in the same column; no fill, border or label. Urgent items sort first */
+/* Urgent: a red figure.walk.motion under the type icon, in the same column; no fill, border or label. Urgent items sort first */
 .icol { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .icol > .i { margin-top: 0; }
 .i.urgent-mark { color: var(--wait); }

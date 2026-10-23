@@ -111,3 +111,4 @@ wrench.and.screwdriver
 paperplane
 xmark.circle
 arrow.up.circle
+figure.walk.motion
