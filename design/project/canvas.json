@@ -14,7 +14,7 @@
 			"x": 0,
 			"y": 0,
 			"w": 760,
-			"h": 1240,
+			"h": 1290,
 			"title": "Foundations · type, blocking level, urgent"
 		},
 		"mac-menubar-icons.dc.html": {
@@ -254,6 +254,13 @@
 			"w": 1040,
 			"h": 620,
 			"title": "Withdrawn by agent"
+		},
+		"mac-outcomes.dc.html": {
+			"x": 4400,
+			"y": 1000,
+			"w": 1180,
+			"h": 600,
+			"title": "Outcomes afterwards · inbox and conversation"
 		}
 	},
 	"order": [
@@ -272,6 +279,7 @@
 		"mac-native-banner-expanded.dc.html",
 		"mac-generic-row.dc.html",
 		"mac-conversation.dc.html",
+		"mac-outcomes.dc.html",
 		"settings-notifications.dc.html",
 		"settings-quiet-focus.dc.html",
 		"settings-sources.dc.html",

@@ -12,7 +12,7 @@
 <helmet>
 <style>
 body{margin:0}
-.found{width:760px;height:1240px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.found{width:760px;height:1290px;padding:32px;display:flex;flex-direction:column;gap:16px}
 .appicon{width:44px;height:44px;border-radius:11px;background:#1d1d1f;position:relative;flex:none}
 .appicon svg{position:absolute;left:10px;top:10px;width:24px;height:24px}
 .swatch{width:10px;height:10px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.08)}
@@ -27,7 +27,12 @@ body{margin:0}
 		<div class="appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div style="flex: 1">
 			<div class="title-large">Gentbox</div>
-			<div class="body">Every message has a type, a blocking level and an urgent flag; each reads the same on every surface</div>
+			<div class="body">An inbox for your AI agents</div>
+			<div class="caption">Every message has a type, a blocking level and an urgent flag</div>
+		</div>
+		<div style="display: flex; flex-direction: column; align-items: center; gap: 4px" aria-label="iPhone home screen icon">
+			<div class="appicon" style="width: 52px; height: 52px; border-radius: 12px"><svg viewBox="0 0 100 100" aria-hidden="true" style="left: 12px; top: 12px; width: 28px; height: 28px"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+			<span class="caption" style="color: var(--ink)">Gentbox</span>
 		</div>
 	</div>
 
@@ -91,7 +96,7 @@ body{margin:0}
 			<div class="act"><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="grow caption" style="color: var(--ink-2)"><span class="mono">urgent: true</span></span></div>
 			<div class="act"><span class="grow">Time Sensitive on the Mac, the iPhone and the Watch; “URGENT:” before the title</span></div>
 			<div class="act"><span class="grow">Breaks through quiet hours and Focus</span></div>
-			<div class="act"><span class="grow">Popup symbol ripples, red when waiting, orange when paused</span></div>
+			<div class="act"><span class="grow">The popup ripples, red when waiting, orange when paused</span></div>
 		</div>
 	</div>
 
@@ -105,6 +110,7 @@ body{margin:0}
 			<div class="act"><svg class="i c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg><span class="grow">Approve</span><span class="mono c-ink3">checkmark</span></div>
 			<div class="act"><svg class="i c-danger" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg><span class="grow">Deny</span><span class="mono c-ink3">xmark</span></div>
 			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg><span class="grow">Reply</span><span class="mono c-ink3">arrowshape.turn.up.left</span></div>
+			<div class="act"><svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg><span class="grow">Done · on action items: you did it, the agent is told</span><span class="mono c-ink3">checkmark.circle</span></div>
 			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg><span class="grow">Defer · the agent keeps working on what needs no input</span><span class="mono c-ink3">forward</span></div>
 			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snooze · remind me later; the agent is not told</span><span class="mono c-ink3">moon.zzz</span></div>
 			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg><span class="grow">Open</span><span class="mono c-ink3">arrow.up.forward.app</span></div>
@@ -141,7 +147,7 @@ body{margin:0}
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1240}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1290}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };

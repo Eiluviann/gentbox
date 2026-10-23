@@ -931,7 +931,7 @@ button {
 	font-weight: 600;
 }
 
-/* Agent mark: bubble.left with a stroked prompt; the badge and slash knock out the glyph behind them */
+/* Gentbox mark: bubble.left with a stroked prompt; the badge and slash knock out the glyph behind them */
 .prompt { fill: none; stroke: currentColor; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .knock { stroke: var(--knock, #fbfbfd); stroke-width: 9; paint-order: stroke; }
 .slash-knock { fill: none; stroke: var(--knock, #fbfbfd); stroke-width: 19; stroke-linecap: round; }
@@ -1013,3 +1013,11 @@ a.side-item { text-decoration: none; }
 .tag.urgent { background: #1d1d1f; color: #fff; }
 .tag.gone { background: var(--track); color: var(--ink-3); text-decoration: none; }
 .row.withdrawn .headline { color: var(--ink-3); text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, 0.25); }
+
+/* Ripple on an urgent popup: looped rings around the whole panel, red when the agent waits, orange when paused */
+.ripple-panel { --ripple: var(--wait); }
+.ripple-panel.paused { --ripple: var(--paused); }
+.ripple-panel::before, .ripple-panel::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; border: 2px solid var(--ripple); opacity: 0; pointer-events: none; animation: panel-ripple 2.4s ease-out infinite; }
+.ripple-panel::after { animation-delay: 1.2s; }
+@keyframes panel-ripple { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.06, 1.12); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ripple-panel::before { animation: none; opacity: 0.5; } .ripple-panel::after { display: none; } }

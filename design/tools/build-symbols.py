@@ -30,7 +30,7 @@ for name in ('bell.badge', 'bell.badge.fill'):
 	body, dot = split_badge(icons[name])
 	key = name.replace('.', '_')
 	symbols[key + '_body'], symbols[key + '_dot'] = body, dot
-# The agent mark: a custom symbol built from bubble.left with a terminal prompt drawn as strokes
+# The Gentbox mark: a custom symbol built from bubble.left with a terminal prompt drawn as strokes
 symbols['agent_bubble'] = icons['bubble.left']
 symbols['agent_prompt'] = 'M28 24L42 37.5L28 51M50 51L68 51'
 symbols['agent_dot'] = 'M84 2A14 14 0 1 1 84 30A14 14 0 1 1 84 2Z'

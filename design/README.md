@@ -21,13 +21,15 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | `deferrable` | Paused · can defer, orange `#E8710A`, `pause.circle.fill` | popup with Defer |
 | `non_blocking` | Agent working, grey, `play.circle.fill` | as the type says |
 
-- **Urgent** is a calm dark pill (`clock.badge.exclamationmark`) that combines with any type but generic: Time Sensitive on the Mac, iPhone and Watch, through quiet hours and Focus, "URGENT:" before the title, and a looped ripple on the popup symbol (red when waiting, orange when paused).
+- **Urgent** is a calm dark pill (`clock.badge.exclamationmark`) that combines with any type but generic: Time Sensitive on the Mac, iPhone and Watch, through quiet hours and Focus, "URGENT:" before the title, and looped ripple rings around the whole popup (red when waiting, orange when paused).
 - Lists group by blocking level, waiting first, with plain-text headers; the type symbol leads each row.
 - **Defer** (`forward`) is an answer on deferrable items, on the Mac, the iPhone push and the Watch; the item then reads as Agent working. **Snooze** (`moon.zzz`) is local and never reaches the agent, so it is not a push button.
 - **Withdrawn** (`arrow.uturn.backward.circle`): the popup says why and slides out, the inbox row is struck through with the reason in words, the iPhone removes the notification; superseded messages fold into their replacement.
-- Actions: Approve `checkmark` (Face ID on the iPhone), Deny `xmark`, Reply `arrowshape.turn.up.left`, Done for action items, Open `arrow.up.forward.app`. Deny keeps the system red.
+- Actions: Approve `checkmark` (Face ID on the iPhone), Deny `xmark`, Reply `arrowshape.turn.up.left`, Done (the `done` answer on action items: you did it, the agent is told), Open `arrow.up.forward.app`. Deny keeps the system red.
+- **Outcomes afterwards**, the same tag on the Mac and the iPhone: "Approved on iPhone" (answered, with where), "Done on Mac" (done), "Deferred · agent working" (still open, now non-blocking), "Marked done, no answer" (dismissed), "Withdrawn · No longer needed" (rescinded, reason in words).
+- "URGENT:" follows the urgent flag only; the blocking label is separate, so the boards show an urgent item that does not block (the completed hotfix) and blocking items that are not urgent (the stacked Allow Edit).
 - Accent `#007AFF` is for controls only. Greys: `#F2F2F7` tracks, 1 px `#E0E0E0` borders, no box inside a box. Type is the system font.
-- **Agent mark** (menu bar and app icon): a custom symbol, `bubble.left` with a `>_` prompt; red dot and count while agents wait, slash in quiet hours or Focus.
+- **Gentbox mark** (menu bar and app icon): a custom symbol, `bubble.left` with a `>_` prompt; red dot and count while agents wait, slash in quiet hours or Focus. An inbox-tray variant was tried for the rename and dropped at the user's request.
 - Brand marks stay SVG (Claude, Codex); the ntfy mark is a labelled placeholder.
 
 ## Boards
@@ -41,7 +43,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | | `mac-completion-toast` | |
 | | `mac-native-banner` decision, agent working | `mac-native-banner-expanded` |
 | | `mac-generic-row` silent inbox rows | |
-| | `mac-conversation` detail: pending action, timeline, markdown body | |
+| | `mac-conversation` detail: pending action, timeline, markdown body | `mac-outcomes` (answered, done, deferred, dismissed and withdrawn, afterwards in History and the conversation) |
 | Settings | `settings-notifications` policy by type, blocking-level and urgent rules, presence | |
 | | `settings-quiet-focus` Focus status permission (`INFocusStatusCenter`); Full Disk Access only as a note for builds without the paid team | |
 | | `settings-sources` per-source switch, wait-for-answers timeout | |
