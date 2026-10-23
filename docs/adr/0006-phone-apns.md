@@ -27,7 +27,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 | `aps.alert.subtitle` | Project · conversation title | ≤ 120 B |
 | `aps.alert.body` | The message summary | ≤ 400 chars |
 | `aps.category` | `approval`, `question`, `choice`, `action`, `completion`, `info`, each with a `-defer` variant for `deferrable` messages | small |
-| `aps.thread-id` | Conversation id, so the phone groups by session | ≤ 64 B |
+| `aps.thread-id` | Topic id, else conversation id, so the phone groups by topic or session (ADR 0008) | ≤ 64 B |
 | `aps.interruption-level` | `passive`, `active` or `time-sensitive` (below) | small |
 | `aps.sound`, `aps.relevance-score`, `aps.mutable-content: 1` | | small |
 | `m` | Hub message id | 26 B |
@@ -61,7 +61,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
   - the escalation: the same `apns-collapse-id` at the audible level (`time-sensitive` when urgent, `active` otherwise) with a sound.
 
   Spike S2 verifies that a collapsed replacement alerts again. If it does not, the escalation uses a new collapse id and a background push removes the silent one.
-- **Answered elsewhere or rescinded.** A background push (`content-available`, priority 5) asks the app to remove the delivered notification (`removeDeliveredNotifications`); the app confirms through the answer topic. Without confirmation after 60 s (iOS throttles background pushes), the hub replaces it through its collapse id with a passive "Handled on Mac" or "Withdrawn" version (ADR 0007).
+- **Answered elsewhere or rescinded.** A background push (`content-available`, priority 5) asks the app to remove the delivered notification (`removeDeliveredNotifications`); the app confirms through the ntfy answer topic. Without confirmation after 60 s (iOS throttles background pushes), the hub replaces it through its collapse id with a passive "Handled on Mac" or "Withdrawn" version (ADR 0007).
 
 ### Icons: Notification Service Extension
 
@@ -84,9 +84,9 @@ The extension provides the expanded long-press view: the body excerpt rendered a
 
 ### Pairing (no network path needed)
 
-1. Settings › Phone shows a QR code. It holds the ntfy server, the answer topic, a pairing secret and, when E2E is on, the content key.
+1. Settings › Phone shows a QR code. It holds the ntfy server, the ntfy answer topic, a pairing secret and, when E2E is on, the content key.
 2. The iOS app scans it.
-3. The app posts a registration (device token, environment, app version, HMAC over them with the pairing secret) to the answer topic.
+3. The app posts a registration (device token, environment, app version, HMAC over them with the pairing secret) to the ntfy answer topic.
 4. The hub verifies and stores it, then confirms with a push.
 5. The app re-registers whenever iOS issues a new device token.
 6. Revoking a device in Settings deletes its token and rotates the pairing secret.

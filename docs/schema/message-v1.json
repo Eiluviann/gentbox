@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://github.com/Eiluviann/gentbox/docs/schema/message-v1.json",
 	"title": "Gentbox message v1",
-	"description": "What a sender POSTs to /v1/messages. Field names are camelCase. Unknown top-level fields are rejected so a typo never passes silently; `metadata` is the open extension point. Each message carries three independent fields, `type`, `urgent` and `blocking` (docs/adr/0007-message-type-urgency-blocking.md); any of them may be left to the rules. See docs/architecture.md.",
+	"description": "What a sender POSTs to /v1/messages. Field names are camelCase. Unknown top-level fields are rejected so a typo never passes silently; `metadata` is the open extension point. Each message carries three independent fields, `type`, `urgent` and `blocking` (docs/adr/0007-message-type-urgency-blocking.md); any of them may be left to the rules. An optional `topic` groups the message with others across conversations and agents (docs/adr/0008-topics.md). See docs/architecture.md.",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["version", "source", "conversation", "title"],
@@ -20,6 +20,10 @@
 		},
 		"conversation": {
 			"$ref": "#/$defs/conversation"
+		},
+		"topic": {
+			"description": "Groups this message under a Gentbox topic (not an ntfy topic). `{ \"id\": … }` names an existing topic; `{ \"key\": … }` names one by its stable key and creates it on first use, titled `title` or, without one, the key. An existing topic's title is never changed from here (PATCH /v1/topics/{id} does that). A message sent to a closed topic reopens it. Without `topic`, rules may assign one; otherwise the message belongs only to its conversation.",
+			"$ref": "#/$defs/topicRef"
 		},
 		"type": {
 			"description": "What the message asks of you. `decision_required`: the agent needs your answer (approve or deny, pick a choice, reply). `action_required`: you must do something yourself outside the conversation (sign in, add a key, review a pull request), then tell the agent it is done. `task_completed`: work finished. `generic`: everything else, kept for reference. Declared fields win over the rules (except a user rule with `override = true`); missing ones are filled by user rules, then built-in rules, then the default `generic`.",
@@ -147,6 +151,211 @@
 					"items": {
 						"$ref": "#/$defs/token"
 					}
+				}
+			}
+		},
+		"topicKey": {
+			"description": "Stable key the agent chooses, unique per hub across all agents (e.g. `release-1.4`, `repo:gentbox`). Re-creating a topic with the same key returns the existing one.",
+			"type": "string",
+			"pattern": "^[a-z0-9][a-z0-9._:/-]{0,95}$"
+		},
+		"topicStyle": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"symbol": {
+					"description": "SF Symbol name hint, e.g. `shippingbox`. The app shows it only if it is on its allowed list, else the default topic symbol.",
+					"type": "string",
+					"pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$",
+					"maxLength": 64
+				},
+				"color": {
+					"description": "Colour hint from the app's palette.",
+					"type": "string",
+					"enum": [
+						"blue",
+						"purple",
+						"pink",
+						"red",
+						"orange",
+						"yellow",
+						"green",
+						"teal",
+						"indigo",
+						"gray"
+					]
+				}
+			}
+		},
+		"topicRef": {
+			"oneOf": [
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["id"],
+					"properties": {
+						"id": {
+							"description": "Hub-assigned topic id (ULID).",
+							"type": "string",
+							"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+						}
+					}
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["key"],
+					"properties": {
+						"key": {
+							"$ref": "#/$defs/topicKey"
+						},
+						"title": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 80
+						},
+						"summary": {
+							"type": "string",
+							"maxLength": 400
+						},
+						"style": {
+							"$ref": "#/$defs/topicStyle"
+						}
+					}
+				}
+			]
+		},
+		"topicCreate": {
+			"description": "Body of POST /v1/topics: an upsert by `key`. Creating an existing key returns it unchanged (200 instead of 201); use PATCH to change it.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["key", "title"],
+			"properties": {
+				"key": {
+					"$ref": "#/$defs/topicKey"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"summary": {
+					"type": "string",
+					"maxLength": 400
+				},
+				"style": {
+					"$ref": "#/$defs/topicStyle"
+				},
+				"conversation": {
+					"description": "The conversation creating it, recorded in `createdBy`.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["id"],
+					"properties": {
+						"id": {
+							"$ref": "#/$defs/token"
+						}
+					}
+				}
+			}
+		},
+		"topicUpdate": {
+			"description": "Body of PATCH /v1/topics/{id}. Only the given fields change; `summary: null` clears it.",
+			"type": "object",
+			"additionalProperties": false,
+			"minProperties": 1,
+			"properties": {
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"summary": {
+					"type": ["string", "null"],
+					"maxLength": 400
+				},
+				"style": {
+					"$ref": "#/$defs/topicStyle"
+				}
+			}
+		},
+		"topicClose": {
+			"description": "Body of POST /v1/topics/{id}/close. Closing never touches open messages unless `rescindOpenMessages` is true; then every open message in the topic is rescinded with `reason` (default `obsolete`).",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"rescindOpenMessages": {
+					"type": "boolean",
+					"default": false
+				},
+				"reason": {
+					"$ref": "#/$defs/rescindReason"
+				}
+			}
+		},
+		"topicRecord": {
+			"description": "A topic as the hub returns it (POST, PATCH, GET).",
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"id",
+				"key",
+				"title",
+				"status",
+				"createdBy",
+				"createdAt",
+				"updatedAt"
+			],
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+				},
+				"key": {
+					"$ref": "#/$defs/topicKey"
+				},
+				"title": {
+					"type": "string"
+				},
+				"summary": {
+					"type": "string"
+				},
+				"style": {
+					"$ref": "#/$defs/topicStyle"
+				},
+				"status": {
+					"type": "string",
+					"enum": ["open", "closed"]
+				},
+				"createdBy": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["agent"],
+					"properties": {
+						"agent": {
+							"type": "string"
+						},
+						"conversationId": {
+							"type": "string"
+						}
+					}
+				},
+				"createdAt": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"updatedAt": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"closedAt": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"openMessages": {
+					"description": "Count of open and acknowledged messages.",
+					"type": "integer",
+					"minimum": 0
 				}
 			}
 		},

@@ -11,7 +11,7 @@ Blocking items should reach the iPhone and Watch, and be answerable there. The a
 - **Push through ntfy**, ntfy.sh by default, self-hosted supported, via the `Relay` trait in `gentbox-relay`. The ntfy iOS app (App Store, with its own push entitlements) shows the notification, mirrored to the Watch.
 - **Content**: a fixed title phrase per class ("URGENT: Action required", "Your input is needed", "Task complete", "Goal complete"), the message summary, and the project or agent icon as an image attachment. `minimal` mode (phrase only) and the `sensitive` flag are available; `body` and `cwd` never leave the Mac.
 - **Silent-then-ping**: while the Mac is in use the phone gets the notification silently at once and pings only if it is still unaddressed after 2 min; when the Mac is away it pings at once.
-- **Answers back through ntfy**: `http` buttons POST an HMAC-signed, single-use, 30-minute action token to a second, secret **answer topic**; the hub holds an outbound subscription to it and redeems the token. No inbound port, no VPN.
+- **Answers back through ntfy**: `http` buttons POST an HMAC-signed, single-use, 30-minute action token to a second, secret **ntfy answer topic**; the hub holds an outbound subscription to it and redeems the token. No inbound port, no VPN.
 - **Own iOS app** (optional, PR 6) as an inbox and detail viewer over Tailscale, for full content and text replies.
 - **APNs adapter later** behind the same trait, once the paid membership exists: the Mac sends directly to Apple's push service with the user's own APNs key, to the user's own build of the iOS app. No relay; therefore only for people who sign the app themselves.
 

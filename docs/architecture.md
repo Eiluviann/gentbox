@@ -25,6 +25,8 @@ Defaults `generic`, `false`, `non_blocking`. `task_completed` and `generic` are 
 
 The sender may declare any of the fields; deterministic rules fill the rest. No model is involved (§5.3).
 
+A message also belongs to its **conversation** (one agent session) and, optionally, to a **topic**: an agent-created group that may span several conversations and agents, such as "Release 1.4" across an API and a web session (§5.4, ADR [0008](adr/0008-topics.md)). Gentbox topics are unrelated to ntfy topics, which the docs always call "ntfy topic".
+
 ## 2. System overview
 
 ```mermaid
@@ -51,8 +53,8 @@ flowchart LR
   core --> ui
   core --> relay --> apns --> phone
   relay -.->|fallback delivery| ntfy
-  phone -->|action token to the answer topic| ntfy
-  ntfy -.->|answer topic subscription| relay
+  phone -->|action token to the ntfy answer topic| ntfy
+  ntfy -.->|ntfy answer topic subscription| relay
 ```
 
 ## 3. Hub placement
@@ -79,8 +81,8 @@ The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/
 | Crate | Status | Responsibility | Depends on |
 | --- | --- | --- | --- |
 | `gentbox-core` | Now (PR 1) | Domain types (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
-| `gentbox-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `gentbox-core` |
-| `gentbox-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `gentbox-core` |
+| `gentbox-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, topics, the single-use action-token ledger | `gentbox-core` |
+| `gentbox-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the ntfy answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `gentbox-core` |
 | `gentbox-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `gentbox-core`, `gentbox-store`, `gentbox-relay` (trait only) |
 | `gentbox-ingest` | Now (PR 2b; optional remote routes for the iOS app in PR 8) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `gentbox-hub` |
 | `gentboxd` | Now (PR 2b) | Binary: config, lock, logging, signal handling; wires hub, ingest and the configured relay | `gentbox-ingest`, `gentbox-hub`, `gentbox-relay` |
@@ -105,6 +107,7 @@ POST /v1/messages
   → validate against message-v1.json        422 with the failing JSON pointer
   → idempotency (source.agent, idempotencyKey)  200 with the stored message
   → classify, per field                     declared → user rules → built-in rules → defaults → normalize
+  → resolve topic                           declared or rule-assigned; create on first use; reopen if closed (§5.4)
   → coalesce / dedupe / supersede / rescind (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
@@ -114,7 +117,7 @@ POST /v1/messages
 Response body of `POST /v1/messages`:
 
 ```json
-{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "state": "open", "shouldWait": true }
+{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD", "state": "open", "shouldWait": true }
 ```
 
 `id` is a ULID the hub assigns. It is the only message id in URLs and in `actionResponse.messageId`; the sender's `idempotencyKey` only deduplicates retries.
@@ -206,7 +209,7 @@ match = { event = "claude-code.notification.auth_success" }
 mute = true          # stored as generic, never shown outside the inbox history
 ```
 
-Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking` and `mute`. Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
+Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute` and `topic` (`topic = { key = "repo:{project}", title = "{project}" }`, where `{project}` is the working-directory name; only when the message names no topic). Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
 
 **Built-in Claude Code mapping** (the Phase 4 hook sends `event` and, where it is certain, the fields; `urgent` is false unless a user rule says otherwise):
 
@@ -230,6 +233,17 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 
 The MCP `ask` tool (PR 7) declares the fields itself: `decision_required` by default, with `blocking` chosen by the agent, `deferrable` when it can continue with other work.
 
+### 5.4 Topics
+
+ADR: [0008](adr/0008-topics.md).
+
+- **A topic** has a hub `id`, a stable agent-chosen `key` (unique per hub, across agents), `title`, optional `summary` and `style` (SF Symbol and colour hints), `status` `open` or `closed`, `createdBy` and timestamps. Topics are flat.
+- **Created and changed by agents:** `POST /v1/topics` upserts by key; `PATCH /v1/topics/{id}` renames or edits; close, reopen and list (§8). A message joins with `topic: { "id": … }`, or `topic: { "key": …, "title": … }`, which creates the topic on first use; a message to a closed topic reopens it. `PUT /v1/messages/{id}/topic` moves a message between topics.
+- **Grouping only.** A message keeps its own `type`, `urgent` and `blocking`; coalescing and implicit rescinds stay per conversation (§7). The one delivery effect is mute (§6.2).
+- **Closing** leaves the topic's open messages alone, unless `rescindOpenMessages: true` (then they are rescinded, default reason `obsolete`); `POST /v1/topics/{id}/rescind` withdraws them without closing.
+- **For you:** mute and unmute, mark all read (acknowledges every open message, answers nothing), close and reopen, move a message.
+- **Inbox:** topic → conversation → message; messages without a topic group by conversation. Closed topics move to a Closed section.
+
 ## 6. Noise-policy engine
 
 ADR: [0004](adr/0004-policy-engine.md).
@@ -240,7 +254,7 @@ ADR: [0004](adr/0004-policy-engine.md).
 fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> DeliveryPlan
 ```
 
-- `PolicyContext`: presence (`away` = screen locked or idle ≥ `awayAfter`, frontmost bundle id), Focus on/off, quiet hours active, the conversation's open items, the clock.
+- `PolicyContext`: presence (`away` = screen locked or idle ≥ `awayAfter`, frontmost bundle id), Focus on/off, quiet hours active, whether the message's topic is muted, the conversation's open items, the clock.
 - `Policy`: settings from `config.toml` keyed on `(type, urgent, blocking)`, defaults below.
 - `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (`none`, `active`, `time_sensitive`), `sound` (bool), `phone` (`now(level)`, `silentThenPing { level, after }`, `silent`, `none`), `reping` (`after`, `max`) and `offerDefer` (bool).
 
@@ -259,6 +273,7 @@ By blocking level (for `decision_required` and `action_required`) and type:
 | `non_blocking` | Native banner and inbox, no re-ping | Silent-then-ping |
 | `task_completed` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Silent-then-ping |
 | `generic` | Inbox only, silent | Never |
+| Any non-urgent message in a muted topic | Inbox only, silent, no re-ping; `shouldWait: false` for its sender | Never |
 
 `urgent` modifies every row above:
 
@@ -300,7 +315,8 @@ All within one conversation (`source.agent` + `conversation.id`). Rules are appl
 5. **Completion rescinds what waited on it.** A `task_completed` message rescinds, as `obsolete`, the conversation's `open`/`acknowledged` `blocking` and `deferrable` messages that have no live waiter. A message with a live waiter stays open (the agent cannot have finished while it waits); `non_blocking` messages survive the end of the turn.
 6. **Progress rescinds.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) rescinds, as `resolved_elsewhere`, the conversation's `idle` item and its `blocking` and `deferrable` items without a live waiter: something happened, so whatever they asked for was handled in the session. This covers a permission answered or denied in the terminal.
 7. **Explicit rescind.** `DELETE /v1/messages/{id}`, `POST /v1/conversations/{agent}/{id}/rescind`, or the `rescinds` field on a new message, with a reason (ADR 0007). Effects in every channel: popup and toast removed; Mac native notification removed; inbox row kept and marked "Withdrawn" with the reason in words (superseded rows fold into their successor instead); the own iPhone app removes the delivered notification through a background push and `removeDeliveredNotifications`, falling back after 60 s to a passive "Withdrawn" replacement under the same collapse id; the ntfy fallback cannot remove or update a delivered notification, so the hub publishes a min-priority "Withdrawn" notice only when the original had pinged, and ignores taps on the stale buttons.
-8. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest `blocking` or `deferrable` item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
+8. **Topics never coalesce.** Two conversations in one topic keep separate slots, popups and rescinds; only the inbox and the lock screen group them (§5.4).
+9. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest `blocking` or `deferrable` item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
 
 ## 8. Ingest API and transport
 
@@ -326,6 +342,11 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `PUT /v1/conversations/{agent}/{id}` | Register or rename a conversation (Claude Code `SessionStart`) |
 | `POST /v1/conversations/{agent}/{id}/progress` | The conversation moved on (§7.6) |
 | `POST /v1/presence/focus` | `{ "focused": true }` from the Shortcuts automation |
+| `POST /v1/topics` | Create a topic, upsert by `key` (§5.4) |
+| `GET /v1/topics?status=open` | List topics (no messages) |
+| `GET /v1/topics/{id}` · `PATCH /v1/topics/{id}` | Read one; rename or edit it |
+| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
+| `PUT /v1/messages/{id}/topic` | Move a message to another topic, or out of any |
 
 **No answer route for senders.** The sender token can post, wait, rescind and report progress, but cannot answer or list messages (rescinding never answers): an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
 
@@ -369,15 +390,15 @@ sequenceDiagram
 
 ### 9.3 Phone
 
-Two paths, both ending at the ntfy **answer topic** the hub subscribes to (outbound, no inbound port, no VPN):
+Two paths, both ending at the **ntfy answer topic** the hub subscribes to (outbound, no inbound port, no VPN):
 
-- **Own iOS app (APNs, the default with the paid team).** Notification buttons (Approve, Deny, choices, Reply with text) run in the app's background handler, which posts the action token and the reply text to the answer topic and finishes. Approve requires an unlocked device (`.authenticationRequired`). Details in ADR 0006.
-- **ntfy app (fallback).** `http` buttons post the action token to the answer topic themselves [ntfy-ios ActionExecutor.swift]. Up to 3 buttons, `view` and `http` only, no text reply, and the tap opens the ntfy app with no visible result [ntfy-ios Actions.swift, NotificationContent.swift:166].
+- **Own iOS app (APNs, the default with the paid team).** Notification buttons (Approve, Deny, choices, Reply with text) run in the app's background handler, which posts the action token and the reply text to the ntfy answer topic and finishes. Approve requires an unlocked device (`.authenticationRequired`). Details in ADR 0006.
+- **ntfy app (fallback).** `http` buttons post the action token to the ntfy answer topic themselves [ntfy-ios ActionExecutor.swift]. Up to 3 buttons, `view` and `http` only, no text reply, and the tap opens the ntfy app with no visible result [ntfy-ios Actions.swift, NotificationContent.swift:166].
 
 Common to both:
 
 - **Action tokens.** `base64url(payload) "." base64url(HMAC-SHA256(key, payload))`, payload = message id, action id, nonce, expiry. The key is 256-bit, per hub, in the Keychain (Mac) or a 0600 file (daemon). Expiry = min(message `expiresAt`, 30 min); the nonce is recorded on first use, so a replay is ignored and logged. Constant-time comparison. Tokens are not secret from Apple's push service or the ntfy server (they ride in the notification), which is why they are single-use, short-lived and bound to one message and action.
-- **Self-answers are refused.** Tokens are minted only by the hub and sent only to your phone; topic names, the ntfy credentials and the APNs key live in the Keychain, not in `config.toml`. An agent on the Mac can neither read a token nor forge one.
+- **Self-answers are refused.** Tokens are minted only by the hub and sent only to your phone; ntfy topic names, the ntfy credentials and the APNs key live in the Keychain, not in `config.toml`. An agent on the Mac can neither read a token nor forge one.
 - **Which actions go to the phone.** In the default `summary` payload mode the notification says what is needed (§10), so the answers go out as buttons: `approve`, `deny` (when not `destructive`), `choice`, `done`, and `defer` on `deferrable` messages (at most 3 on ntfy; Defer takes priority over a second choice). Snooze is a local to Gentbox reminder and stays off the push buttons (ADR 0007). In `minimal` mode, and for `sensitive` messages, there are no answer buttons: you cannot read what you would approve. Never `destructive` actions.
 - **Feedback.** Once the token is redeemed, the hub replaces the notification (same collapse or sequence id) with a passive "Approved from phone".
 
@@ -388,7 +409,7 @@ ADRs: [0006](adr/0006-phone-apns.md) (current), [0005](adr/0005-ios-transport.md
 **Relay trait** (`gentbox-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`, and an answer source `answers() -> Stream<AnswerEnvelope>` (action tokens and device registrations). Adapters, each configured with your own credentials:
 
 - `apns` (Now, the default delivery with the paid team): HTTP/2 to `api.push.apple.com` / `api.sandbox.push.apple.com`, ES256 JWT from your `.p8` key, refreshed every 20–60 min; device tokens from pairing, stored with their environment, dropped on 410 [APNs-token, APNs-responses].
-- `ntfy` (Now): always the answer channel (answer-topic subscription); also the delivery fallback until the membership is active, for anyone without one, and when no APNs device is registered. ntfy.sh by default, self-hosted supported, optional ntfy account token.
+- `ntfy` (Now): always the answer channel (ntfy answer-topic subscription); also the delivery fallback until the membership is active, for anyone without one, and when no APNs device is registered. ntfy.sh by default, self-hosted supported, optional ntfy account token.
 - `pushover` (Planned option, ADR 0005; your own application token and user key), `noop` (tests).
 
 Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure with no valid device token falls back to ntfy delivery when configured, and the menu bar shows "Phone delivery failing".
@@ -406,8 +427,9 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the user, 2026-10-23). The blocking level never changes the title; it shows as its own badge (below).
 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
-- **Subtitle:** project · conversation title (Mac and the own iOS app; left out on the ntfy fallback).
-- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · project · conversation"); the ntfy fallback leads the body with it.
+- **Subtitle:** topic title (or the project when the message has no topic) · conversation title (Mac and the own iOS app; on the ntfy fallback the topic title leads the body instead).
+- **Grouping:** APNs `thread-id` is the topic id, falling back to the conversation id, so the lock screen and Notification Centre group a topic's notifications; Mac native notifications use the same thread identifier.
+- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · topic or project · conversation"); the ntfy fallback leads the body with it.
 - **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.gentbox/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).
@@ -425,7 +447,7 @@ Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the 
 
 | | ntfy field |
 | --- | --- |
-| Topics | Notification topic (fallback delivery only) and answer topic: random 32-character base64url strings, generated at setup, kept in the Keychain; on servers without ACLs the topic acts as the password [ntfy-faq] |
+| ntfy topics | Notification topic (fallback delivery only) and ntfy answer topic: random 32-character base64url strings, generated at setup, kept in the Keychain; on servers without ACLs the ntfy topic acts as the password [ntfy-faq] |
 | Auth | `Authorization: Bearer tk_…` when the server has ACLs [ntfy-publish › Access tokens]; the token lives in the Keychain |
 | Priority (fallback) | Silent 2 (iOS: passive). Audible: urgent 5, others 3. On iOS 5 maps to Time Sensitive, 3 to Active, 1–2 to Passive [ntfy-ios NotificationContent.swift:44-68] |
 | Sequence id (fallback) | The hub message id of the slot, so supersede and escalation update in place and resolve clears [ntfy-publish › Updating notifications] |
@@ -436,7 +458,7 @@ Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the 
 
 **Watch.** With no watchOS app, the Watch mirrors the iPhone's notifications, buttons and text reply included; the Content Extension does not run there (ADR 0006). A watchOS app with custom notification scenes is Planned.
 
-**Own iOS app** (PR 6, core). Inbox and detail viewer, notification categories and their background handlers, the Service Extension (icon, optional decryption), the optional Content Extension (expanded view, dynamic choice buttons), and pairing by QR code: the app posts its device token, HMAC-signed with the pairing secret, to the answer topic, so pairing needs no network path to the Mac. Optional (PR 8): with Tailscale on both devices (a free VPN that lets the phone reach the Mac directly), the app also loads full bodies beyond the payload excerpt and the inbox history from the hub's remote listener, over HTTPS with the MagicDNS certificate [ATS-local]. Nothing else needs Tailscale.
+**Own iOS app** (PR 6, core). Inbox and detail viewer, notification categories and their background handlers, the Service Extension (icon, optional decryption), the optional Content Extension (expanded view, dynamic choice buttons), and pairing by QR code: the app posts its device token, HMAC-signed with the pairing secret, to the ntfy answer topic, so pairing needs no network path to the Mac. Optional (PR 8): with Tailscale on both devices (a free VPN that lets the phone reach the Mac directly), the app also loads full bodies beyond the payload excerpt and the inbox history from the hub's remote listener, over HTTPS with the MagicDNS certificate [ATS-local]. Nothing else needs Tailscale.
 
 ## 11. Platform constraints and verified answers
 
@@ -456,7 +478,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 - `http` defaults to POST and supports `method`, `headers`, `body`, `clear` (clear only on success) [ntfy-publish › Send HTTP request]; on iOS the phone sends it directly, with no visible result, `clear` not implemented, and the tap opens the app [ntfy-ios ActionExecutor.swift, NotificationContent.swift].
 - Priorities 1–5 (min, low, default, high, max/urgent); iOS mapping in §10, where 1–2 are passive (silent).
 - The iOS app ignores the `icon` field but shows image attachments as the notification thumbnail [ntfy-ios NotificationContent.swift:79-123].
-- ntfy.sh: anonymous use works with an unguessable topic; accounts and access tokens (`tk_…`) for ACLs; paid tiers raise limits and allow reserved topics [ntfy-publish, ntfy-config]. Self-hosted: `auth-file` + `auth-default-access: deny-all`, per-user topic ACLs and tokens [ntfy-config].
+- ntfy.sh: anonymous use works with an unguessable ntfy topic; accounts and access tokens (`tk_…`) for ACLs; paid tiers raise limits and allow reserved ntfy topics [ntfy-publish, ntfy-config]. Self-hosted: `auth-file` + `auth-default-access: deny-all`, per-user ntfy topic ACLs and tokens [ntfy-config].
 - iOS instant delivery only through ntfy.sh's APNs/Firebase relay; self-hosted needs `upstream-base-url` [ntfy-config, ntfy-known-issues].
 - **Risk:** the ntfy FAQ calls the iOS app bare-bones and somewhat buggy with development paused, and known issues include notifications silently stopping until the subscription is re-added [ntfy-faq, ntfy-known-issues]. No end-to-end encryption (issue #69 open) [ntfy-gh-69]. Hence ADR 0006 moves delivery to the own iOS app and keeps ntfy for answers and as the fallback.
 
@@ -489,16 +511,17 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 | Threat | Mitigation |
 | --- | --- |
-| An agent approves its own permission prompt | The sender token cannot answer or list (§8); action tokens are minted only by the hub and published only to a topic whose name, like the ntfy credentials, lives in the Keychain; Claude Code itself still evaluates deny rules after an allow [CC-hooks › PermissionRequest decision control] |
+| An agent approves its own permission prompt | The sender token cannot answer or list (§8); action tokens are minted only by the hub and published only to an ntfy topic whose name, like the ntfy credentials, lives in the Keychain; Claude Code itself still evaluates deny rules after an allow [CC-hooks › PermissionRequest decision control] |
 | Another user or a remote host posts messages | Ingest binds loopback only; Unix socket 0600 in a 0700 folder, preferred; bearer token 0600 (or the App Group container); TCP clients send the token only after the hub's challenge-response proof (§8) |
 | A web page in your browser posts to the loopback port (DNS rebinding, CSRF) | Bearer token required on every route but `hello`; `Host` must be `127.0.0.1:<port>` or `localhost:<port>` on TCP; no CORS headers, so browsers cannot read responses; `Content-Type: application/json` only |
 | A buggy agent floods you | Rate limits per agent and per conversation (§8); supersede and dedupe (§7); per-source mute rules |
 | Malicious content in a message | Markdown rendered without HTML, without remote images; links show their URL and need a click; `focus.url` limited to an allowlist of schemes; titles and summaries are plain text |
-| Push services read notifications | APNs (Apple) carries the title phrase, subtitle, summary, body excerpt and action tokens, encrypted in transit; the end-to-end option leaves Apple only the phrase. ntfy.sh sees action tokens and registrations, plus phrase and summary only on the fallback path. Never `cwd`; `minimal` mode and `sensitive` messages reduce everything to the phrase; topics are random 32-character secrets |
+| Push services read notifications | APNs (Apple) carries the title phrase, subtitle, summary, body excerpt and action tokens, encrypted in transit; the end-to-end option leaves Apple only the phrase. ntfy.sh sees action tokens and registrations, plus phrase and summary only on the fallback path. Never `cwd`; `minimal` mode and `sensitive` messages reduce everything to the phrase; ntfy topics are random 32-character secrets |
 | The APNs key leaks | It lives only in the Keychain; Settings can replace it; a leaked `.p8` is revoked in the Apple developer account, which invalidates it at once |
 | A locked or picked-up phone approves | Approve requires Face ID or the passcode (`.authenticationRequired`); deny and snooze do not |
 | Someone replays or forges a phone action | HMAC-signed, single-use, 30-min tokens bound to message and action, so a token seen by a push service is worth at most the one answer it encodes, and only before you give yours; no secrets in URLs; destructive actions never one-tap; no inbound port on the Mac |
-| A stolen phone answers | Revoke the device in Settings (its token is deleted and the pairing secret rotated) and rotate the topics; answers are logged with channel and device |
+| A stolen phone answers | Revoke the device in Settings (its token is deleted and the pairing secret rotated) and rotate the ntfy topics; answers are logged with channel and device |
+| An agent reads other sessions through topics | Topic listing returns titles and counts only, never messages; titles are agent-chosen |
 | Secrets leak into logs or the store | Logs never contain bodies, tokens or `tool_input`; `metadata` is documented as non-secret; the token file is regenerated on demand from Settings |
 
 ## 13. Future paths

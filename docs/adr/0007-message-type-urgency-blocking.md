@@ -75,7 +75,7 @@ Effects:
 - **Long-poll:** `{ "status": "rescinded", "rescindReason": … }`.
 - **Mac:** popup and toast removed, native notification removed (`removeDeliveredNotifications`). The inbox row stays, marked "Withdrawn" with the reason in words ("Handled in the session", "No longer needed"). Superseded rows instead fold into the message that replaced them.
 - **iPhone (own app):**
-  - A background push asks the app to call `removeDeliveredNotifications`. The app confirms through the answer topic.
+  - A background push asks the app to call `removeDeliveredNotifications`. The app confirms through the ntfy answer topic.
   - With no confirmation after 60 s (iOS throttles background pushes), the hub replaces the notification through its collapse id with a passive "Withdrawn" version.
 - **iPhone (ntfy fallback):**
   - The ntfy iOS app cannot update, clear or delete a delivered notification. Its Notification Service Extension handles only `message` and `poll_request` events and logs `message_delete`/`message_clear` as irrelevant, and its message model has no sequence id [ntfy-ios ntfyNSE/NotificationService.swift, ntfy/Persistence/Notification.swift, commit 96e659c, 2026-06-26].

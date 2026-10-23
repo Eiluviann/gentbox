@@ -63,6 +63,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** `cargo test -p gentbox-core` green; the examples deserialise; `decide` and `classify` are free of `std::time::SystemTime::now`, IO and `unsafe` (a test greps the crate source).
 
+**Topics (ADR 0008).** The `topic` model and `topicRef` resolution rules (id, key, inline create, title fallback, reopen on a closed topic); rule-assigned topics with `{project}` substitution, only when the message names none; the policy's muted-topic row (non-urgent → inbox only, `shouldWait: false`; urgent unaffected); topics never coalesce. Tests: each `topicRef` form, an invalid ref, rule assignment and its precedence, every `(type, urgent, blocking)` combination in a muted and an unmuted topic.
+
 ## PR 2a · `gentbox-store`
 
 **Scope.** SQLite persistence for messages, conversations, actions, responses, deliveries and the action-token ledger; migrations; retention sweep.
@@ -74,6 +76,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 **Acceptance.** Store API returns `Result` for not-found and constraint outcomes and only throws (panics) on broken invariants; temp-dir tests; no SQL outside the crate.
 
 **Model note.** Sonnet: the first migration has no user data to lose. Later migrations that transform data go to Opus.
+
+**Topics (ADR 0008).** A `topics` table (unique key, status, style, mute flag, mark-read time, created-by) and a nullable `topic_id` on messages, in the first migration. Tests: upsert by key returns the existing row; move a message between topics and out of any; mark all read acknowledges only that topic's open messages; retention keeps topics that still have messages and deletes closed empty ones after the retention period.
 
 ## PR 2b · `gentbox-hub` + `gentbox-ingest` + `gentboxd`
 
@@ -97,6 +101,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** `gentboxd` runs on macOS and Linux CI; the `curl` script in the plan's verification section posts one message per type and blocking level and gets the expected fields back.
 
+**Topics (ADR 0008).** Routes `POST /v1/topics`, `GET /v1/topics`, `GET`/`PATCH /v1/topics/{id}`, `POST /v1/topics/{id}/close|reopen|rescind`, `PUT /v1/messages/{id}/topic`, and the inline-create path in `POST /v1/messages`. Tests: concurrent upserts of one key create one topic; 201 vs 200 on upsert; listing returns no messages; close with and without `rescindOpenMessages` (waiters get `rescinded`); a message to a closed topic reopens it; `topicId` in the 201 response.
+
 ## PR 3 · `gentbox-ffi` + macOS app shell
 
 **Scope.** UniFFI bindings (`Hub` object: start, stop, inbox queries, answer, presence updates; `HubDelegate` callback interface for delivery plans and state changes), the XCFramework build script, the `GentboxCore` Swift package, the XcodeGen project with signing for the paid team (Vaultday's xcconfig layout, the shipped identifiers), the menu-bar extra with the inbox list, login item, and presence sensing (frontmost app, idle, lock) pushed into the core.
@@ -114,6 +120,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** A paid-team build runs from the login item, receives a `curl`-posted message and lists it, and its embedded profile grants Time Sensitive and Communication Notifications; a Personal Team build (`Signing.personal-team.xcconfig`) still builds and runs without them.
 
+**Topics (ADR 0008).** FFI inbox queries grouped topic → conversation → message, topic mute, mark all read, close, reopen and move; the menu-bar inbox groups by topic with a header row (mute, mark read) and a Closed section. Tests: XCUITest for grouping and mute.
+
 ## PR 4 · Popups, native notifications, round-trip
 
 **Scope.** Architecture §6.2 Mac column, §7.7, §9.1, §9.2, §6.3: non-activating `NSPanel` persistent popups (stack of 3, "+N waiting"), transient toasts, `UNUserNotificationCenter` categories (approve, deny, reply with text input, open, snooze) with Time Sensitive for blocking items, the notification content of architecture §10 (title phrase, subtitle, summary, icon thumbnail), sounds, re-ping, the "why this pinged" line, the open action (URL allowlist, then app activation), Focus from `INFocusStatusCenter` (authorisation prompt, polling on presence changes), and for Personal Team builds the fallbacks `POST /v1/presence/focus` and the `gentbox://focus` URL handler.
@@ -126,17 +134,19 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Acceptance.** The plan's Mac verification items pass; answering from a native notification and from the popup both reach the waiting sender; late second answer shows "Already answered".
 
+**Topics (ADR 0008).** Topic chips on popups and toasts; native notifications use the topic as thread identifier and in the subtitle; topic detail view. Tests: a muted topic shows no popup for a non-urgent blocking message and still shows an urgent one.
+
 ## PR 5 · `gentbox-relay`: APNs, ntfy answers and fallback
 
 **Scope.** Architecture §6.2 (phone column), §9.3, §10, §12 and ADR 0006 (Rust side):
 
 - **`apns` adapter:**
   - ES256 JWT from the `.p8` key (header `kid`, claims `iss`, `iat`), cached and refreshed between 20 and 60 min, never more often.
-  - One HTTP/2 connection per environment (`api.push.apple.com`, `api.sandbox.push.apple.com`) with `apns-topic`, `apns-push-type: alert`, `apns-priority` 10 or 5, `apns-expiration` and `apns-collapse-id`.
+  - One HTTP/2 connection per environment (`api.push.apple.com`, `api.sandbox.push.apple.com`) with `apns-topic` (the bundle id; unrelated to Gentbox and ntfy topics), `apns-push-type: alert`, `apns-priority` 10 or 5, `apns-expiration` and `apns-collapse-id`.
   - Payload building under the 4,096-byte cap: the body excerpt is trimmed last, UTF-8 safe.
   - Response handling: drop the device token on 410 `Unregistered` or `ExpiredToken`; on 400 `BadDeviceToken` or `DeviceTokenNotForTopic`, retry once against the other environment, then drop; refresh the JWT on 403 `ExpiredProviderToken`; back off on 429 and 5xx.
   - Background pushes to remove resolved notifications.
-- **`ntfy` adapter:** the answer-topic subscription (action tokens and device registrations, reconnect with backoff), and fallback delivery (publish, update by sequence id, clear, icon attachments) used until a device is paired or when APNs has no valid token.
+- **`ntfy` adapter:** the ntfy answer-topic subscription (action tokens and device registrations, reconnect with backoff), and fallback delivery (publish, update by sequence id, clear, icon attachments) used until a device is paired or when APNs has no valid token.
 - **Content and policy:** title phrases, subtitle, summary, icon references, payload modes (`summary`, `minimal`, `sensitive`), silent-then-ping (passive, then the same collapse id at the audible level).
 - **Hub side (`gentbox-hub`):** token minting and redemption against the store's nonce ledger; device registry with environment, pairing-secret HMAC check and revocation.
 - **Settings › Phone pane on the Mac:** APNs key (`.p8`, key id, team id, stored in the Keychain and shown masked), ntfy server and token, the pairing QR code, devices, delivery channel choice, payload mode.
@@ -169,16 +179,18 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 **Acceptance.** Against the mock servers, every flow above passes. With the user's phone once PR 6 exists:
 
 - A blocking message arrives silently while the Mac is in use and pings as Time Sensitive 2 min later.
-- Approve from the lock screen asks for Face ID and reaches the waiting sender through the answer topic.
+- Approve from the lock screen asks for Face ID and reaches the waiting sender through the ntfy answer topic.
 - Replaying the token does nothing.
 - With the ntfy fallback selected, the same flow works through the ntfy app.
+
+**Topics (ADR 0008).** APNs `thread-id` = topic id, else conversation id; the topic title in the subtitle in place of the project; on the ntfy fallback the topic title leads the body. Tests: payload thread id and subtitle with and without a topic; muted topics produce no push.
 
 ## PR 6 · iOS app (core)
 
 **Scope.** ADR 0006, iOS side:
 
-- **The app:** inbox and detail from received pushes (stored in the App Group container); pairing by QR code (posts its device token, environment and version, HMAC-signed, to the answer topic; re-registers when iOS rotates the token).
-- **Notification categories** `approval`, `question`, `choice`, `action`, `completion`, `info`, each answerable one with a `-defer` variant: Approve with `.authenticationRequired`, Deny, Reply as text input, Done, Defer, Open. Background handlers post action tokens and reply text to the answer topic.
+- **The app:** inbox and detail from received pushes (stored in the App Group container); pairing by QR code (posts its device token, environment and version, HMAC-signed, to the ntfy answer topic; re-registers when iOS rotates the token).
+- **Notification categories** `approval`, `question`, `choice`, `action`, `completion`, `info`, each answerable one with a `-defer` variant: Approve with `.authenticationRequired`, Deny, Reply as text input, Done, Defer, Open. Background handlers post action tokens and reply text to the ntfy answer topic.
 - **Notification Service Extension:** icon thumbnail from the App Group cache, fetching a missing project icon once from its ntfy attachment; optional decryption of end-to-end content; optional Communication Notifications avatar.
 - **Optional Notification Content Extension:** markdown excerpt, project and conversation, dynamic choice buttons via `notificationActions`.
 - **Signing:** paid team, Push Notifications and Time Sensitive capabilities, `aps-environment` development for Xcode builds and production for TestFlight.
@@ -196,6 +208,8 @@ XCUITest smoke for inbox and detail.
 
 **Acceptance.** The PR 5 acceptance flows pass on the user's iPhone and Watch, including text reply from the lock screen, choices from the expanded view, and the project icon as the thumbnail.
 
+**Topics (ADR 0008).** Inbox and detail grouped by topic, notifications grouped by `thread-id`, topic mute and mark read in the app. Tests: XCTest for grouping from payload fixtures.
+
 ## PR 7 · `gentbox` CLI + `gentbox-mcp` stdio MCP server
 
 **Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `gentbox send|ask|wait|rescind|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and the `gentbox-mcp` stdio MCP server (a second bin in the same package) with `notify` (explicit `type`, `urgent`, `blocking`), `ask` (`decision_required` with `awaitsResponse`; `blocking` or `deferrable` chosen by the agent; waits up to a timeout and returns the answer, `deferred`, or "no answer") and `rescind`. Types written against the schema and checked against the examples.
@@ -205,6 +219,8 @@ XCUITest smoke for inbox and detail.
 **Tests.** Vitest: discovery order, socket preference and the `hello` proof (a wrong proof never sends the token); request building per command; the examples parse into the TS types; MCP tool schemas; `ask` timeout path. One integration test against `gentboxd` (skipped when the binary is absent).
 
 **Acceptance.** `gentbox send --type task_completed --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
+
+**Topics (ADR 0008).** MCP tools `create_topic` and `close_topic` and a `topic` parameter on `notify` and `ask`; CLI `gentbox topic create|close|reopen|list` and `--topic` on `send` and `ask`. Tests: Vitest for request building and the inline-topic shortcut.
 
 ## PR 8 · Optional: Tailscale remote listener
 

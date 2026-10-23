@@ -1,0 +1,18 @@
+{
+	"id": "01JBM6R3K9P2W5X8Z1C4V7N0QD",
+	"key": "release-1.4",
+	"title": "Release 1.4",
+	"summary": "API and web changes shipping together on Friday",
+	"style": {
+		"symbol": "shippingbox",
+		"color": "orange"
+	},
+	"status": "open",
+	"createdBy": {
+		"agent": "claude-code",
+		"conversationId": "7f3a9c1e-5b2d-4e8a-9c61-2f0d8e4b7a10"
+	},
+	"createdAt": "2026-10-23T18:30:00Z",
+	"updatedAt": "2026-10-23T18:30:00Z",
+	"openMessages": 2
+}

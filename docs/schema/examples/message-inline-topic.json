@@ -1,0 +1,38 @@
+{
+	"version": 1,
+	"source": {
+		"agent": "claude-code",
+		"displayName": "Claude Code"
+	},
+	"conversation": {
+		"id": "9b1e4f70-2c8d-4a35-b6e9-0d7c3a5f8e21",
+		"title": "Web: release notes page",
+		"cwd": "/Users/me/Developer/gentbox-web"
+	},
+	"topic": {
+		"key": "release-1.4",
+		"title": "Release 1.4"
+	},
+	"type": "decision_required",
+	"urgent": false,
+	"blocking": "deferrable",
+	"event": "mcp.ask",
+	"title": "Ship the changelog link in the footer or the header?",
+	"summary": "Release 1.4 needs one; I paused the page layout until you choose. Defer and I will finish the copy first",
+	"actions": [
+		{
+			"id": "footer",
+			"label": "Footer",
+			"kind": "choice",
+			"value": "footer"
+		},
+		{
+			"id": "header",
+			"label": "Header",
+			"kind": "choice",
+			"value": "header"
+		}
+	],
+	"awaitsResponse": true,
+	"correlationKey": "changelog-link"
+}

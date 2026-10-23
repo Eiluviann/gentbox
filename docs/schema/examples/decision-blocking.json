@@ -17,6 +17,9 @@
 			}
 		}
 	},
+	"topic": {
+		"id": "01JBM6R3K9P2W5X8Z1C4V7N0QD"
+	},
 	"type": "decision_required",
 	"urgent": false,
 	"blocking": "blocking",
