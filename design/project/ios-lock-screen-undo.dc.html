@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Undo · iPhone long press approval</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.blur{position:absolute;inset:0;background:rgba(20,26,34,.55)}
+.legend{position:relative;margin:12px 22px 0;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
+</style>
+</helmet>
+<div class="lock">
+	<div class="blur"></div>
+	<div style="height: 110px"></div>
+
+	<div class="xcard">
+		<div class="xhead">
+			<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+			<span style="flex: 1">GENTBOX</span><span>now</span>
+		</div>
+		<div class="xbody">
+			<div style="display: flex; align-items: center; gap: 8px">
+				<svg class="i i18 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+				<span style="font-weight: 600; flex: 1">URGENT: Your input is needed</span>
+				<svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>
+			</div>
+			<div class="tags" style="margin-top: 0"><span class="tag wait" style="height: 20px; font-size: 12px">Agent waiting</span><span class="tag plain" style="font-size: 12px">Claude Code</span></div>
+			<div style="font-size: 17px; line-height: 22px; font-weight: 600">Allow Bash: cargo test -p ingest -- --nocapture?</div>
+			<div class="code" style="background: #fff; font-size: 13px">cargo test -p ingest -- --nocapture</div>
+			<div style="color: #3c3c43">Run the ingest tests with output</div>
+		</div>
+		<div class="xundo">
+			<div><span class="verb">Approved</span> · sending in 2 s</div>
+			<div class="pp-bar"><span style="width: 67%"></span></div>
+		</div>
+	</div>
+	<div class="xactions">
+		<div style="color: var(--accent); font-weight: 600"><span>Undo</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg></div>
+	</div>
+	<div class="legend">After an action our Content Extension keeps the card open: the buttons become Undo and nothing is sent for 3 s (Approve asks for Face ID first). From a swipe action, without the long-press view, the notification is replaced by one saying "Approved" with an Undo button for the same 3 s</div>
+	<div class="home" style="background: #fff"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

@@ -1140,3 +1140,11 @@ a.side-item { text-decoration: none; }
 .pp-state.done { color: var(--done-ink); }
 .pp-line .menu-btn { margin: -2px -4px 0 0; }
 .pp-hero:not(.urgent-item) { padding-bottom: 16px; }
+.ios .undo-box { margin: 12px 16px 4px; background: #fff; border-radius: 12px; overflow: hidden; position: relative; }
+.ios .undo-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: 12px; align-items: center; padding: 10px 16px 13px; font-size: 15px; line-height: 20px; }
+.ios .undo-row + .undo-row { border-top: 0.5px solid rgba(60, 60, 67, 0.2); }
+.ios .undo-row .verb, .xundo .verb { font-weight: 600; }
+.ios .undo-row .pp-ctx { font-size: 13px; line-height: 18px; }
+.undo-btn { color: var(--accent); font-weight: 600; font-size: 15px; }
+.ios .undo-row .pp-bar, .xundo .pp-bar { height: 3px; }
+.xundo { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 16px; font-size: 15px; line-height: 20px; border-top: 0.5px solid rgba(60, 60, 67, 0.2); }

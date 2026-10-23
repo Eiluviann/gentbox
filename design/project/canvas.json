@@ -296,6 +296,20 @@
 			"w": 460,
 			"h": 560,
 			"title": "Popover · item menu, mute and close"
+		},
+		"ios-inbox-undo.dc.html": {
+			"x": 14880,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · undo before sending"
+		},
+		"ios-lock-screen-undo.dc.html": {
+			"x": 12510,
+			"y": 5784,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · undo after a lock-screen action"
 		}
 	},
 	"order": [
@@ -339,7 +353,9 @@
 		"ios-inbox.dc.html",
 		"ios-detail.dc.html",
 		"ios-detail-answered.dc.html",
-		"ios-history.dc.html"
+		"ios-history.dc.html",
+		"ios-inbox-undo.dc.html",
+		"ios-lock-screen-undo.dc.html"
 	],
 	"notes": {
 		"group-mac": {

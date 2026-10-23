@@ -53,23 +53,23 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | | `settings-rules` rules set type, urgent and blocking, saved back to rules.toml | `settings-rules-error` |
 | | `settings-phone` delivery (our app or the ntfy app), paired iPhones with Revoke, Apple push key (`.p8`, Key ID, Team ID, masked), ntfy server and token, Summary or Minimal, end-to-end encryption and project icon as big icon (both off), Load full messages over Tailscale (off) | `settings-phone-pairing` |
 | iPhone and Watch | `ios-escalation-silent` 1: passive arrival in Notification Centre | |
-| | `ios-lock-screen` 2: the Time Sensitive ping 2 min later | `ios-lock-screen-expanded` (long press, approval: Approve, Deny, Reply), `ios-faceid` (Approve asks for Face ID), `ios-lock-screen-choices` (one button per choice, Defer, Reply, Open), `ios-lock-screen-reply` (text reply field), `ios-lock-screen-stacked` (stacked by thread) |
+| | `ios-lock-screen` 2: the Time Sensitive ping 2 min later | `ios-lock-screen-expanded` (long press, approval: Approve, Deny, Reply), `ios-faceid` (Approve asks for Face ID), `ios-lock-screen-choices` (one button per choice, Defer, Reply, Open), `ios-lock-screen-reply` (text reply field), `ios-lock-screen-stacked` (stacked by thread), `ios-lock-screen-undo` (Undo for 3 s after a lock-screen action) |
 | | `ios-escalation-handled` 3: replaced by "Approved from phone" or "Handled on Mac" | |
 | | `watch` mirrored notifications with buttons; reply by dictation, Scribble or keyboard | |
 | | `ios-pairing` scan the Mac's QR code; the ntfy app only as a fallback link | |
-| | `ios-inbox` | |
+| | `ios-inbox` | `ios-inbox-undo` (actioned items held 3 s with Undo) |
 | | `ios-detail` | `ios-detail-answered` |
 | | `ios-history` | |
 
 ## Undo before sending
 
-Anything acted on in the popover (approve, deny, a choice, reply, done, defer, dismiss) shrinks to a small box with a 5 s bar and Undo (⌘Z for the last one). Nothing is sent while the bar runs; Undo puts the message back on top as the card. Closing the popover does not cancel the timer, and several held actions stack, newest on top.
+The same 3 s hold applies on the Mac and the iPhone. Anything acted on (approve, deny, a choice, reply, done, defer, dismiss) shrinks to a small box with a 3 s bar and Undo; nothing is sent while the bar runs, and Undo puts the message back where it was. On the Mac, ⌘Z undoes the last one, closing the popover does not cancel the timer, and several held actions stack, newest on top. On the lock screen, the Content Extension keeps the long-press card open with Undo as its only button; a swipe action replaces the notification with an "Approved" one carrying Undo for the same 3 s.
 
 ## Conflicts with the Phase 1 docs
 
 None open. ADR 0007 settled Snooze (local) versus Defer (an answer), permission prompts (decision_required + blocking), the per-source switch and the "wait for answers" timeout (Settings › Sources), and rules edited in the app. Still to confirm there: whether "URGENT:" follows the urgent flag, as drawn.
 
-Open: the undo window. `architecture.md` has the UI send answers straight to the hub actor, which closes the message on the first answer ("first answer wins"). Holding an answer for 5 s needs a decision on where the hold lives (in the app before the command is sent, or as a pending state in the hub), what the iPhone shows meanwhile, and what happens if the iPhone answers during the window (the held Mac answer would then get 409 and show "Already answered on iPhone").
+Open: the undo window. `architecture.md` has the UI send answers straight to the hub actor, which closes the message on the first answer ("first answer wins"). Holding an answer for 3 s needs a decision on where the hold lives (in the app before the command is sent, or as a pending state in the hub), what the other device shows meanwhile, and what happens if it answers during the window (the held answer would then get 409 and show "Already answered on <channel>"). On iOS the hold also has to fit the background time an action response gets.
 
 ## Open design questions
 
@@ -79,7 +79,7 @@ Open: the undo window. `architecture.md` has the UI send answers straight to the
 4. Dark-mode boards for popups and windows before Phase 3?
 5. Popups say "Action required" without "URGENT:"; should they use the exact notification phrase?
 6. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
-7. Should popups and iPhone actions get the same undo window, and is 5 s right (fixed, or a setting)?
+7. Should Mac popups and the Watch get the same 3 s undo window?
 8. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
 
 ## Tools
