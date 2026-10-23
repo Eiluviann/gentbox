@@ -33,6 +33,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 | `m` | Hub message id | 26 B |
 | `a` | Up to 3 answer actions: id, label, kind, single-use action token | ~3 × 180 B |
 | `i` | Icon reference: content hash and, for a project icon, a short-lived fetch URL (below) | ~150 B |
+| `s` | Up to 5 step texts for `action_required`, each ≤ 100 characters (ADR 0011) | ≤ 520 B |
 | `x` | Body excerpt, trimmed to fit | the rest, typically 2–3 KB |
 
 `apns-collapse-id` (≤ 64 bytes) is the hub message id of the slot, so a superseding message replaces the notification in place [APNs-send].
@@ -43,7 +44,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
   - `approval` (`decision_required` with approve/deny): Approve, Deny, Reply.
   - `question` (`decision_required` without them): Reply, Open.
   - `choice`: Reply, Open, plus the message's choices.
-  - `action` (`action_required`): Done, Open.
+  - `action` (`action_required`): Do it (foreground: opens the app's steps view, ADR 0011), Done.
   - `completion`: Open.
   - `info`: no actions.
 

@@ -14,3 +14,4 @@ One file per decision: context, decision, consequences, alternatives. A supersed
 | [0008](0008-topics.md) | Topics: agent-created groups of messages across conversations and agents | Superseded in part by 0009 |
 | [0009](0009-threads.md) | Threads under topics; implicit conversation threads under a per-agent General topic | Accepted |
 | [0010](0010-descriptive-titles.md) | Descriptive titles: the hub guard moves commands and raw input into the body | Accepted |
+| [0011](0011-action-plans.md) | action_required messages carry ordered steps; the hub requires and checks them, and redacts secrets | Accepted |

@@ -16,6 +16,22 @@
 	"title": "Sign in to npm so I can publish the CLI package",
 	"summary": "Sign in to npm in a terminal, then tap Done. Defer if I should finish the changelog first",
 	"body": "Run this in any terminal, then tap Done:\n\n```bash\nnpm login\n```\n\nPackage: `@gentbox/cli`",
+	"steps": [
+		{
+			"text": "Open a terminal in any folder"
+		},
+		{
+			"text": "Sign in to npm with the publishing account",
+			"detail": "```bash\nnpm login\n```\n\nUse the account that owns the `@gentbox` scope."
+		},
+		{
+			"text": "Check that the profile shows the publishing account",
+			"link": {
+				"url": "https://www.npmjs.com/settings/profile",
+				"label": "npm profile"
+			}
+		}
+	],
 	"actions": [
 		{
 			"id": "done",

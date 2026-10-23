@@ -13,7 +13,7 @@ ADR: [0007](adr/0007-message-type-urgency-blocking.md). Three independent fields
 | Field | Values | Meaning |
 | --- | --- | --- |
 | `type` | `decision_required` | The agent needs your answer: approve or deny, pick a choice, reply (a permission prompt) |
-| | `action_required` | You must do something yourself outside the conversation, then say Done (sign in, add a key, review a pull request) |
+| | `action_required` | You must do something yourself outside the conversation, then say Done (sign in, add a key, review a pull request). Carries an action plan, `steps` (§5.6) |
 | | `task_completed` | Work finished; `scope: goal` marks the agent's overall objective |
 | | `generic` | Everything else, kept for reference |
 | `urgent` | `true`, `false` | Reach me now: Time Sensitive, breaks through quiet hours and Focus, "URGENT:" prefix |
@@ -108,7 +108,8 @@ POST /v1/messages
   → idempotency (source.agent, idempotencyKey)  200 with the stored message
   → classify, per field                     declared → user rules → built-in rules → defaults → normalize
   → resolve topic and thread                topic: named → rule → conversation's latest → General; thread: named → rule → conversation default (§5.4)
-  → title guard                             commands, paths, URLs, raw input → body; descriptive title (§5.5)
+  → title guard and secret scan             commands, paths, URLs, raw input → body; descriptive title; secrets redacted (§5.5)
+  → action plan                             action_required needs steps; fallback step, Done added (§5.6)
   → coalesce / dedupe / supersede / rescind (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
@@ -187,7 +188,7 @@ Each of `type`, `urgent` and `blocking` is resolved on its own:
 1. **Declared** in the message: wins.
 2. **User rules** from `rules.toml`, in file order: each matching rule sets only the fields still missing.
 3. **Built-in rules** shipped with the app (the Claude Code mappings below), same way, so the hook stays thin and you can see and override them.
-4. **Defaults:** `generic`, `false`, `non_blocking`.
+4. **Defaults:** `generic`, `false`, `non_blocking`; a message with `steps` and no declared or rule-set type defaults to `action_required`.
 5. **Normalize:** `task_completed` and `generic` become `non_blocking`; `generic` becomes not urgent. Declared invalid combinations never get here: the schema rejects them (422). Normalizations are recorded in the delivery log.
 
 A user rule may set `override = true` to replace declared fields too: the escape hatch for a sender that over-declares.
@@ -221,15 +222,15 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 | `PermissionRequest` | `claude-code.permission_request` | `decision_required` | `blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission:<agent_id or main>:<first 12 hex of SHA-256 of tool_name + tool_input>"` (the input has no `tool_use_id`), so parallel subagents' requests never supersede each other. Not `deferrable`: Claude Code cannot continue past a pending permission. Title built by the adapter, never from raw input: "Allow Bash to <description>?", "Allow editing <file name>?", "Allow fetching a page from <host>?", "Allow <Server> to <tool in words>?"; the command or input goes in the body (§5.5) |
 | `Notification` `permission_prompt` | `claude-code.notification.permission_prompt` | `decision_required` | `blocking` | No waiter; folds into a live-waiter blocking item as a repeat (§7.3). Stands alone for sandbox network prompts, which have no `PermissionRequest` |
 | `Notification` `elicitation_dialog` | `claude-code.notification.elicitation_dialog` | `decision_required` | `blocking` | Answer in the session; `open` action only |
-| `Notification` `elicitation_url_dialog` | `claude-code.notification.elicitation_url_dialog` | `action_required` | `blocking` | You open a URL and act there |
+| `Notification` `elicitation_url_dialog` | `claude-code.notification.elicitation_url_dialog` | `action_required` | `blocking` | You open a URL and act there. Steps: open the link the session shows, complete the page, return to the session |
 | `Notification` `agent_needs_input` | `…agent_needs_input` | `decision_required` | `blocking` | |
-| `Notification` `quota_auto_resume_stale` | `…quota_auto_resume_stale` | `action_required` | `blocking` | Press Enter in the session after a sleep |
+| `Notification` `quota_auto_resume_stale` | `…quota_auto_resume_stale` | `action_required` | `blocking` | Press Enter in the session after a sleep. Steps: open the session, press Return to continue |
 | `Notification` `idle_prompt` | `claude-code.notification.idle_prompt` | `generic` | — | Fires 60 s after a response with no typing, after the `Stop` already notified you; a reminder, not a new ask. `correlationKey = "idle"`; rescinded by progress |
 | `Notification` `agent_completed` | `…agent_completed` | `task_completed` | — | |
 | `Notification` `auth_success`, `elicitation_complete`, `elicitation_response`, `quota_auto_resume_fired`, `quota_auto_resume_disabled`, `plugin_notification` | `…<type>` | `generic` | — | |
 | `Stop`, `background_tasks` empty | `claude-code.stop` | `task_completed` | — | Title: the first sentence of `last_assistant_message`, summary: the next ones, both through the title guard; fallback "Claude Code finished a task in <project>" |
 | `Stop`, `background_tasks` non-empty | `claude-code.stop.paused` | `generic` | — | The session waits on its own background work; not done yet |
-| `StopFailure` | `claude-code.stop_failure` | `action_required` | `blocking` | The turn ended on an API error; retry in the session |
+| `StopFailure` | `claude-code.stop_failure` | `action_required` | `blocking` | The turn ended on an API error. Steps: open the session, check the error, ask Claude to try again |
 | `SubagentStop` | `claude-code.subagent_stop` | `generic` | — | |
 | `SessionStart` | — | — | — | Registers or renames the conversation (`PUT /v1/conversations/{agent}/{id}`), sends no message |
 | `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` (all `async`) | — | — | — | `POST /v1/conversations/{agent}/{id}/progress`, sends no message (§7.6) |
@@ -261,6 +262,16 @@ ADR: [0010](adr/0010-descriptive-titles.md).
 - **Strict mode** per source (`titleGuard = "reject"`) answers 422 `title_looks_like_command` instead: for adapters under development; never the default, because rejecting a blocking prompt strands the agent.
 - **Up front:** the Claude Code adapter builds titles from the hook input (table in §5.3) and never copies `tool_input` into a line; the MCP tools state the rule and pass the hub's warnings back to the model.
 - **Surfaces trust `title` and `summary` as-is** and never sanitise them.
+
+### 5.6 Action plans
+
+ADR: [0011](adr/0011-action-plans.md).
+
+- **`steps`:** an ordered list of 1 to 12 `{ text, detail?, link? }` on `action_required` messages, and only on them. `text` is one plain instruction that passes the title guard; `detail` is markdown for commands (in code blocks), paths and explanations; `link` is `https` or an allowlisted scheme (`claude-cli`, `claude`, `vscode`, `cursor`, `x-apple.systempreferences`), opened only on tap.
+- **Required, enforced by the hub:** without steps the hub adds "Open the conversation and follow the agent's instructions" (linked to the focus target) and warns `steps_missing`; strict mode (`actionPlan = "reject"`) answers 422. A flagged step `text` moves into its `detail` (warning `step_rewritten`). Every `action_required` message offers Done; the hub adds it if the sender did not.
+- **Secret scan:** before storing or sending, the guard redacts private keys, GitHub, Anthropic/OpenAI-style, ntfy, AWS and Slack tokens, JWTs, bearer tokens and `password=`/`secret=`/`token=` values in title, summary, steps and body (warning `secret_redacted`).
+- **Ticking:** you tick steps off in the steps view ("Do it"); ticks are stored on the message (`stepsCompleted`) and shared by the Mac and the iOS app (which sends them as signed envelopes on the ntfy answer topic). They are not answers: the agent hears only Done, Reply or Defer.
+- **Surfaces:** "Do it" is the default button of an `action_required` popup or row and opens the steps view, with Done, Reply and Defer at the bottom. The phone carries up to 5 step texts in the payload (§10).
 
 ## 6. Noise-policy engine
 
@@ -459,7 +470,7 @@ Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the 
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).
   - ntfy fallback: uploaded as the message's image attachment, which the ntfy app shows as the thumbnail [ntfy-ios NotificationContent.swift:79-123].
-- **Payload budget (APNs 4 KB):** title phrase, subtitle, summary, category, thread id, interruption level, message id, up to 3 actions with tokens, icon reference, and a body excerpt trimmed to fit (ADR 0006 has the table). `cwd` never goes to the phone.
+- **Payload budget (APNs 4 KB):** title phrase, subtitle, summary, category, thread id, interruption level, message id, up to 3 actions with tokens, icon reference, up to 5 step texts for `action_required` (each trimmed to 100 characters, ADR 0011), and a body excerpt trimmed to fit (ADR 0006 has the table). `cwd` never goes to the phone.
 
 **Payload modes** (Settings › Phone):
 
@@ -547,7 +558,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 | Someone replays or forges a phone action | HMAC-signed, single-use, 30-min tokens bound to message and action, so a token seen by a push service is worth at most the one answer it encodes, and only before you give yours; no secrets in URLs; destructive actions never one-tap; no inbound port on the Mac |
 | A stolen phone answers | Revoke the device in Settings (its token is deleted and the pairing secret rotated) and rotate the ntfy topics; answers are logged with channel and device |
 | An agent reads other sessions through topics or threads | Topic and thread listings return titles and counts only, never messages; titles are agent-chosen |
-| Secrets leak into logs or the store | Logs never contain bodies, tokens or `tool_input`; `metadata` is documented as non-secret; the token file is regenerated on demand from Settings |
+| Secrets leak into logs or the store | Logs never contain bodies, tokens or `tool_input`; the secret scan redacts known token and key patterns in title, summary, steps and body before storing or sending (§5.6); `metadata` is documented as non-secret; the token file is regenerated on demand from Settings |
 
 ## 13. Future paths
 

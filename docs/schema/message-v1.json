@@ -62,6 +62,15 @@
 			"type": "string",
 			"maxLength": 65536
 		},
+		"steps": {
+			"description": "The action plan of an `action_required` message: ordered, plain instructions that tell you how to complete the action, ticked off in the app's steps view. Required for `action_required` (the hub adds a fallback step and warns when missing; strict mode rejects). Only for `action_required`: with no declared type, `steps` makes it the default type. Commands, paths and raw input go in a step's `detail`, never its `text` (docs/adr/0011-action-plans.md).",
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 12,
+			"items": {
+				"$ref": "#/$defs/actionStep"
+			}
+		},
 		"actions": {
 			"description": "Buttons, in display order. The phone gets at most three, and answer buttons only when its payload mode shows what is asked (docs/architecture.md §9.3).",
 			"type": "array",
@@ -896,7 +905,10 @@
 									"title_looks_like_command",
 									"summary_looks_like_command",
 									"conversation_title_ignored",
-									"normalized"
+									"normalized",
+									"steps_missing",
+									"step_rewritten",
+									"secret_redacted"
 								]
 							},
 							"field": {
@@ -905,6 +917,43 @@
 							"message": {
 								"type": "string"
 							}
+						}
+					}
+				}
+			}
+		},
+		"actionStep": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["text"],
+			"properties": {
+				"text": {
+					"description": "One plain instruction. Passes the title guard: no commands, paths, URLs or raw input.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 200
+				},
+				"detail": {
+					"description": "Markdown: commands in code blocks, paths, explanations.",
+					"type": "string",
+					"maxLength": 2000
+				},
+				"link": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["url"],
+					"properties": {
+						"url": {
+							"description": "`https`, or a scheme on the open allowlist (`claude-cli`, `claude`, `vscode`, `cursor`, `x-apple.systempreferences`). Opened only on tap, with the URL shown.",
+							"type": "string",
+							"format": "uri",
+							"pattern": "^(https|claude-cli|claude|vscode|cursor|x-apple\\.systempreferences):",
+							"maxLength": 2048
+						},
+						"label": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 60
 						}
 					}
 				}
@@ -957,6 +1006,19 @@
 				"properties": {
 					"type": {
 						"const": "task_completed"
+					}
+				}
+			}
+		},
+		{
+			"description": "`steps` belong to `action_required`.",
+			"if": {
+				"required": ["steps", "type"]
+			},
+			"then": {
+				"properties": {
+					"type": {
+						"const": "action_required"
 					}
 				}
 			}

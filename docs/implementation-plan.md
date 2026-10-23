@@ -67,6 +67,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Title guard (ADR 0010).** `title_guard.rs`: the pure check over title, summary, conversation, topic and thread titles, and the rewrite (original into the body as a code box, summary's first sentence or the fallback phrase per type and project, key-to-words for inline topics and threads). Tests: a table of at least 40 strings, each heuristic positive and negative (flags vs hyphenated words, paths vs `and/or` and bare file names, versions, URLs, JSON, `npm login` vs "Cargo tests pass"), every rewrite branch, and that no rewritten title or summary ever fails the guard.
 
+**Action plans (ADR 0011).** `steps` validation (1–12, text through the title guard, link schemes), the fallback step, `step_rewritten`, Done added to `action_required`, steps making `action_required` the default type, and the secret scan over title, summary, steps and body. Tests: tables for each rule and each secret pattern (positives and near misses), and that a redacted or rewritten field still passes the guard.
+
 ## PR 2a · `gentbox-store`
 
 **Scope.** SQLite persistence for messages, conversations, actions, responses, deliveries and the action-token ledger; migrations; retention sweep.
@@ -107,6 +109,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 
 **Title guard (ADR 0010).** The pipeline runs the guard after classification; `warnings` in the 201 response (`$defs/ingestResponse`); the per-source `titleGuard = "reject"` strict mode answering 422 `title_looks_like_command`; 422 on explicit topic and thread creates or PATCHes with a flagged title. Tests: a command title is rewritten with a warning and the original is first in the body; strict mode rejects it; a flagged conversation title is ignored.
 
+**Action plans (ADR 0011).** `steps` and `stepsCompleted` stored per message; `steps_missing` and strict `actionPlan = "reject"` in the pipeline. Tests: a missing plan gets the fallback step and a warning, strict mode answers 422, ticks persist and never reach the long-poll.
+
 ## PR 3 · `gentbox-ffi` + macOS app shell
 
 **Scope.** UniFFI bindings (`Hub` object: start, stop, inbox queries, answer, presence updates; `HubDelegate` callback interface for delivery plans and state changes), the XCFramework build script, the `GentboxCore` Swift package, the XcodeGen project with signing for the paid team (Vaultday's xcconfig layout, the shipped identifiers), the menu-bar extra with the inbox list, login item, and presence sensing (frontmost app, idle, lock) pushed into the core.
@@ -139,6 +143,8 @@ PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`
 **Acceptance.** The plan's Mac verification items pass; answering from a native notification and from the popup both reach the waiting sender; late second answer shows "Already answered".
 
 **Topics and threads (ADRs 0008, 0009).** Topic and thread chips on popups and toasts; native notifications use the thread as thread identifier and "topic · thread" in the subtitle; topic and thread detail views. Tests: a muted topic or thread shows no popup for a non-urgent blocking message and still shows an urgent one.
+
+**Action plans (ADR 0011).** The steps view on the Mac: "Do it" as the default button of `action_required` popups and rows, numbered tickable steps with details and links, Done, Reply and Defer at the bottom. Tests: XCUITest ticking steps and finishing with Done.
 
 ## PR 5 · `gentbox-relay`: APNs, ntfy answers and fallback
 
@@ -189,6 +195,8 @@ The ntfy app's behaviour (silent priority 2, update by sequence id, thumbnails) 
 
 **Topics and threads (ADRs 0008, 0009).** APNs `thread-id` = the message's thread id (implicit included); subtitle topic · thread without repeats and without "General"; on the ntfy fallback "topic · thread" leads the body. Tests: payload thread id and subtitle across explicit, implicit and General cases; a muted topic or thread produces no push.
 
+**Action plans (ADR 0011).** Up to 5 step texts in the APNs payload ahead of the body excerpt; the `action` category with "Do it" and Done; numbered steps in the ntfy fallback text; signed tick envelopes accepted from the answer topic. Tests: payload budget with 12 long steps, tick envelopes verified.
+
 ## PR 6 · iOS app (core)
 
 **Scope.** ADR 0006, iOS side:
@@ -214,6 +222,8 @@ XCUITest smoke for inbox and detail.
 
 **Topics and threads (ADRs 0008, 0009).** Inbox and detail grouped topic → thread, notifications grouped by `thread-id`, mute and mark read at both levels in the app. Tests: XCTest for grouping from payload fixtures.
 
+**Action plans (ADR 0011).** The iOS steps view (from the notification's "Do it" and from the inbox), ticks synced through the answer topic, details and links in the Content Extension. Tests: XCTest for steps rendering from fixtures and tick envelopes.
+
 ## PR 7 · `gentbox` CLI + `gentbox-mcp` stdio MCP server
 
 **Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `gentbox send|ask|wait|rescind|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and the `gentbox-mcp` stdio MCP server (a second bin in the same package) with `notify` (explicit `type`, `urgent`, `blocking`), `ask` (`decision_required` with `awaitsResponse`; `blocking` or `deferrable` chosen by the agent; waits up to a timeout and returns the answer, `deferred`, or "no answer") and `rescind`. Types written against the schema and checked against the examples.
@@ -228,6 +238,8 @@ XCUITest smoke for inbox and detail.
 
 **Title guard (ADR 0010).** The `notify`, `ask`, `create_topic` and `create_thread` tool descriptions and `title` parameters state the rule with one good and one bad example, and the tool results pass the hub's `warnings` to the model verbatim. Tests: Vitest that warnings reach the tool result.
 
+**Action plans (ADR 0011).** `notify` and `ask` require `steps` in their input schema when `type` is `action_required`, with an example in the description; CLI `--step` (repeatable). Tests: Vitest for the conditional requirement.
+
 ## PR 8 · Optional: Tailscale remote listener
 
 Only if the user wants full bodies beyond the push excerpt and the inbox history on the phone; it needs Tailscale on the Mac and the iPhone.
@@ -241,6 +253,7 @@ Only if the user wants full bodies beyond the push excerpt and the inbox history
 ## After Phase 3: Phase 4 inputs
 
 - **Spike S1** (first task of Phase 4): in a terminal CLI session, does Claude Code show its permission prompt while a `PermissionRequest` hook is still running? It decides whether the hook may wait long when you are at the terminal (architecture §11).
+- Fixed action plans for the adapter's `action_required` events (`elicitation_url_dialog`, `quota_auto_resume_stale`, `StopFailure`; architecture §5.3), with Vitest checks that each passes the guard.
 - Title builders per hook event (architecture §5.3, ADR 0010), with Vitest tables: Bash with and without `description`, a `description` that itself fails the guard, Edit/Write paths reduced to file names, WebFetch hosts, MCP tool names in words, `Stop` titles from `last_assistant_message`; no raw `tool_input` ever in a title or summary, always in the body.
 - Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook resolving its own message whenever it stops waiting.
 - Packaging as a Claude Code plugin (hooks + MCP), merged with the existing user hooks, never replacing them.
