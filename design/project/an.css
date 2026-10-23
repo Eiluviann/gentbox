@@ -1061,3 +1061,11 @@ a.side-item { text-decoration: none; }
 .row.in-thread { padding-left: 40px; }
 .thread-row.closed .thread-title { color: var(--ink-3); font-weight: 500; }
 .side-item.sub { padding-left: 32px; font-size: 12px; height: 24px; }
+
+/* Urgent items keep red edges so two urgent items in a row stay apart */
+.row.urgent-item { border-top: 1px solid rgba(215, 0, 21, 0.45) !important; border-bottom: 1px solid rgba(215, 0, 21, 0.45); }
+.row.urgent-item + .row { border-top-color: transparent; }
+.panel.urgent-item, .card.urgent-item { border-color: rgba(215, 0, 21, 0.55); }
+.ios a.irow.urgent-item, .ios .irow.urgent-item { box-shadow: inset 0 0 0 1px rgba(215, 0, 21, 0.45); }
+.tl-item.urgent-item { box-shadow: inset 0 0 0 1px rgba(215, 0, 21, 0.45); border-radius: 8px; }
+.act.urgent-item { border-top-color: rgba(215, 0, 21, 0.45); border-bottom: 1px solid rgba(215, 0, 21, 0.45); }
