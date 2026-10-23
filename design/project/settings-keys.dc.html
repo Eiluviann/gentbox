@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings keys</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.sk-board{height:1040px}
+.win{height:980px}
+.lbl{width:150px;flex:none}
+.masked{font-family:var(--mono);font-size:12px;color:var(--ink-2);letter-spacing:.06em}
+.ntfy{width:16px;height:16px;border-radius:4px;background:#317f6f;color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+</style>
+</helmet>
+<div class="board desk set-board sk-board">
+	<div class="window set-win win">
+		<nav class="sidebar" aria-label="Settings">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-conversation.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg><span class="grow">Inbox</span></a>
+			<div class="side-head">Settings</div>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg><span class="grow">Notifications</span></a>
+			<a class="side-item" href="settings-quiet-focus.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg><span class="grow">Quiet hours and Focus</span></a>
+			<a class="side-item" href="settings-sources.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></a>
+			<a class="side-item" href="settings-rules.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></a>
+			<a class="side-item" href="settings-phone.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span></a>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.key}}"></path></svg><span class="grow">Keys</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
+		</nav>
+		<main class="content">
+			<div class="toolbar"><div class="headline" style="font-size: 15px">Keys</div></div>
+			<div class="set-pane">
+				<p class="lede">Agent Notifier runs no servers and has no accounts. Each channel uses keys you create with that service; they stay in this Mac's Keychain and show here only masked</p>
+
+				<div class="card">
+					<div class="card-head">
+						<span class="ntfy">ntfy</span>
+						<div><div class="headline">ntfy</div><div class="tags"><span class="tag">In use</span><span class="tag plain">topics are on the iPhone pane</span></div></div>
+						<span></span>
+					</div>
+					<div class="card-row"><span class="lbl">Server</span><span class="grow mono" style="color: var(--ink-2)">https://ntfy.sh</span><button class="btn sm">Change</button></div>
+					<div class="card-row">
+						<span class="lbl">Account token</span>
+						<div class="grow"><div class="masked">tk_••••••••••••••••••••</div><div class="caption">Optional; only for a server with access control or a reserved topic</div></div>
+						<button class="btn sm">Replace</button>
+						<button class="btn sm danger">Remove</button>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg>
+						<div><div class="headline">Pushover</div><div class="tags"><span class="tag">Planned</span><span class="tag plain">an alternative to ntfy, with your own Pushover account</span></div></div>
+						<span></span>
+					</div>
+					<div class="card-row"><span class="lbl">Application token</span><span class="grow caption">Not set</span><button class="btn sm">Add</button></div>
+					<div class="card-row"><span class="lbl">User key</span><span class="grow caption">Not set</span><button class="btn sm">Add</button></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.paperplane_fill}}"></path></svg>
+						<div><div class="headline">Apple Push Notification service</div><div class="tags"><span class="tag">Planned</span><span class="tag plain">needs your own paid Apple Developer team and your own build of the iPhone app</span></div></div>
+						<span></span>
+					</div>
+					<div class="card-row"><span class="lbl">Key file (.p8)</span><span class="grow caption">Not set</span><button class="btn sm">Choose key file</button></div>
+					<div class="card-row"><span class="lbl">Key ID and Team ID</span><span class="grow caption">Filled in from the key file</span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.lock_shield}}"></path></svg>
+						<div><div class="headline">Tailscale</div><div class="tags"><span class="tag">Optional</span><span class="tag plain">only for the Agent Notifier iPhone app</span></div></div>
+						<span></span>
+					</div>
+					<div class="card-row"><span class="lbl">This Mac</span><span class="grow caption">Tailscale is not running; install it and sign in to your own tailnet</span><button class="btn sm">Get Tailscale</button></div>
+				</div>
+
+				<div class="callout">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.lock}}"></path></svg>
+					<div class="body">Keys never appear in config.toml, logs or this window in plain text; Replace opens an empty field instead of showing the old value</div>
+					<span></span>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1040}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

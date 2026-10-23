@@ -42,6 +42,7 @@ The canvas reads left to right in three groups: Mac, Settings (inside the main w
 | | `settings-sources` | |
 | | `settings-rules` | `settings-rules-error` |
 | | `settings-phone` ntfy.sh or self-hosted, subscribe QR, topics, summary or minimal | `settings-phone-pairing` (optional iPhone app) |
+| | `settings-keys` bring your own keys: ntfy server and account token, Pushover and APNs (Planned), Tailscale; Keychain only, always masked | |
 | iPhone and Watch | `ios-lock-screen` | `ios-lock-screen-expanded` (summary vs minimal) |
 | | `watch` | |
 | | `ios-inbox`, `ios-detail` (optional app, Tailscale) | `ios-detail-answered` |

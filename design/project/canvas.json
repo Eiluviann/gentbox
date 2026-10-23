@@ -151,46 +151,53 @@
 			"title": "Settings · pair the optional iPhone app"
 		},
 		"ios-inbox.dc.html": {
-			"x": 12040,
+			"x": 13220,
 			"y": 0,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone app, optional · inbox"
 		},
 		"ios-detail.dc.html": {
-			"x": 12510,
+			"x": 13690,
 			"y": 0,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone app, optional · detail"
 		},
 		"ios-detail-answered.dc.html": {
-			"x": 12510,
+			"x": 13690,
 			"y": 964,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone app, optional · detail answered"
 		},
 		"ios-lock-screen.dc.html": {
-			"x": 12980,
+			"x": 14160,
 			"y": 0,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone · ntfy on the lock screen"
 		},
 		"ios-lock-screen-expanded.dc.html": {
-			"x": 12980,
+			"x": 14160,
 			"y": 964,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone · ntfy expanded, summary vs minimal"
 		},
 		"watch.dc.html": {
-			"x": 13450,
+			"x": 14630,
 			"y": 0,
 			"w": 640,
 			"h": 420,
 			"title": "Apple Watch · blocking vs completion"
+		},
+		"settings-keys.dc.html": {
+			"x": 11800,
+			"y": 0,
+			"w": 1100,
+			"h": 1040,
+			"title": "Settings · keys, bring your own"
 		}
 	},
 	"order": [
@@ -214,6 +221,7 @@
 		"settings-rules-error.dc.html",
 		"settings-phone.dc.html",
 		"settings-phone-pairing.dc.html",
+		"settings-keys.dc.html",
 		"ios-inbox.dc.html",
 		"ios-detail.dc.html",
 		"ios-detail-answered.dc.html",
@@ -234,10 +242,10 @@
 			"y": -300,
 			"text": "Settings, inside the main window",
 			"kind": "title1",
-			"maxW": 5820
+			"maxW": 7000
 		},
 		"group-phone": {
-			"x": 12040,
+			"x": 13220,
 			"y": -300,
 			"text": "iPhone and Watch",
 			"kind": "title1",
