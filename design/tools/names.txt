@@ -104,3 +104,5 @@ wrench.and.screwdriver.fill
 archivebox
 bell.slash.fill
 bubble.left.and.bubble.right.fill
+checkmark.shield
+hand.tap

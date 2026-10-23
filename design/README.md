@@ -10,8 +10,8 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 
 | Type | Colour | Symbol | Title phrase |
 | --- | --- | --- | --- |
-| `decision_required` | Indigo `#5856D6` (text `#4644B8` on `#EFEFFD`) | `questionmark.bubble.fill` | Your input is needed |
-| `action_required` | Teal `#0A8270` (text `#076B5C` on `#E3F4F1`) | `list.bullet.clipboard.fill` | Action required |
+| `decision_required` | Indigo `#5856D6` (text `#4644B8` on `#EFEFFD`) | `arrow.triangle.branch`; `checkmark.shield` when it asks permission (approve and deny) | Your input is needed |
+| `action_required` | Teal `#0A8270` (text `#076B5C` on `#E3F4F1`) | `hand.tap` | Action required |
 | `task_completed` | Green `#2E9E4F` (text `#146C2F` on `#E7F4EA`) | `checkmark.circle.fill` | Task complete / Goal complete |
 | `generic` | Grey `#8E8E93` (text `#636366` on `#F2F2F7`) | `info.circle.fill` | the message title, inbox only |
 

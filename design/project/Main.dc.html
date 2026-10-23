@@ -12,7 +12,7 @@
 <helmet>
 <style>
 body{margin:0}
-.found{width:760px;height:1290px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.found{width:760px;height:1350px;padding:32px;display:flex;flex-direction:column;gap:16px}
 .appicon{width:44px;height:44px;border-radius:11px;background:#1d1d1f;position:relative;flex:none}
 .appicon svg{position:absolute;left:10px;top:10px;width:24px;height:24px}
 .swatch{width:10px;height:10px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.08)}
@@ -43,18 +43,26 @@ body{margin:0}
 			<span></span>
 		</div>
 		<div class="row" style="border-top: 1px solid var(--line-faint)">
-			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
 			<div>
 				<div class="headline">Decision required <span class="mono c-ink3" style="font-weight: 400">decision_required</span></div>
-				<div class="tags"><span class="tag"><span class="swatch" style="background: #5856d6"></span>Indigo #5856D6</span><span class="tag mono">questionmark.bubble.fill</span><span class="tag plain">The agent needs your answer: approve or deny, choose, reply · titled “Your input is needed”</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #5856d6"></span>Indigo #5856D6</span><span class="tag mono">arrow.triangle.branch</span><span class="tag plain">The agent needs your answer: approve or deny, choose, reply · titled “Your input is needed”</span></div>
 			</div>
 			<span class="tag dec">Decision</span>
 		</div>
 		<div class="row">
-			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+			<div>
+				<div class="headline">Permission <span class="mono c-ink3" style="font-weight: 400">decision_required with approve and deny</span></div>
+				<div class="tags"><span class="tag mono">checkmark.shield</span><span class="tag plain">A decision that asks to run a tool; indigo like every decision, usually Agent waiting</span></div>
+			</div>
+			<span class="tag dec">Decision</span>
+		</div>
+		<div class="row">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
 			<div>
 				<div class="headline">Action required <span class="mono c-ink3" style="font-weight: 400">action_required</span></div>
-				<div class="tags"><span class="tag"><span class="swatch" style="background: #0a8270"></span>Teal #0A8270</span><span class="tag mono">list.bullet.clipboard.fill</span><span class="tag plain">You do something outside the conversation, then press Done · titled “Action required”</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #0a8270"></span>Teal #0A8270</span><span class="tag mono">hand.tap</span><span class="tag plain">You do something outside the conversation, then press Done · titled “Action required”</span></div>
 			</div>
 			<span class="tag act">Action</span>
 		</div>
@@ -147,7 +155,7 @@ body{margin:0}
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1290}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1350}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
