@@ -65,6 +65,14 @@ body{margin:0}
 
 		<div class="pp-sec ruled" style="margin-top: 0">Then</div>
 		<div class="pp-line">
+			<span class="icol"><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg><svg class="i urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg></span>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Ingest auth accepts rotated tokens; 12 tests pass</div>
+				<div class="pp-ctx">Gentbox › Phase 3 · ingest · Codex · 40 min</div>
+			</div>
+			<span class="pp-state done">Finished</span>
+		</div>
+		<div class="pp-line">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
 			<div style="min-width: 0">
 				<div class="pp-one" style="font-weight: 500">Which cluster gets the new certificates first?</div>
@@ -80,14 +88,6 @@ body{margin:0}
 			</div>
 			<span class="pp-state working">Working</span>
 		</div>
-		<div class="pp-line urgent-item">
-			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
-			<div style="min-width: 0">
-				<div class="pp-one" style="font-weight: 500">Ingest auth accepts rotated tokens; 12 tests pass</div>
-				<div class="pp-ctx">Gentbox › Phase 3 · ingest · Codex · 40 min</div>
-			</div>
-			<span class="pp-state done">Finished</span>
-		</div>
 
 		<div class="pp-foot">
 			<span class="pp-keys">⌘Z to undo the last one</span>
@@ -101,7 +101,7 @@ body{margin:0}
 			<li>Anything you act on (approve, deny, a choice, reply, done, defer, dismiss) shrinks to this small box with a 3 s bar</li>
 			<li>Nothing is sent while the bar runs. Undo, or ⌘Z, puts the message back on top as the card</li>
 			<li>Closing the popover does not cancel the timer. Several actions stack, newest on top</li>
-			<li>The next message becomes the card; a normal one sits on white</li>
+			<li>The next message becomes the card</li>
 		</ul>
 	</div>
 </div>
