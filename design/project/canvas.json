@@ -4,7 +4,7 @@
 		"v": 1,
 		"at": "2026-10-23T18:40:00Z"
 	},
-	"title": "Agent Notifier GUI",
+	"title": "Gentbox GUI",
 	"launch": {
 		"view": "canvas"
 	},

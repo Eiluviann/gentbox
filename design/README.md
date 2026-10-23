@@ -1,8 +1,8 @@
-# Agent Notifier GUI design (Phase 2)
+# Gentbox GUI design (Phase 2)
 
 Visual design for every surface, as a Design canvas: <https://claude.ai/artifact/MnphbLb4m2WCubpkVWg9cu> (private; share it from the page's Share menu). `project/` holds the canvas sources; the published canvas also carries `project/sf-symbols.js`, which is generated (see Tools) and kept out of git because it holds Apple's SF Symbols outlines and third-party brand marks.
 
-The canvas reads left to right in three groups: Mac, Settings (inside the main window), iPhone and Watch. Consecutive screens sit in a row, alternative states 120 px below their screen. It follows `docs/architecture.md`, ADR 0006 and ADR 0007 as of `7f54d98`.
+The canvas reads left to right in three groups: Mac, Settings (inside the main window), iPhone and Watch. Consecutive screens sit in a row, alternative states 120 px below their screen. It follows `docs/architecture.md`, ADR 0006 and ADR 0007 as of `58bfda3`.
 
 ## Foundations
 
