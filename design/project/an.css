@@ -1139,3 +1139,5 @@ a.side-item { text-decoration: none; }
 .pp-line { padding-top: 9px; padding-bottom: 9px; }
 .pp-line + .pp-line, .pp-hero + .pp-line { border-top: 1px solid var(--line); }
 .pp-hero .pp-acts { margin-left: 26px; }
+/* State on the right of a popover row: an icon only for paused (orange) and waiting (red), centred on the row */
+.pp-state-icon { align-self: center; }
