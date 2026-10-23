@@ -4,6 +4,8 @@ Agent Notifier receives messages from LLM agents, decides how loud each one shou
 
 Status tags: **Now** is built in Phase 3, **Planned** comes later, **Spike** must be verified before the PR that depends on it.
 
+**Principle: no hosted infrastructure, bring your own keys.** Agent Notifier runs only on your own machines and talks only to services you choose, with credentials you create (an ntfy topic or account, a Pushover app token, an APNs key from your own Apple team, your own Tailscale network). The project runs no server, relay, account system or asset host for anyone, and no feature may depend on one. Every credential is entered in Settings and kept in the Keychain.
+
 ## 1. Classes
 
 | Class | Meaning | Example |
@@ -336,7 +338,7 @@ sequenceDiagram
 
 ADR: [0005](adr/0005-ios-transport.md).
 
-**Relay trait** (`notifier-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`, `answers() -> Stream<ActionToken>`. Adapters: `ntfy` (Now; ntfy.sh by default, self-hosted supported), `pushover` (Planned option, ADR 0005), `apns` (Planned), `noop` (tests). Publish failures retry 3 times with backoff (1 s, 5 s, 30 s) and then show "Phone delivery failing" in the menu bar.
+**Relay trait** (`notifier-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`, `answers() -> Stream<ActionToken>`. Adapters, each configured with your own credentials: `ntfy` (Now; ntfy.sh by default, self-hosted supported; optional ntfy account token), `pushover` (Planned option, ADR 0005; your own application token and user key), `apns` (Planned, §13; your own APNs key), `noop` (tests). Publish failures retry 3 times with backoff (1 s, 5 s, 30 s) and then show "Phone delivery failing" in the menu bar.
 
 **What a notification shows** (the user's spec, 2026-10-23; the same on the Mac's native notifications and the phone):
 
@@ -350,7 +352,7 @@ ADR: [0005](adr/0005-ios-transport.md).
 | `completion`, `scope: goal` | Goal complete |
 
 - **Description:** the message `summary`: what is needed, or what was done. Falls back to the message `title` when there is no summary. The message title and the project/conversation name appear as the Mac notification's subtitle and in popups; on the phone they are left out to keep it short.
-- **Icon:** the project icon by default, else the agent icon. The project icon is resolved by the hub from `conversation.cwd` (a per-project override in Settings, then `.agent-notifier/icon.png`, then common icon files the PR 4 work defines) and cached as a 256-px PNG; agent icons are bundled (Claude Code, Codex, a generic one). On the Mac popups and toasts show it, and native notifications carry it as an attachment thumbnail (the notification's app icon is always Agent Notifier's). On the phone the ntfy iOS app ignores ntfy's `icon` field but shows an image attachment as the thumbnail [ntfy-ios NotificationContent.swift:79-123]: agent icons are attached by URL from this public repository; a project icon is uploaded with the message (ntfy.sh keeps attachments 3 h), which shares only the icon itself with the ntfy server.
+- **Icon:** the project icon by default, else the agent icon. The project icon is resolved by the hub from `conversation.cwd` (a per-project override in Settings, then `.agent-notifier/icon.png`, then common icon files the PR 4 work defines) and cached as a 256-px PNG; agent icons are bundled (Claude Code, Codex, a generic one). On the Mac popups and toasts show it, and native notifications carry it as an attachment thumbnail (the notification's app icon is always Agent Notifier's). On the phone the ntfy iOS app ignores ntfy's `icon` field but shows an image attachment as the thumbnail [ntfy-ios NotificationContent.swift:79-123]: both agent and project icons are uploaded with the message from the Mac (ntfy.sh keeps attachments 3 h), so nothing depends on a hosted asset, and the ntfy server sees only the icon itself.
 
 **ntfy mapping.**
 
@@ -438,7 +440,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 ## 13. Future paths
 
 - **Linux (Planned).** `agent-notifierd` as a systemd user unit; desktop notifications over `org.freedesktop.Notifications` with actions; presence from logind's `IdleHint`; an Electron tray client on `notifier-node` (napi-rs) for the inbox and popups. Discovery uses `$XDG_STATE_HOME`. The ntfy relay works unchanged.
-- **APNs (Planned, needs the paid membership).** An `apns` adapter behind the same `Relay` trait sends to the own iOS app with Time Sensitive interruption level and native action categories (approve/deny/reply on the lock screen and the Watch). Answers then travel over the remote endpoint or a relay server; ntfy stays available as an option. The paid team also unlocks `INFocusStatusCenter` and Time Sensitive on the Mac.
+- **APNs (Planned, needs the paid membership).** An `apns` adapter behind the same `Relay` trait sends from the Mac straight to Apple's push service (`api.push.apple.com`, token-based auth) with your own APNs key (`.p8`) from your paid team, to your own build of the iOS app signed by the same team: Time Sensitive interruption level, native action categories (approve/deny/reply on the lock screen and the Watch). Answers come back through the iOS app over your own network path (Tailscale) or, without one, through the ntfy answer topic. No relay server. Because an APNs key only reaches apps signed by its own team, this path is for people who build and sign the app themselves; a shared store build would need a central push relay, which this project will not run. The paid team also unlocks `INFocusStatusCenter` and Time Sensitive on the Mac.
 - **Windows (Planned, unscheduled).** Same as Linux with toast notifications.
 - **Other agents.** Any agent can POST the v1 schema; the CLI and MCP server (PR 7) cover agents that can run a command or an MCP tool.
 

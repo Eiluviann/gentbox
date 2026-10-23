@@ -2,6 +2,8 @@
 
 Receives notifications from LLM agents (Claude Code first) and pings you only with what needs you: a blocked session waiting for an answer, a finished task, a question that can wait. Everything else lands silently in an inbox. Rust core, SwiftUI menu-bar app on macOS and an iOS app over UniFFI, iPhone and Apple Watch push through ntfy, a Linux client later.
 
+No hosted infrastructure: it runs on your machines and uses services you pick with your own keys (ntfy, Pushover, APNs, Tailscale). The project runs no server for anyone.
+
 Every message carries one of four classes: `completion`, `action_blocking`, `action_nonblocking`, `generic`. The sender declares it or deterministic rules assign it; no model is involved.
 
 ## Layout

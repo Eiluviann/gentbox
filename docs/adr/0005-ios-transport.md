@@ -4,7 +4,7 @@ Status: Accepted, 2026-10-23 (revised the same day with the user's answers: ntfy
 
 ## Context
 
-Blocking items should reach the iPhone and Watch, and be answerable there. The app is signed by a free Personal Team: no APNs, no CloudKit, no Time Sensitive entitlement, iOS profiles expiring every 7 days. Answers from the phone must reach the Mac hub, which is not on the public internet. The user prefers a hosted service for ease and does not use Tailscale.
+Blocking items should reach the iPhone and Watch, and be answerable there. The app is signed by a free Personal Team: no APNs, no CloudKit, no Time Sensitive entitlement, iOS profiles expiring every 7 days. Answers from the phone must reach the Mac hub, which is not on the public internet. The user prefers a hosted service for ease and does not use Tailscale. Project principle: no hosted infrastructure; every user brings their own keys (architecture, top).
 
 ## Decision
 
@@ -13,7 +13,7 @@ Blocking items should reach the iPhone and Watch, and be answerable there. The a
 - **Silent-then-ping**: while the Mac is in use the phone gets the notification silently at once and pings only if it is still unaddressed after 2 min; when the Mac is away it pings at once.
 - **Answers back through ntfy**: `http` buttons POST an HMAC-signed, single-use, 30-minute action token to a second, secret **answer topic**; the hub holds an outbound subscription to it and redeems the token. No inbound port, no VPN.
 - **Own iOS app** (optional, PR 6) as an inbox and detail viewer over Tailscale, for full content and text replies.
-- **APNs adapter later** behind the same trait, once the paid membership exists; it sends directly to the own iOS app with native action categories.
+- **APNs adapter later** behind the same trait, once the paid membership exists: the Mac sends directly to Apple's push service with the user's own APNs key, to the user's own build of the iOS app. No relay; therefore only for people who sign the app themselves.
 
 ## Consequences
 
@@ -24,7 +24,7 @@ Blocking items should reach the iPhone and Watch, and be answerable there. The a
 
 ## Alternatives
 
-- **Pushover** ([pushover.net/api](https://pushover.net/api), [pricing](https://pushover.net/pricing)): $4.99 one-time per platform after a 30-day trial; 10,000 messages a month free; maintained apps; end-to-end encryption with a key kept on the device; an emergency priority that repeats every ≥ 30 s (up to 3 h, 50 retries) until acknowledged, with a receipt the hub can poll outbound and a cancel call. But no answer buttons: one supplementary link per message, and "acknowledge" only stops the repeats; it does not tell the agent anything. Approvals would need that link to lead to the own iOS app (Tailscale) or a hosted page. The best fallback if Spike S2 shows the ntfy iOS app is unreliable, and a good fit for "URGENT" escalation; it fits the same `Relay` trait.
+- **Pushover** ([pushover.net/api](https://pushover.net/api), [pricing](https://pushover.net/pricing)): $4.99 one-time per platform after a 30-day trial; 10,000 messages a month free; maintained apps; end-to-end encryption with a key kept on the device; an emergency priority that repeats every ≥ 30 s (up to 3 h, 50 retries) until acknowledged, with a receipt the hub can poll outbound and a cancel call. But no answer buttons: one supplementary link per message, and "acknowledge" only stops the repeats; it does not tell the agent anything. Approvals would need that link to lead to the own iOS app (Tailscale); a hosted page is ruled out by the no-infrastructure principle. Bring-your-own-keys fits: each user creates their own Pushover application token. The best fallback if Spike S2 shows the ntfy iOS app is unreliable, and a good fit for "URGENT" escalation; it fits the same `Relay` trait.
 - **Answers over Tailscale** into a remote listener on the Mac (the first version of this ADR): direct and private, but needs a VPN app on the phone and the Mac; kept only for the optional iOS app.
 - **Own iOS app with background polling**: iOS gives no reliable background execution without push; pings would arrive late or never.
 - **Bark** (open-source iOS push app over its own APNs relay): Time Sensitive and critical support but no action buttons (unverified).
