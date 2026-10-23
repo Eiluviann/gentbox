@@ -7,7 +7,7 @@ use time::{Duration, OffsetDateTime};
 
 use crate::message::{ActionKind, Blocking, Message, MessageType};
 use crate::rescind::RescindReason;
-use crate::response::ResponseStatus;
+use crate::response::{AnsweredVia, ResponseStatus};
 
 /// Default snooze when the action carries no minutes.
 pub const DEFAULT_SNOOZE_MINUTES: u32 = 15;
@@ -22,7 +22,8 @@ pub enum LifecycleState {
     Acknowledged,
     /// An answer action was taken.
     Answered,
-    /// "Mark done" without answering.
+    /// Cleared from the inbox without answering. Never an `action_required`
+    /// message: those are closed with Done.
     Dismissed,
     /// Withdrawn by the sender, a supersede, a completion or progress.
     Rescinded,
@@ -58,7 +59,7 @@ impl LifecycleState {
 pub enum ResolutionReason {
     /// An answer action was taken.
     Answered,
-    /// Marked done without answering.
+    /// Cleared without answering.
     Dismissed,
     /// Withdrawn, with the reason.
     Rescinded(RescindReason),
@@ -67,7 +68,7 @@ pub enum ResolutionReason {
 }
 
 /// The state of a message plus the timestamps its transitions set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lifecycle {
     /// Current state.
@@ -89,6 +90,30 @@ pub struct Lifecycle {
     /// Why the message closed, once it has.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<ResolutionReason>,
+    /// The answer that closed the message: what a later long-poll returns,
+    /// including a Done tapped while no sender was waiting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<RecordedAnswer>,
+}
+
+/// The answer that closed a message, kept so that a sender that polls later
+/// still hears it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordedAnswer {
+    /// The pressed action's id.
+    pub action_id: String,
+    /// Its kind: approve, deny, choice, reply or done.
+    pub action_kind: ActionKind,
+    /// The choice value or reply text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// The channel it came through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answered_via: Option<AnsweredVia>,
+    /// When it was given.
+    #[serde(with = "time::serde::rfc3339")]
+    pub answered_at: OffsetDateTime,
 }
 
 impl Lifecycle {
@@ -104,6 +129,7 @@ impl Lifecycle {
             snoozed_until: None,
             deferred_at: None,
             resolution: None,
+            answer: None,
         }
     }
 }
@@ -124,7 +150,7 @@ pub enum LifecycleEvent {
     Defer,
     /// An answer action was taken.
     Answer,
-    /// Mark done.
+    /// Cleared from the inbox without an answer (see [`dismiss`]).
     Dismiss,
     /// Withdrawn.
     Rescind(RescindReason),
@@ -196,7 +222,7 @@ pub fn apply_event(
     now: OffsetDateTime,
 ) -> Result<Lifecycle, TransitionError> {
     let state = transition(lifecycle.state, event)?;
-    let mut next = *lifecycle;
+    let mut next = lifecycle.clone();
     next.state = state;
     match event {
         LifecycleEvent::Snooze { until } => next.snoozed_until = Some(*until),
@@ -217,10 +243,10 @@ pub fn apply_event(
 }
 
 /// Why a button press was refused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ActionError {
     /// The message is closed: a late answer to an answered, withdrawn,
-    /// dismissed or expired message ("Already answered", "Withdrawn").
+    /// cleared or expired message ("Already answered", "Withdrawn").
     #[error("the message is already {state:?}")]
     Closed {
         /// The terminal state the message is in.
@@ -234,6 +260,12 @@ pub enum ActionError {
     /// The snooze duration does not fit a timestamp.
     #[error("the snooze duration is out of range")]
     SnoozeOutOfRange,
+    /// An `action_required` message is closed with Done, never cleared.
+    #[error("an action_required message is closed with Done")]
+    UseDoneInstead,
+    /// The pressed action id is not on the message, or has another kind.
+    #[error("the message has no such action")]
+    UnknownAction,
 }
 
 /// The effect of a button press on a stored message.
@@ -246,40 +278,98 @@ pub struct ActionOutcome {
     pub sender_status: Option<ResponseStatus>,
 }
 
-/// Applies a button press to a message.
-///
-/// - the answers (`approve`, `deny`, `choice`, `reply`, `done`) close the
-///   message as `answered`;
-/// - `defer` only on `deferrable`: the message turns `non_blocking` and stays
-///   open (the caller re-runs the policy on the returned message);
-/// - `open` acknowledges; `snooze` acknowledges with `snoozed_until = now +
-///   minutes` (default 15). Neither is ever returned to the sender.
-///
-/// A message that is already closed refuses every action, so a rescinded
-/// message rejects late answers and a late second answer loses.
+/// A button press: which action, and what it carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionPress {
+    /// The pressed action's kind.
+    pub kind: ActionKind,
+    /// The pressed action's id. When given it must exist on the message with
+    /// this kind; the answer is recorded under it.
+    pub action_id: Option<String>,
+    /// The choice value or the reply text.
+    pub value: Option<String>,
+    /// The channel the press came through.
+    pub via: Option<AnsweredVia>,
+    /// Snooze minutes (default 15).
+    pub snooze_minutes: Option<u32>,
+}
+
+impl ActionPress {
+    /// A press of the given kind with nothing else set.
+    pub fn of_kind(kind: ActionKind) -> Self {
+        Self {
+            kind,
+            action_id: None,
+            value: None,
+            via: None,
+            snooze_minutes: None,
+        }
+    }
+}
+
+/// Applies a button press by kind: a thin wrapper over [`press_action`] that
+/// records the answer under the message's first action of that kind.
 pub fn take_action(
     message: &Message,
     kind: ActionKind,
     now: OffsetDateTime,
     snooze_minutes: Option<u32>,
 ) -> Result<ActionOutcome, ActionError> {
+    let mut press = ActionPress::of_kind(kind);
+    press.snooze_minutes = snooze_minutes;
+    press_action(message, &press, now)
+}
+
+/// Applies a button press to a message.
+///
+/// - the answers (`approve`, `deny`, `choice`, `reply`, `done`) close the
+///   message as `answered` and record the answer ([`RecordedAnswer`]) so a
+///   later long-poll gets it. **Done closes an `action_required` message
+///   locally whether or not a sender is waiting**: with a live waiter the
+///   caller delivers it at once, without one the next poll finds it recorded;
+/// - `defer` only on `deferrable`: the message turns `non_blocking` and stays
+///   open (the caller re-runs the policy on the returned message);
+/// - `open` acknowledges; `snooze` acknowledges with `snoozed_until = now +
+///   minutes` (default 15). Neither is ever returned to the sender.
+///
+/// A message that is already closed refuses every action, so a rescinded
+/// message rejects late answers and a late second answer loses. The core does
+/// not know about live waiters: the hub checks [`crate::actions::offered_actions`]
+/// before pressing.
+pub fn press_action(
+    message: &Message,
+    press: &ActionPress,
+    now: OffsetDateTime,
+) -> Result<ActionOutcome, ActionError> {
     let state = message.lifecycle.state;
     if state.is_closed() {
-        return Err(ActionError::Closed {
-            state,
-            resolution: message.lifecycle.resolution,
-        });
+        return Err(closed_error(message));
     }
-    match kind {
+    match press.kind {
         ActionKind::Defer => defer(message, now),
         ActionKind::Open => Ok(acknowledge_if_open(message, now)),
-        ActionKind::Snooze => snooze(message, now, snooze_minutes),
+        ActionKind::Snooze => snooze(message, now, press.snooze_minutes),
         ActionKind::Approve
         | ActionKind::Deny
         | ActionKind::Choice
         | ActionKind::Reply
-        | ActionKind::Done => answer(message, now),
+        | ActionKind::Done => answer(message, press, now),
     }
+}
+
+/// Clears a message from the inbox without answering it (`dismissed`).
+///
+/// An `action_required` message is never cleared: it is closed with Done,
+/// which tells a waiting agent, or records the answer for a later poll.
+pub fn dismiss(message: &Message, now: OffsetDateTime) -> Result<Message, ActionError> {
+    if message.message_type == MessageType::ActionRequired {
+        return Err(ActionError::UseDoneInstead);
+    }
+    let lifecycle = apply_event(&message.lifecycle, &LifecycleEvent::Dismiss, now)
+        .map_err(|_| closed_error(message))?;
+    let mut dismissed = message.clone();
+    dismissed.lifecycle = lifecycle;
+    Ok(dismissed)
 }
 
 /// Defer: legal on `deferrable` messages only. Records `deferred_at`, sets
@@ -299,15 +389,63 @@ pub fn defer(message: &Message, now: OffsetDateTime) -> Result<ActionOutcome, Ac
     })
 }
 
-fn answer(message: &Message, now: OffsetDateTime) -> Result<ActionOutcome, ActionError> {
+fn answer(
+    message: &Message,
+    press: &ActionPress,
+    now: OffsetDateTime,
+) -> Result<ActionOutcome, ActionError> {
+    let action_id = answering_action_id(message, press)?;
     let lifecycle = apply_event(&message.lifecycle, &LifecycleEvent::Answer, now)
         .map_err(|_| closed_error(message))?;
     let mut answered = message.clone();
     answered.lifecycle = lifecycle;
+    answered.lifecycle.answer = Some(RecordedAnswer {
+        action_id,
+        action_kind: press.kind,
+        value: press.value.clone(),
+        answered_via: press.via,
+        answered_at: now,
+    });
     Ok(ActionOutcome {
         message: answered,
         sender_status: Some(ResponseStatus::Answered),
     })
+}
+
+/// The id an answer is recorded under: the pressed one (which must exist with
+/// that kind), else the message's first action of the kind, else the kind's
+/// own name (a Done on an `action_required` message the sender never gave a
+/// button for).
+fn answering_action_id(message: &Message, press: &ActionPress) -> Result<String, ActionError> {
+    let of_kind = |action: &&crate::message::Action| action.kind == press.kind;
+    match &press.action_id {
+        Some(id) => message
+            .actions
+            .iter()
+            .filter(of_kind)
+            .find(|action| &action.id == id)
+            .map(|action| action.id.clone())
+            .ok_or(ActionError::UnknownAction),
+        None => Ok(message
+            .actions
+            .iter()
+            .find(of_kind)
+            .map(|action| action.id.clone())
+            .unwrap_or_else(|| answer_kind_name(press.kind).to_owned())),
+    }
+}
+
+fn answer_kind_name(kind: ActionKind) -> &'static str {
+    match kind {
+        ActionKind::Approve => "approve",
+        ActionKind::Deny => "deny",
+        ActionKind::Choice => "choice",
+        ActionKind::Reply => "reply",
+        ActionKind::Done => "done",
+        ActionKind::Defer => "defer",
+        ActionKind::Open => "open",
+        ActionKind::Snooze => "snooze",
+    }
 }
 
 fn acknowledge_if_open(message: &Message, now: OffsetDateTime) -> ActionOutcome {

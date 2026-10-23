@@ -29,8 +29,12 @@ pub fn with_hub_actions(
 
 /// The buttons to show now.
 ///
-/// - Answer buttons (approve, deny, choice, reply, done) and Defer need a
-///   live waiter, so a button never pretends to do something.
+/// - Answer buttons (approve, deny, choice, reply) and Defer need a live
+///   waiter, so a button never pretends to do something.
+/// - **Done is always offered on `action_required`**, with or without a live
+///   waiter: with one it tells the agent at once, without one it closes the
+///   item locally and records the answer for a later poll. There is no
+///   second way to finish such an item.
 /// - Defer is offered only while the message is `deferrable`: after Defer it
 ///   is `non_blocking` and the button is gone.
 /// - `open` and `snooze` are always offered.
@@ -43,6 +47,7 @@ pub fn offered_actions(message: &Message, has_live_waiter: bool) -> Vec<&Action>
         .iter()
         .filter(|action| match action.kind {
             ActionKind::Open | ActionKind::Snooze => true,
+            ActionKind::Done if message.message_type == MessageType::ActionRequired => true,
             ActionKind::Defer => has_live_waiter && message.blocking == Blocking::Deferrable,
             _ => has_live_waiter,
         })

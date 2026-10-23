@@ -6,8 +6,8 @@ use time::OffsetDateTime;
 
 use crate::classify::FieldSources;
 use crate::ids::{MessageId, ThreadId, TopicId};
-use crate::lifecycle::LifecycleState;
-use crate::message::{ActionKind, Blocking, MessageType};
+use crate::lifecycle::{LifecycleState, ResolutionReason};
+use crate::message::{ActionKind, Blocking, Message, MessageType};
 use crate::rescind::RescindReason;
 
 /// `actionResponse.status`.
@@ -20,7 +20,8 @@ pub enum ResponseStatus {
     Answered,
     /// Defer was chosen: keep working on what needs no input.
     Deferred,
-    /// Marked done without answering.
+    /// Cleared without answering (never an `action_required` message, which
+    /// is closed with Done and reports `answered`).
     Dismissed,
     /// Withdrawn.
     Rescinded,
@@ -91,6 +92,37 @@ pub struct ActionResponse {
         with = "time::serde::rfc3339::option"
     )]
     pub answered_at: Option<OffsetDateTime>,
+}
+
+impl ActionResponse {
+    /// The long-poll response for a stored message.
+    ///
+    /// An answered message reports the recorded answer, so a sender that polls
+    /// after a waiter-less Done (a `StopFailure` item you finished at the Mac)
+    /// still gets `answered` with `actionKind: done`. `deferral_unreported` is
+    /// the hub's "Defer chosen, waiter not told yet" flag.
+    pub fn for_message(message: &Message, deferral_unreported: bool) -> Self {
+        let lifecycle = &message.lifecycle;
+        let status = response_status(lifecycle.state, deferral_unreported);
+        let rescind_reason = match lifecycle.resolution {
+            Some(ResolutionReason::Rescinded(reason)) => Some(reason),
+            _ => None,
+        };
+        let answer = match status {
+            ResponseStatus::Answered => lifecycle.answer.as_ref(),
+            _ => None,
+        };
+        Self {
+            message_id: message.id.clone(),
+            status,
+            rescind_reason,
+            action_id: answer.map(|answer| answer.action_id.clone()),
+            action_kind: answer.map(|answer| answer.action_kind),
+            value: answer.and_then(|answer| answer.value.clone()),
+            answered_via: answer.and_then(|answer| answer.answered_via),
+            answered_at: answer.map(|answer| answer.answered_at),
+        }
+    }
 }
 
 /// What the hub changed, reported back to the sender.

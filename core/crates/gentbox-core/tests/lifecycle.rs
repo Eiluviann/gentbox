@@ -112,6 +112,7 @@ fn closing_records_the_resolution_and_clears_the_snooze() {
         snoozed_until: Some(NOW + Duration::minutes(5)),
         deferred_at: None,
         resolution: None,
+        answer: None,
     };
     for (event, resolution) in [
         (LifecycleEvent::Answer, ResolutionReason::Answered),
