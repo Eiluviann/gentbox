@@ -62,32 +62,20 @@ body{margin:0}
 						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg>
 						<div>
 							<div class="headline">Follow Focus</div>
-							<div class="tags"><span class="tag">Focus on · Work</span><span class="tag plain">detected automatically at 14:02</span></div>
+							<div class="tags"><span class="tag">Focus on</span><span class="tag plain">reported by macOS</span></div>
 						</div>
 						<span class="toggle on"></span>
 					</div>
 					<div class="card-row">
 						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
-						<div class="grow"><div>Full Disk Access</div><div class="caption">Granted once, so Agent Notifier can read the active Focus without any setup</div></div>
+						<div class="grow"><div>Focus status shared with Agent Notifier</div><div class="caption">Allowed once in System Settings › Focus › Focus Status; macOS tells it when any Focus turns on or off</div></div>
 						<button class="btn sm">Open System Settings</button>
-					</div>
-					<div class="card-row">
-						<div class="grow">
-							<div>Fallback: Shortcuts automation</div>
-							<div class="caption">Only if automatic detection stops working after a macOS update</div>
-							<ol class="steps" style="margin-top: 4px">
-								<li>In Shortcuts, add an automation for each Focus: When it turns on</li>
-								<li>Add the action Run Shell Script with <span class="mono">agent-notify focus on</span></li>
-								<li>Repeat for When it turns off, with <span class="mono">focus off</span></li>
-							</ol>
-						</div>
-						<button class="btn sm">Open Shortcuts</button>
 					</div>
 				</div>
 
 				<div class="callout">
 					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
-					<div class="body">macOS already filters native notifications by Focus; these settings decide what Agent Notifier's own popups and toasts do</div>
+					<div class="body">Blocked notifications are Time Sensitive, so they break through a Focus that allows it; these settings decide what Agent Notifier's own popups and toasts do</div>
 					<span></span>
 				</div>
 			</div>

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>iPhone lock screen with ntfy</title>
+<title>iPhone lock screen</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="./an.css">
 <script src="./sf-symbols.js"></script>
@@ -23,7 +23,7 @@ body{margin:0}
 	<div style="height: 110px"></div>
 
 	<div class="notif">
-		<div class="notif-app">ntfy</div>
+		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
 			<div class="notif-title">URGENT: Action required<span class="when">now</span></div>
@@ -32,7 +32,7 @@ body{margin:0}
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
 	</div>
 	<div class="notif">
-		<div class="notif-app">ntfy</div>
+		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-title">Your input is needed<span class="when">2m ago</span></div>
 			<div class="notif-body">Pick a title for the 2.4 release notes; I used “Faster inbox” for now</div>
@@ -40,7 +40,7 @@ body{margin:0}
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
 	</div>
 	<div class="notif">
-		<div class="notif-app">ntfy</div>
+		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
 		<div>
 			<div class="notif-title">Task complete<span class="when">4m ago</span></div>
 			<div class="notif-body">Cart totals round once at checkout; 31 tests pass</div>
@@ -48,7 +48,7 @@ body{margin:0}
 		<div class="thumb"><svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg></div>
 	</div>
 
-	<div class="legend">Summary payload, the default: a fixed title per class, the summary, and the project icon or else the agent's. While you use the Mac these arrive silently and ring only if still unaddressed after 2 min; once you step away they ring at once. Blocked rides priority 5 (Time Sensitive), the rest priority 3</div>
+	<div class="legend">Agent Notifier's own notifications over Apple push: our app icon, a fixed title per class, the summary, and the project icon or else the agent's as the thumbnail. Blocked is Time Sensitive. While you use the Mac these arrive silently and ring only if still unaddressed after 2 min</div>
 	<div class="home" style="background: #fff"></div>
 </div>
 </x-dc>

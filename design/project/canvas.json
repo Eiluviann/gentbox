@@ -140,56 +140,56 @@
 			"x": 10620,
 			"y": 0,
 			"w": 1100,
-			"h": 1000,
+			"h": 820,
 			"title": "Settings · phone"
 		},
 		"settings-phone-pairing.dc.html": {
 			"x": 10620,
-			"y": 1120,
+			"y": 940,
 			"w": 1100,
 			"h": 640,
-			"title": "Settings · pair the optional iPhone app"
+			"title": "Settings · pair an iPhone"
 		},
 		"ios-inbox.dc.html": {
+			"x": 14410,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · inbox"
+		},
+		"ios-detail.dc.html": {
+			"x": 14880,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · detail"
+		},
+		"ios-detail-answered.dc.html": {
+			"x": 14880,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · detail answered"
+		},
+		"ios-lock-screen.dc.html": {
 			"x": 13220,
 			"y": 0,
 			"w": 390,
 			"h": 844,
-			"title": "iPhone app, optional · inbox"
-		},
-		"ios-detail.dc.html": {
-			"x": 13690,
-			"y": 0,
-			"w": 390,
-			"h": 844,
-			"title": "iPhone app, optional · detail"
-		},
-		"ios-detail-answered.dc.html": {
-			"x": 13690,
-			"y": 964,
-			"w": 390,
-			"h": 844,
-			"title": "iPhone app, optional · detail answered"
-		},
-		"ios-lock-screen.dc.html": {
-			"x": 14160,
-			"y": 0,
-			"w": 390,
-			"h": 844,
-			"title": "iPhone · ntfy on the lock screen"
+			"title": "iPhone · lock screen"
 		},
 		"ios-lock-screen-expanded.dc.html": {
-			"x": 14160,
+			"x": 13220,
 			"y": 964,
 			"w": 390,
 			"h": 844,
-			"title": "iPhone · ntfy expanded, summary vs minimal"
+			"title": "iPhone · long press, permission"
 		},
 		"watch.dc.html": {
-			"x": 14630,
+			"x": 13690,
 			"y": 0,
 			"w": 640,
-			"h": 420,
+			"h": 460,
 			"title": "Apple Watch · blocking vs completion"
 		},
 		"settings-keys.dc.html": {
@@ -198,6 +198,20 @@
 			"w": 1100,
 			"h": 1040,
 			"title": "Settings · keys, bring your own"
+		},
+		"ios-history.dc.html": {
+			"x": 15350,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app · history"
+		},
+		"ios-lock-screen-reply.dc.html": {
+			"x": 13220,
+			"y": 1928,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · long press, choices and reply"
 		}
 	},
 	"order": [
@@ -222,12 +236,14 @@
 		"settings-phone.dc.html",
 		"settings-phone-pairing.dc.html",
 		"settings-keys.dc.html",
+		"ios-lock-screen.dc.html",
+		"ios-lock-screen-expanded.dc.html",
+		"ios-lock-screen-reply.dc.html",
+		"watch.dc.html",
 		"ios-inbox.dc.html",
 		"ios-detail.dc.html",
 		"ios-detail-answered.dc.html",
-		"ios-lock-screen.dc.html",
-		"ios-lock-screen-expanded.dc.html",
-		"watch.dc.html"
+		"ios-history.dc.html"
 	],
 	"notes": {
 		"group-mac": {
@@ -249,7 +265,7 @@
 			"y": -300,
 			"text": "iPhone and Watch",
 			"kind": "title1",
-			"maxW": 2050
+			"maxW": 2520
 		}
 	},
 	"designSystems": []

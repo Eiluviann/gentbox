@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>iPhone ntfy expanded</title>
+<title>iPhone notification expanded</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="./an.css">
 <script src="./sf-symbols.js"></script>
@@ -13,40 +13,37 @@
 <style>
 body{margin:0}
 .blur{position:absolute;inset:0;background:rgba(20,26,34,.55)}
-.mode{position:relative;font-size:12px;line-height:16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.8);margin:0 22px 6px}
-.legend{position:relative;margin:10px 22px 0;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
-.notif{grid-template-columns:38px minmax(0,1fr) 36px}
-.thumb{width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;align-self:center}
+.legend{position:relative;margin:12px 22px 0;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
 </style>
 </helmet>
 <div class="lock">
 	<div class="blur"></div>
-	<div style="height: 70px"></div>
+	<div style="height: 120px"></div>
 
-	<div class="mode">Summary mode · long press</div>
-	<div class="notif" style="position: relative">
-		<div class="notif-app">ntfy</div>
-		<div>
-			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
-			<div class="notif-title">URGENT: Action required<span class="when">now</span></div>
-			<div class="notif-body">Claude Code wants to run a command in api</div>
+	<div class="xcard">
+		<div class="xhead">
+			<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+			<span style="flex: 1">AGENT NOTIFIER</span><span>now</span>
 		</div>
-		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
-	</div>
-	<div class="lock-action" style="position: relative">Approve<svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg></div>
-	<div class="lock-action" style="position: relative; margin-top: 1px">Snooze 15 min<svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></div>
-	<div class="legend">Answers go back through the ntfy answer topic. Deny is offered only when it is not destructive; replies need the Mac or the optional iPhone app</div>
-
-	<div style="height: 36px"></div>
-	<div class="mode">Minimal mode · long press</div>
-	<div class="notif" style="position: relative; grid-template-columns: 38px minmax(0, 1fr)">
-		<div class="notif-app">ntfy</div>
-		<div>
-			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
-			<div class="notif-title">URGENT: Action required<span class="when">now</span></div>
+		<div class="xbody">
+			<div style="display: flex; align-items: center; gap: 8px">
+				<svg class="i i18 c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+				<span style="font-weight: 600; flex: 1">URGENT: Action required</span>
+				<svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>
+			</div>
+			<div class="tags" style="margin-top: 0"><span class="tag" style="height: 20px; font-size: 12px; background: #fff">api · fix flaky test</span><span class="tag plain" style="font-size: 12px">Claude Code · Ghostty</span></div>
+			<div style="font-size: 17px; line-height: 22px; font-weight: 600">Allow Bash: cargo test -p ingest -- --nocapture?</div>
+			<div class="code" style="background: #fff; font-size: 13px">cargo test -p ingest -- --nocapture</div>
+			<div style="color: #3c3c43">Run the ingest tests with output</div>
 		</div>
 	</div>
-	<div class="legend">The title phrase only: no description, icon or answer buttons, since you cannot approve what you cannot read</div>
+	<div class="xactions">
+		<div><span>Approve</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg></div>
+		<div style="color: var(--danger)"><span>Deny</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></div>
+		<div><span>Reply</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg></div>
+		<div><span>Snooze 15 min</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></div>
+	</div>
+	<div class="legend">Long press opens our Notification Content Extension: the full question and command above real actions. Deny asks for Face ID when it is destructive; Reply opens an inline text field</div>
 	<div class="home" style="background: #fff"></div>
 </div>
 </x-dc>

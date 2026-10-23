@@ -21,9 +21,9 @@ The canvas reads left to right in three groups: Mac, Settings (inside the main w
 - Accent `#007AFF` is for controls only. Greys: `#F2F2F7` tracks, 1 px `#E0E0E0` borders, no box inside a box.
 - Actions: Approve `checkmark`, Deny `xmark`, Reply `arrowshape.turn.up.left`, Open conversation `arrow.up.forward.app`, Snooze `moon.zzz` (the agent keeps working meanwhile), More `ellipsis`.
 - **Agent mark** (menu bar and app icon): a custom symbol, `bubble.left` with a `>_` prompt. States: plain (idle), dot (unread), red dot plus count (blocked), slash (quiet hours or Focus). Phase 3 rebuilds it as a real custom symbol in the SF Symbols app.
-- **Notification copy** (architecture §10), on Mac native notifications, the lock screen and the Watch: the title is the fixed phrase (URGENT: Action required, URGENT: Your input is needed, Action required, Your input is needed, Task complete, Goal complete), the text is the summary, the thumbnail is the project icon or else the agent icon. On the Mac the subtitle carries the question and the project. Popups use the same phrases without "URGENT:", since the red ripple carries it.
+- **Notification copy** (architecture §10), on Mac native notifications and Agent Notifier's own iPhone and Watch notifications (Apple push, paid team): our app icon, the fixed title phrase (URGENT: Action required, URGENT: Your input is needed, Action required, Your input is needed, Task complete, Goal complete), the summary as text, and the project icon or else the agent icon as the thumbnail. Blocked is Time Sensitive. Long press opens our Notification Content Extension with the full question and real actions: Approve, Deny, choices and inline text reply, also on the Watch. On the Mac the subtitle carries the question and the project. Popups use the same phrases without "URGENT:", since the red ripple carries it.
 - Type is the system font (SF Pro): 13 px body, 11 px floor, 22 px title on the Mac; 17 px body on iOS. No design system is attached: the listed ones carry other products' brands.
-- Brand marks stay SVG (Claude, Codex from Zed's agent registry icons); the ntfy mark is a labelled placeholder.
+- Brand marks stay SVG (Claude, Codex from Zed's agent registry icons); the ntfy mark is a labelled placeholder. ntfy is the answer channel and the delivery fallback until the Apple membership is active.
 
 ## Boards
 
@@ -38,14 +38,16 @@ The canvas reads left to right in three groups: Mac, Settings (inside the main w
 | | `mac-generic-row` silent inbox rows | |
 | | `mac-conversation` detail: pending action, timeline, markdown body | |
 | Settings | `settings-notifications` per-class matrix, silent-then-ping, presence | |
-| | `settings-quiet-focus` automatic Focus detection (Full Disk Access), Shortcuts fallback | |
+| | `settings-quiet-focus` Focus through Apple's Focus status API | |
 | | `settings-sources` | |
 | | `settings-rules` | `settings-rules-error` |
-| | `settings-phone` ntfy.sh or self-hosted, subscribe QR, topics, summary or minimal | `settings-phone-pairing` (optional iPhone app) |
-| | `settings-keys` bring your own keys: ntfy server and account token, Pushover and APNs (Planned), Tailscale; Keychain only, always masked | |
-| iPhone and Watch | `ios-lock-screen` | `ios-lock-screen-expanded` (summary vs minimal) |
+| | `settings-phone` paired iPhone, delivery (Apple push, ntfy for answers and fallback), summary or minimal | `settings-phone-pairing` |
+| | `settings-keys` bring your own keys: Apple push (`.p8`, Key ID, Team ID, sandbox or production), ntfy server and account token, Pushover (Planned), Tailscale; Keychain only, always masked | |
+| iPhone and Watch | `ios-lock-screen` our notifications | `ios-lock-screen-expanded` (long press, permission), `ios-lock-screen-reply` (choices and inline reply) |
 | | `watch` | |
-| | `ios-inbox`, `ios-detail` (optional app, Tailscale) | `ios-detail-answered` |
+| | `ios-inbox` | |
+| | `ios-detail` | `ios-detail-answered` |
+| | `ios-history` | |
 
 ## Conflicts with the Phase 1 docs
 

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone notification with choices and reply</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.blur{position:absolute;inset:0;background:rgba(20,26,34,.55)}
+.inputbar{position:absolute;left:0;right:0;bottom:290px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(210,213,219,.96)}
+.inputbar .fieldx{flex:1;height:36px;border-radius:18px;background:#fff;display:flex;align-items:center;padding:0 14px;font-size:16px;color:#000}
+.send{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center}
+.kb{position:absolute;left:0;right:0;bottom:0;height:290px;background:#d1d4da;display:flex;align-items:center;justify-content:center;color:#3c3c43;font-size:13px}
+</style>
+</helmet>
+<div class="lock">
+	<div class="blur"></div>
+	<div style="height: 70px"></div>
+
+	<div class="xcard">
+		<div class="xhead">
+			<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+			<span style="flex: 1">AGENT NOTIFIER</span><span>now</span>
+		</div>
+		<div class="xbody">
+			<div style="display: flex; align-items: center; gap: 8px">
+				<svg class="i i18 c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+				<span style="font-weight: 600; flex: 1">URGENT: Your input is needed</span>
+				<svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>
+			</div>
+			<div class="tags" style="margin-top: 0"><span class="tag" style="height: 20px; font-size: 12px; background: #fff">infra · rotate staging certs</span><span class="tag plain" style="font-size: 12px">Codex</span></div>
+			<div style="font-size: 17px; line-height: 22px; font-weight: 600">Which cluster gets the new certificates first?</div>
+		</div>
+	</div>
+	<div class="xactions">
+		<div><span>staging-eu</span></div>
+		<div><span>staging-us</span></div>
+	</div>
+
+	<div class="inputbar">
+		<div class="fieldx">Both, eu first</div>
+		<span class="send" aria-label="Send"><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_circle_fill}}"></path></svg></span>
+	</div>
+	<div class="kb">[System keyboard]</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>
