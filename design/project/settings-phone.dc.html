@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings iPhone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.sp-board{height:1000px}
+.win{height:940px}
+.lbl{width:130px;flex:none}
+.prev{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 14px 14px}
+.prev > div{border-radius:10px;background:var(--track);padding:8px 10px;font-size:12px;line-height:16px}
+.prev > div.on{background:#eaf2ff;box-shadow:inset 0 0 0 1.5px var(--accent)}
+.prev b{display:block;font-size:12px}
+.qr{width:96px;height:96px;border-radius:10px;border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none}
+.ntfy{width:16px;height:16px;border-radius:4px;background:#317f6f;color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+</style>
+</helmet>
+<div class="board desk set-board sp-board">
+	<div class="window set-win win">
+		<nav class="sidebar" aria-label="Settings">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-conversation.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg><span class="grow">Inbox</span></a>
+			<div class="side-head">Settings</div>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg><span class="grow">Notifications</span></a>
+			<a class="side-item" href="settings-quiet-focus.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg><span class="grow">Quiet hours and Focus</span></a>
+			<a class="side-item" href="settings-sources.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></a>
+			<a class="side-item" href="settings-rules.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></a>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
+		</nav>
+		<main class="content">
+			<div class="toolbar">
+				<div class="headline" style="font-size: 15px; flex: 1">iPhone</div>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.paperplane_fill}}"></path></svg>Send a test push</button>
+			</div>
+			<div class="set-pane">
+				<p class="lede">The ntfy app delivers notifications to the iPhone and the Watch, and its buttons send answers back through ntfy, so nothing reaches into this Mac</p>
+
+				<div class="card">
+					<div class="card-head">
+						<span class="ntfy">ntfy</span>
+						<div><div class="headline">Push with ntfy</div><div class="tags"><span class="tag">Delivering</span><span class="tag plain">last push 18:43 · listening for answers</span></div></div>
+						<span class="toggle on"></span>
+					</div>
+					<div class="card-row"><span class="lbl">Server</span><span class="grow"><span class="seg"><span class="on">ntfy.sh</span><span>Self-hosted</span></span></span></div>
+					<div class="card-row" style="padding-top: 0; border-top: none; min-height: 0"><span class="lbl"></span><span class="grow caption">ntfy.sh needs no setup; summaries and answer tokens pass through it. A self-hosted server keeps them on your machine</span></div>
+					<div class="card-row">
+						<div class="qr"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="width: 56px; height: 56px"><path d="{{ic.qrcode}}"></path></svg><span class="caption" style="font-size: 10px">[QR code]</span></div>
+						<div class="grow">
+							<div>Subscribe on the iPhone</div>
+							<ol class="steps" style="margin-top: 4px">
+								<li>Install ntfy from the App Store</li>
+								<li>Scan this code with the iPhone camera to subscribe</li>
+								<li>Send a test push to check it arrives</li>
+							</ol>
+						</div>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.key}}"></path></svg>
+						<div><div class="headline">Topics</div><div class="caption">Random secrets kept in the Keychain; anyone with a topic can read or answer</div></div>
+						<button class="btn sm">Rotate topics</button>
+					</div>
+					<div class="card-row"><span class="lbl">Notifications</span><span class="grow mono" style="color: var(--ink-2)">••••••••••••••••••••••••••••Xq7a</span></div>
+					<div class="card-row"><span class="lbl">Answers</span><span class="grow mono" style="color: var(--ink-2)">••••••••••••••••••••••••••••p2Lm</span></div>
+					<div class="card-row"><span class="lbl">Access token</span><span class="grow" style="color: var(--ink-2)">Not needed on ntfy.sh</span><span class="caption">for servers with access control</span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.eye_slash}}"></path></svg>
+						<div><div class="headline">What the push shows</div><div class="caption">Never the body, the path or a reply field</div></div>
+						<span class="seg"><span class="on">Summary</span><span>Minimal</span></span>
+					</div>
+					<div class="prev">
+						<div class="on"><b>URGENT: Action required</b>Claude Code wants to run a command in api<span class="c-ink3" style="display: block">Project or agent icon · Approve and Snooze buttons</span></div>
+						<div><b>URGENT: Action required</b><span class="c-ink3">No description and no answer buttons; ntfy learns only that something happened</span></div>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg>
+						<div><div class="headline">Agent Notifier iPhone app</div><div class="caption">Optional, for full content and text replies; needs Tailscale on the iPhone and this Mac</div></div>
+						<span class="toggle"></span>
+					</div>
+					<div class="card-row"><span class="grow caption">ntfy still delivers the pings; the app only reads and answers</span><a class="btn sm" href="settings-phone-pairing.dc.html" style="text-decoration: none"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.qrcode}}"></path></svg>Pair the iPhone app</a></div>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1000}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

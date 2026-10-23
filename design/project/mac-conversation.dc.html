@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Conversation detail</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.cd-board{width:1180px;height:820px;padding:30px}
+.win{width:1120px;height:760px}
+.pend{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+.pend-head{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start}
+.pend-head > .i{margin-top:1px}
+.acts{display:flex;gap:6px;align-items:center}
+.why{display:flex;align-items:center;gap:6px;padding:9px 16px;border-top:1px solid var(--line-faint)}
+.tl-body{display:flex;flex-direction:column;gap:4px}
+.mark{width:10px;height:10px}
+</style>
+</helmet>
+<div class="board desk cd-board">
+	<div class="window win">
+		<nav class="sidebar" aria-label="Sidebar">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-popover.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.tray}}"></path></svg><span class="grow">Inbox</span><span class="badge">3</span></a>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snoozed</span><span class="caption">1</span></div>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg><span class="grow">History</span></div>
+			<div class="side-head">Conversations</div>
+			<div class="side-item sel"><svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg><span class="grow">api · fix flaky test</span></div>
+			<div class="side-item"><svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg><span class="grow">infra · rotate staging certs</span></div>
+			<div class="side-item"><svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg><span class="grow">docs · release notes</span></div>
+			<div class="side-item"><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg><span class="grow">web · WEB-142 checkout</span></div>
+			<div class="side-item"><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg><span class="grow">web · WEB-139 search filters</span></div>
+			<span style="flex: 1"></span>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">Settings</span></a>
+		</nav>
+
+		<main class="content">
+			<div class="toolbar">
+				<div style="flex: 1; min-width: 0">
+					<div class="headline" style="font-size: 15px">api · fix flaky test</div>
+					<div class="tags" style="margin-top: 1px"><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code 2.3</span><span class="tag plain"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Ghostty · ttys004</span><span class="tag plain"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.folder}}"></path></svg><span class="mono" style="font-size: 11px">~/Developer/api</span></span></div>
+				</div>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg>Open in Ghostty</button>
+				<button class="btn icon" aria-label="More"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+			</div>
+
+			<div class="pane">
+				<div class="card">
+					<div class="pend">
+						<div class="pend-head">
+							<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+							<div>
+								<div class="title" style="font-size: 15px; line-height: 20px">Allow Bash: cargo test -p ingest -- --nocapture?</div>
+								<div class="tags"><span class="tag block">Blocked</span><span class="tag plain">waiting 2 min</span><span class="tag plain">re-ping in 3 min</span></div>
+							</div>
+							<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+						</div>
+						<div style="padding-left: 26px; display: flex; flex-direction: column; gap: 10px">
+							<div class="code">cargo test -p ingest -- --nocapture</div>
+							<div class="body">Run the ingest tests with output</div>
+							<div class="acts">
+								<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve<span class="kbd" style="color: #fff">⌘↩</span></button>
+								<button class="btn danger"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
+								<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
+								<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg>Snooze</button>
+							</div>
+						</div>
+					</div>
+					<div class="why">
+						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+						<span class="caption">Why this ping: popup and sound because you were at the Mac; the iPhone got it silently and rings in 1 min if still unaddressed. Snooze lets Claude keep working on what it can</span>
+					</div>
+				</div>
+
+				<div class="eyebrow" style="margin-top: 4px">Timeline</div>
+				<div class="tl">
+					<div class="tl-line"></div>
+					<div class="tl-item">
+						<span class="tl-time">18:42</span>
+						<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+						<div class="tl-body"><div class="headline">Allow Bash: cargo test -p ingest -- --nocapture?</div><div class="tags" style="margin-top: 0"><span class="tag block">Open</span></div></div>
+					</div>
+					<div class="tl-item">
+						<span class="tl-time">18:31</span>
+						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+						<div class="tl-body md">
+							<div class="headline">Finished: the long-poll test waits on a notify instead of sleeping</div>
+							<h4>What changed</h4>
+							<ul>
+								<li><code>long_poll_returns_answer</code> awaits <code>Notify::notified()</code> with a 2 s timeout</li>
+								<li>Removed the 500 ms sleep that raced the hub actor</li>
+								<li>42 tests pass, 20 runs in a row without a flake</li>
+							</ul>
+						</div>
+					</div>
+					<div class="tl-item">
+						<span class="tl-time">18:20</span>
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised}}"></path></svg>
+						<div class="tl-body"><div class="headline" style="font-weight: 500">Allow Edit: crates/ingest/tests/poll.rs?</div><div class="tags" style="margin-top: 0"><span class="tag">Approved on Mac at 18:21</span></div></div>
+					</div>
+					<div class="tl-item">
+						<span class="tl-time">18:12</span>
+						<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
+						<div class="tl-body"><div class="headline" style="font-weight: 500">Subagent Explore finished</div></div>
+					</div>
+					<div class="tl-item">
+						<span class="tl-time">18:02</span>
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>
+						<div class="tl-body"><div class="headline" style="font-weight: 500">Session started</div></div>
+					</div>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":820}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

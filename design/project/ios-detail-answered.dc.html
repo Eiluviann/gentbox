@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone detail answered</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.d-body{padding:8px 16px 0;display:flex;flex-direction:column;gap:12px}
+.d-head{display:grid;grid-template-columns:22px minmax(0,1fr);column-gap:10px;align-items:start}
+.done-banner{display:grid;grid-template-columns:22px minmax(0,1fr);column-gap:10px;align-items:start;background:#fff;border-radius:12px;padding:12px 14px}
+</style>
+</helmet>
+<div class="ios">
+	<div style="height: 54px"></div>
+	<div class="navbar">
+		<a href="ios-inbox.dc.html" style="display: flex; align-items: center; gap: 4px; color: var(--accent); text-decoration: none"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg>Inbox</a>
+		<span></span>
+	</div>
+	<div class="d-body">
+		<div class="d-head">
+			<svg class="i i22 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised}}"></path></svg>
+			<div>
+				<div style="font-size: 15px; font-weight: 600">Claude Code asked for approval</div>
+				<div class="tags"><span class="tag" style="height: 20px; font-size: 12px">api · fix flaky test</span><span class="tag plain" style="font-size: 12px">18:42</span></div>
+			</div>
+		</div>
+		<div style="font-size: 22px; line-height: 28px; font-weight: 700">Allow Bash: cargo test -p ingest -- --nocapture?</div>
+		<div class="done-banner">
+			<svg class="i i22 c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>
+			<div>
+				<div style="font-weight: 600">Approved from this iPhone</div>
+				<div class="caption" style="font-size: 13px">18:43 · Claude Code continued</div>
+			</div>
+		</div>
+		<div class="code" style="font-size: 14px; line-height: 20px; background: #fff; padding: 12px">cargo test -p ingest -- --nocapture</div>
+	</div>
+	<div style="position: absolute; left: 16px; right: 16px; bottom: 40px; display: flex; flex-direction: column; gap: 8px">
+		<div class="caption" style="font-size: 13px; text-align: center">When answered on the Mac, this reads Approved on Mac; the buttons are gone either way</div>
+	</div>
+	<div class="home"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

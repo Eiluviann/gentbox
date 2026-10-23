@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Apple Watch blocking and completion</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.wb{width:640px;height:420px;padding:28px 40px;display:flex;flex-direction:column;gap:18px}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px}
+.col{display:flex;flex-direction:column;align-items:center;gap:16px}
+.wc{padding:14px 12px 0;display:flex;flex-direction:column;gap:6px}
+.wapp{display:flex;align-items:center;gap:6px;font-size:13px;color:#a7a7ad}
+.wapp span.app{width:20px;height:20px;border-radius:50%;background:#317f6f;color:#fff;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.wt{font-size:15px;line-height:19px;font-weight:600}
+.wbody{font-size:14px;line-height:18px;color:#d1d1d6}
+.cap{text-align:center;max-width:250px}
+</style>
+</helmet>
+<div class="board wb">
+	<div>
+		<div class="title">Apple Watch</div>
+		<div class="body">The Watch mirrors the ntfy notification, in the default summary mode</div>
+	</div>
+	<div class="pair">
+		<div class="col">
+			<div class="watch">
+				<div class="wc">
+					<div class="wapp"><span class="app">ntfy</span>now</div>
+					<div class="wt">URGENT: Action required</div>
+					<div class="wbody">Claude Code wants to run a command in api</div>
+					<div class="wbtn" style="margin-top: 4px; color: #0a84ff">Approve</div>
+					<div class="wbtn">Snooze 15 min</div>
+				</div>
+			</div>
+			<div class="cap"><div class="headline">Blocked</div><div class="caption">Time Sensitive with a haptic; scroll for Dismiss</div></div>
+		</div>
+		<div class="col">
+			<div class="watch">
+				<div class="wc">
+					<div class="wapp"><span class="app">ntfy</span>4m ago</div>
+					<div class="wt">Task complete</div>
+					<div class="wbody">Cart totals round once at checkout; 31 tests pass</div>
+					<div class="wbtn" style="margin-top: 14px">Dismiss</div>
+				</div>
+			</div>
+			<div class="cap"><div class="headline">Finished</div><div class="caption">Rings when you are away, or after 2 min unaddressed at the Mac; no buttons</div></div>
+		</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":640,"height":420}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

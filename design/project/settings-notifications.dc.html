@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings notifications</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.sn-board{height:820px}
+.win{height:760px}
+</style>
+</helmet>
+<div class="board desk set-board sn-board">
+	<div class="window set-win win">
+		<nav class="sidebar" aria-label="Settings">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-conversation.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg><span class="grow">Inbox</span></a>
+			<div class="side-head">Settings</div>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg><span class="grow">Notifications</span></div>
+			<a class="side-item" href="settings-quiet-focus.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg><span class="grow">Quiet hours and Focus</span></a>
+			<a class="side-item" href="settings-sources.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></a>
+			<a class="side-item" href="settings-rules.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></a>
+			<a class="side-item" href="settings-phone.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span></a>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
+		</nav>
+		<main class="content">
+			<div class="toolbar"><div class="headline" style="font-size: 15px">Notifications</div></div>
+			<div class="set-pane">
+				<p class="lede">How loud each class is on the Mac and on the iPhone. While you use the Mac, the iPhone gets everything silently and rings only if it is still unaddressed after 2 min</p>
+
+				<div class="card">
+					<div class="matrix">
+						<div class="mh"></div>
+						<div class="mh"><svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>Blocked</div>
+						<div class="mh"><svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>Question</div>
+						<div class="mh"><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>Finished</div>
+						<div class="mh"><svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>Other</div>
+
+						<div class="ml">On the Mac</div>
+						<div><span class="popup">Popup<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Banner<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Toast<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Inbox only<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+
+						<div class="ml">Native notification</div>
+						<div><span class="toggle on"></span></div>
+						<div><span class="toggle on"></span></div>
+						<div><span class="toggle"></span></div>
+						<div><span class="toggle"></span></div>
+
+						<div class="ml">Sound</div>
+						<div><span class="popup">Glass<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">None<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">None<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div class="na">Silent</div>
+
+						<div class="ml">Re-ping while open</div>
+						<div><span class="popup">5 min, 3 times<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Off<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div class="na">Not used</div>
+						<div class="na">Not used</div>
+
+						<div class="ml">iPhone</div>
+						<div><span class="popup">Urgent<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Normal<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Normal<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div class="na">Never</div>
+
+						<div class="ml">iPhone while at the Mac</div>
+						<div><span class="popup">Silent, then 2 min<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Silent, then 2 min<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div><span class="popup">Silent, then 2 min<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+						<div class="na">Never</div>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.laptopcomputer}}"></path></svg>
+						<div><div class="headline">Presence</div><div class="caption">What counts as away from the Mac</div></div>
+						<span></span>
+					</div>
+					<div class="card-row"><span class="grow">Away after</span><span class="popup">5 min idle or screen locked<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+					<div class="card-row"><div class="grow"><div>Skip Finished when its app is in front</div><div class="caption">Matched per app, so a background terminal tab counts as in front</div></div><span class="toggle on"></span></div>
+					<div class="card-row"><div class="grow"><div>Snooze length</div><div class="caption">The agent keeps working on what it can while a question is snoozed</div></div><span class="popup">15 min<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_up_chevron_down}}"></path></svg></span></div>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":820}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

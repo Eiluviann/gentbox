@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Completion toast</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.ct-board{width:520px;height:320px}
+.toast{position:absolute;top:40px;right:16px;width:380px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.t-head{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start}
+.t-head > .i{margin-top:1px}
+.t-foot{display:flex;align-items:center;gap:10px}
+.note{position:absolute;left:28px;bottom:24px;width:300px}
+</style>
+</helmet>
+<div class="board desk ct-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}"></path></svg></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:47</span>
+	</div>
+
+	<div class="panel toast">
+		<div class="t-head">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+			<div>
+				<div class="headline">Task complete</div>
+				<div class="tags" style="margin-top: 2px"><span class="tag">web · WEB-142 checkout</span><span class="tag plain">Claude Code</span><span class="tag plain">now</span></div>
+			</div>
+			<button class="btn plain sm icon" aria-label="Close"><svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></button>
+		</div>
+		<div class="body" style="color: var(--ink)">Cart totals now round once at checkout instead of per line; 31 tests pass</div>
+		<div class="t-foot">
+			<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg>Open conversation</button>
+			<div class="progress" style="flex: 1"><span style="width: 60%; background: var(--done)"></span></div>
+			<span class="caption">4 s</span>
+		</div>
+	</div>
+
+	<div class="note">
+		<div class="board-label">Transient toast</div>
+		<div class="caption" style="color: var(--ink-2)">Closes after 6 s and pauses while hovered; skipped when the conversation's app is in front, and inbox-only in quiet hours or Focus</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":320}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

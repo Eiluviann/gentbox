@@ -1,0 +1,248 @@
+{
+	"v": 3,
+	"createdOnFiles": {
+		"v": 1,
+		"at": "2026-10-23T18:40:00Z"
+	},
+	"title": "Agent Notifier GUI",
+	"launch": {
+		"view": "canvas"
+	},
+	"pages": [],
+	"boards": {
+		"Main.dc.html": {
+			"x": 0,
+			"y": 0,
+			"w": 760,
+			"h": 1100,
+			"title": "Foundations · classes, colours, symbols"
+		},
+		"mac-menubar-icons.dc.html": {
+			"x": 840,
+			"y": 0,
+			"w": 600,
+			"h": 460,
+			"title": "Menu-bar icon states"
+		},
+		"mac-popover.dc.html": {
+			"x": 1520,
+			"y": 0,
+			"w": 460,
+			"h": 800,
+			"title": "Menu-bar inbox popover"
+		},
+		"mac-popover-empty.dc.html": {
+			"x": 1520,
+			"y": 920,
+			"w": 460,
+			"h": 440,
+			"title": "Popover · all clear, quiet hours"
+		},
+		"mac-blocking-popup.dc.html": {
+			"x": 2060,
+			"y": 0,
+			"w": 520,
+			"h": 520,
+			"title": "Blocking popup"
+		},
+		"mac-blocking-stacked.dc.html": {
+			"x": 2060,
+			"y": 640,
+			"w": 520,
+			"h": 700,
+			"title": "Blocking popup · stacked"
+		},
+		"mac-blocking-reply.dc.html": {
+			"x": 2060,
+			"y": 1460,
+			"w": 520,
+			"h": 560,
+			"title": "Blocking popup · reply"
+		},
+		"mac-blocking-no-waiter.dc.html": {
+			"x": 2060,
+			"y": 2140,
+			"w": 520,
+			"h": 600,
+			"title": "Blocking popup · agent stopped waiting, answered elsewhere"
+		},
+		"mac-completion-toast.dc.html": {
+			"x": 2660,
+			"y": 0,
+			"w": 520,
+			"h": 320,
+			"title": "Completion toast"
+		},
+		"mac-native-banner.dc.html": {
+			"x": 3260,
+			"y": 0,
+			"w": 520,
+			"h": 320,
+			"title": "Native notification · Your input is needed"
+		},
+		"mac-native-banner-expanded.dc.html": {
+			"x": 3260,
+			"y": 440,
+			"w": 520,
+			"h": 440,
+			"title": "Non-blocking · expanded with actions"
+		},
+		"mac-generic-row.dc.html": {
+			"x": 3860,
+			"y": 0,
+			"w": 460,
+			"h": 460,
+			"title": "Generic · silent inbox rows"
+		},
+		"mac-conversation.dc.html": {
+			"x": 4400,
+			"y": 0,
+			"w": 1180,
+			"h": 820,
+			"title": "Conversation detail"
+		},
+		"settings-notifications.dc.html": {
+			"x": 5900,
+			"y": 0,
+			"w": 1100,
+			"h": 820,
+			"title": "Settings · notifications per class"
+		},
+		"settings-quiet-focus.dc.html": {
+			"x": 7080,
+			"y": 0,
+			"w": 1100,
+			"h": 820,
+			"title": "Settings · quiet hours and Focus"
+		},
+		"settings-sources.dc.html": {
+			"x": 8260,
+			"y": 0,
+			"w": 1100,
+			"h": 820,
+			"title": "Settings · sources"
+		},
+		"settings-rules.dc.html": {
+			"x": 9440,
+			"y": 0,
+			"w": 1100,
+			"h": 940,
+			"title": "Settings · rules"
+		},
+		"settings-rules-error.dc.html": {
+			"x": 9440,
+			"y": 1060,
+			"w": 1100,
+			"h": 520,
+			"title": "Settings · rules with a parse error"
+		},
+		"settings-phone.dc.html": {
+			"x": 10620,
+			"y": 0,
+			"w": 1100,
+			"h": 1000,
+			"title": "Settings · phone"
+		},
+		"settings-phone-pairing.dc.html": {
+			"x": 10620,
+			"y": 1120,
+			"w": 1100,
+			"h": 640,
+			"title": "Settings · pair the optional iPhone app"
+		},
+		"ios-inbox.dc.html": {
+			"x": 12040,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app, optional · inbox"
+		},
+		"ios-detail.dc.html": {
+			"x": 12510,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app, optional · detail"
+		},
+		"ios-detail-answered.dc.html": {
+			"x": 12510,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone app, optional · detail answered"
+		},
+		"ios-lock-screen.dc.html": {
+			"x": 12980,
+			"y": 0,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · ntfy on the lock screen"
+		},
+		"ios-lock-screen-expanded.dc.html": {
+			"x": 12980,
+			"y": 964,
+			"w": 390,
+			"h": 844,
+			"title": "iPhone · ntfy expanded, summary vs minimal"
+		},
+		"watch.dc.html": {
+			"x": 13450,
+			"y": 0,
+			"w": 640,
+			"h": 420,
+			"title": "Apple Watch · blocking vs completion"
+		}
+	},
+	"order": [
+		"Main.dc.html",
+		"mac-menubar-icons.dc.html",
+		"mac-popover.dc.html",
+		"mac-popover-empty.dc.html",
+		"mac-blocking-popup.dc.html",
+		"mac-blocking-stacked.dc.html",
+		"mac-blocking-reply.dc.html",
+		"mac-blocking-no-waiter.dc.html",
+		"mac-completion-toast.dc.html",
+		"mac-native-banner.dc.html",
+		"mac-native-banner-expanded.dc.html",
+		"mac-generic-row.dc.html",
+		"mac-conversation.dc.html",
+		"settings-notifications.dc.html",
+		"settings-quiet-focus.dc.html",
+		"settings-sources.dc.html",
+		"settings-rules.dc.html",
+		"settings-rules-error.dc.html",
+		"settings-phone.dc.html",
+		"settings-phone-pairing.dc.html",
+		"ios-inbox.dc.html",
+		"ios-detail.dc.html",
+		"ios-detail-answered.dc.html",
+		"ios-lock-screen.dc.html",
+		"ios-lock-screen-expanded.dc.html",
+		"watch.dc.html"
+	],
+	"notes": {
+		"group-mac": {
+			"x": 0,
+			"y": -300,
+			"text": "Mac",
+			"kind": "title1",
+			"maxW": 5580
+		},
+		"group-settings": {
+			"x": 5900,
+			"y": -300,
+			"text": "Settings, inside the main window",
+			"kind": "title1",
+			"maxW": 5820
+		},
+		"group-phone": {
+			"x": 12040,
+			"y": -300,
+			"text": "iPhone and Watch",
+			"kind": "title1",
+			"maxW": 2050
+		}
+	},
+	"designSystems": []
+}

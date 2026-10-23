@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings rules</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.sr-board{height:940px}
+.win{height:880px}
+.arrow{color:var(--ink-3)}
+</style>
+</helmet>
+<div class="board desk set-board sr-board">
+	<div class="window set-win win">
+		<nav class="sidebar" aria-label="Settings">
+			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
+			<a class="side-item" href="mac-conversation.dc.html"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.chevron_left}}"></path></svg><span class="grow">Inbox</span></a>
+			<div class="side-head">Settings</div>
+			<a class="side-item" href="settings-notifications.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg><span class="grow">Notifications</span></a>
+			<a class="side-item" href="settings-quiet-focus.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg><span class="grow">Quiet hours and Focus</span></a>
+			<a class="side-item" href="settings-sources.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg><span class="grow">Sources</span></a>
+			<div class="side-item sel"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg><span class="grow">Rules</span></div>
+			<a class="side-item" href="settings-phone.dc.html"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.iphone}}"></path></svg><span class="grow">iPhone</span></a>
+			<div class="side-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg><span class="grow">General</span></div>
+		</nav>
+		<main class="content">
+			<div class="toolbar">
+				<div class="headline" style="font-size: 15px; flex: 1">Rules</div>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.doc_text}}"></path></svg>Open rules.toml</button>
+			</div>
+			<div class="set-pane">
+				<p class="lede">Matched top to bottom; the first match wins. A message's declared class beats every rule unless the rule overrides. Changes here and in rules.toml stay in sync</p>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet}}"></path></svg>
+						<div><div class="headline">Your rules</div><div class="caption">Reloaded from rules.toml at 14:05</div></div>
+						<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.plus}}"></path></svg>Add rule</button>
+					</div>
+					<div class="row" style="border-top: 1px solid var(--line-faint)">
+						<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+						<div><div class="headline">Deploys need me</div><div class="tags"><span class="tag mono">cwd ~/Developer/infra/**</span><span class="tag mono">title ~ deploy</span><span class="tag plain">to</span><span class="tag block">Blocked</span><span class="tag">overrides</span></div></div>
+						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+					</div>
+					<div class="row">
+						<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
+						<div><div class="headline">Quiet the docs bot</div><div class="tags"><span class="tag mono">source docs-bot</span><span class="tag plain">to</span><span class="tag info">Other</span><span class="tag">overrides</span></div></div>
+						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+					</div>
+					<div class="row">
+						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+						<div><div class="headline">Background agent finished</div><div class="tags"><span class="tag mono">event claude-code.notification.agent_completed</span><span class="tag plain">to</span><span class="tag done">Finished</span></div></div>
+						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+					</div>
+					<div class="row">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.eye_slash}}"></path></svg>
+						<div><div class="headline">Mute auth success</div><div class="tags"><span class="tag mono">event *.auth_success</span><span class="tag plain">to</span><span class="tag">Muted, history only</span></div></div>
+						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+					</div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>
+						<div><div class="headline">Built-in · Claude Code</div><div class="caption">13 rules shipped with the app, after yours</div></div>
+						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_down}}"></path></svg>
+					</div>
+					<div class="row" style="border-top: 1px solid var(--line-faint)">
+						<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+						<div><div class="headline" style="font-weight: 500">Permission request</div><div class="tags"><span class="tag mono">claude-code.permission_request</span><span class="tag plain">to</span><span class="tag block">Blocked</span></div></div>
+						<span></span>
+					</div>
+					<div class="row">
+						<svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+						<div><div class="headline" style="font-weight: 500">Idle for 60 s</div><div class="tags"><span class="tag mono">claude-code.notification.idle_prompt</span><span class="tag plain">to</span><span class="tag ask">Question</span></div></div>
+						<span></span>
+					</div>
+					<div class="row">
+						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+						<div><div class="headline" style="font-weight: 500">Turn ended, no background work</div><div class="tags"><span class="tag mono">claude-code.stop</span><span class="tag plain">to</span><span class="tag done">Finished</span></div></div>
+						<span></span>
+					</div>
+					<div class="row"><span></span><a class="link" href="#more" style="font-size: 12px">Show 10 more</a><span></span></div>
+				</div>
+
+				<div class="card">
+					<div class="card-head">
+						<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.magnifyingglass}}"></path></svg>
+						<div><div class="headline">Try a message</div><div class="caption">Paste a message to see which rule catches it</div></div>
+						<span></span>
+					</div>
+					<div class="card-row">
+						<span class="grow field mono" style="font-size: 12px">{"source":{"agent":"docs-bot"},"class":"action_blocking","title":"Publish?"}</span>
+						<span class="tag info">Other</span><span class="caption">via Quiet the docs bot</span>
+					</div>
+				</div>
+			</div>
+		</main>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":940}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone inbox</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.conn{display:flex;align-items:center;gap:6px;padding:2px 16px 0;font-size:13px;line-height:18px;color:var(--ink-3)}
+</style>
+</helmet>
+<div class="ios">
+	<div style="height: 54px"></div>
+	<div class="navbar">
+		<span></span>
+		<button class="btn plain icon" aria-label="Settings" style="color: var(--accent)"><svg class="i i22" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
+	</div>
+	<div class="large">Inbox</div>
+	<div class="conn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.lock_shield}}"></path></svg>mac-mini over Tailscale · updated now</div>
+
+	<div class="group-head">Blocked · 2</div>
+	<div class="group">
+		<a class="irow" href="ios-detail.dc.html" style="color: inherit; text-decoration: none">
+			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+			<div><div class="irow-title clamp2">Allow Bash: cargo test -p ingest -- --nocapture?</div><div class="tags"><span class="tag">api · fix flaky test</span><span class="tag plain" style="font-size: 12px">2 min</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</a>
+		<div class="irow">
+			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<div><div class="irow-title clamp2">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag plain" style="font-size: 12px">6 min</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+	</div>
+
+	<div class="group-head">Questions · 1</div>
+	<div class="group">
+		<div class="irow">
+			<svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<div><div class="irow-title">Which title for the 2.4 release notes?</div><div class="tags"><span class="tag">docs · release notes</span><span class="tag plain" style="font-size: 12px">12 min</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+	</div>
+
+	<div class="group-head">Finished · 2</div>
+	<div class="group">
+		<div class="irow">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+			<div><div class="irow-title" style="font-weight: 500">Cart totals round once at checkout; 31 tests pass</div><div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag plain" style="font-size: 12px">18 min</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+		<div class="irow">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+			<div><div class="irow-title" style="font-weight: 500">Search filters persist in the URL</div><div class="tags"><span class="tag">web · WEB-139 search filters</span><span class="tag plain" style="font-size: 12px">1 h</span></div></div>
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 4px"><path d="{{ic.chevron_right}}"></path></svg>
+		</div>
+	</div>
+	<div class="caption" style="padding: 10px 32px; font-size: 13px">4 silent updates in History</div>
+	<div class="home"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

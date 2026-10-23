@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundations</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.found{width:760px;height:1100px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.appicon{width:44px;height:44px;border-radius:11px;background:#1d1d1f;position:relative;flex:none}
+.appicon svg{position:absolute;left:10px;top:10px;width:24px;height:24px}
+.swatch{width:14px;height:14px;border-radius:4px;flex:none;border:1px solid rgba(0,0,0,.08)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.act{display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--line-faint)}
+.act .grow{flex:1}
+</style>
+</helmet>
+<div class="board found">
+	<div style="display: flex; align-items: center; gap: 12px">
+		<div class="appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
+		<div style="flex: 1">
+			<div class="title-large">Agent Notifier</div>
+			<div class="body">Foundations every surface follows: one colour and one SF Symbol per class</div>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-head">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.square_stack}}"></path></svg>
+			<div><div class="headline">Classes</div><div class="caption">Same colour, symbol and name on the Mac, the iPhone and the Watch; action required is one symbol, blocking or not told apart by colour</div></div>
+			<span></span>
+		</div>
+		<div class="row" style="border-top: 1px solid var(--line-faint)">
+			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<div>
+				<div class="headline">Blocked <span class="mono c-ink3" style="font-weight: 400">action_blocking</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #d70015; width: 10px; height: 10px"></span>Red #D70015</span><span class="tag mono">exclamationmark.bubble.fill</span><span class="tag plain">Persistent popup, notification and sound · phone after a 2 min grace</span></div>
+			</div>
+			<span class="tag block">Blocked</span>
+		</div>
+		<div class="row">
+			<svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<div>
+				<div class="headline">Question <span class="mono c-ink3" style="font-weight: 400">action_nonblocking</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #e8710a; width: 10px; height: 10px"></span>Orange #E8710A</span><span class="tag mono">exclamationmark.bubble.fill</span><span class="tag plain">Native banner and inbox · phone digest every 30 min</span></div>
+			</div>
+			<span class="tag ask">Question</span>
+		</div>
+		<div class="row">
+			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+			<div>
+				<div class="headline">Permission <span class="mono c-ink3" style="font-weight: 400">approve and deny actions</span></div>
+				<div class="tags"><span class="tag mono">hand.raised.fill</span><span class="tag plain">Replaces the class symbol when an agent asks to run a tool; keeps its class colour, red when blocking, orange when not</span></div>
+			</div>
+			<span class="tag block"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>Blocked</span>
+		</div>
+		<div class="row">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+			<div>
+				<div class="headline">Finished <span class="mono c-ink3" style="font-weight: 400">completion</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #2e9e4f; width: 10px; height: 10px"></span>Green #2E9E4F</span><span class="tag mono">checkmark.circle.fill</span><span class="tag plain">Toast for 6 s, none when its app is in front · phone only when away</span></div>
+			</div>
+			<span class="tag done">Finished</span>
+		</div>
+		<div class="row">
+			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
+			<div>
+				<div class="headline">Other <span class="mono c-ink3" style="font-weight: 400">generic</span></div>
+				<div class="tags"><span class="tag"><span class="swatch" style="background: #8e8e93; width: 10px; height: 10px"></span>Grey #8E8E93</span><span class="tag mono">info.circle.fill</span><span class="tag plain">Inbox only, silent, never on the phone</span></div>
+			</div>
+			<span class="tag info">Other</span>
+		</div>
+	</div>
+
+	<div class="grid2">
+		<div class="card">
+			<div class="card-head">
+				<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis_circle}}"></path></svg>
+				<div><div class="headline">Actions</div><div class="caption">Answers need a waiting agent; the rest always show</div></div>
+				<span></span>
+			</div>
+			<div class="act"><svg class="i c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg><span class="grow">Approve</span><span class="mono c-ink3">checkmark</span></div>
+			<div class="act"><svg class="i c-danger" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg><span class="grow">Deny</span><span class="mono c-ink3">xmark</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg><span class="grow">Reply</span><span class="mono c-ink3">arrowshape.turn.up.left</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg><span class="grow">Open conversation</span><span class="mono c-ink3">arrow.up.forward.app</span></div>
+			<div class="act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg><span class="grow">Snooze · the agent keeps working meanwhile</span><span class="mono c-ink3">moon.zzz</span></div>
+			<div class="act"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg><span class="grow">More · Mark done, Why this ping</span><span class="mono c-ink3">ellipsis</span></div>
+		</div>
+
+		<div style="display: flex; flex-direction: column; gap: 16px">
+			<div class="card">
+				<div class="card-head">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.slider_horizontal_3}}"></path></svg>
+					<div><div class="headline">Grounds and type</div><div class="caption">Light greys, 1 px borders, no box inside a box</div></div>
+					<span></span>
+				</div>
+				<div class="act"><span class="swatch" style="background: #f2f2f7"></span><span class="grow">Track and code ground</span><span class="mono c-ink3">#F2F2F7</span></div>
+				<div class="act"><span class="swatch" style="background: #e0e0e0"></span><span class="grow">Card and panel border</span><span class="mono c-ink3">#E0E0E0</span></div>
+				<div class="act"><span class="swatch" style="background: #007aff"></span><span class="grow">Accent, controls only</span><span class="mono c-ink3">#007AFF</span></div>
+				<div class="act"><span class="swatch" style="background: #636366"></span><span class="grow">Meta text, 4.5:1 on the track</span><span class="mono c-ink3">#636366</span></div>
+				<div class="act"><span class="grow" style="font-family: var(--font)">SF Pro · 13 body, 11 floor, 22 title</span><span class="mono c-ink3">system font</span></div>
+			</div>
+			<div class="card">
+				<div class="card-head">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.antenna_radiowaves_left_and_right}}"></path></svg>
+					<div><div class="headline">Sources</div><div class="caption">Brand marks stay SVG; everything else is SF Symbols</div></div>
+					<span></span>
+				</div>
+				<div class="act"><svg class="i" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg><span class="grow">Claude Code</span><span class="caption">hooks plugin</span></div>
+				<div class="act"><svg class="i" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg><span class="grow">Codex</span><span class="caption">MCP or CLI</span></div>
+				<div class="act"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.network}}"></path></svg><span class="grow">Any agent</span><span class="caption">HTTP API</span></div>
+			</div>
+		</div>
+	</div>
+
+	<div class="callout">
+		<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
+		<div class="body">Red marks Blocked and orange marks Question; the hand appears only on permission prompts. Deny keeps the system red for destructive actions. Tags sit on a row's second line; a tile's control sits at the end of its title line</div>
+		<span></span>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":760,"height":1100}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blocking popup stacked</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.bs-board{width:520px;height:700px}
+.stack{position:absolute;top:40px;right:16px;width:380px;display:flex;flex-direction:column;gap:8px}
+.bp{padding:14px;display:flex;flex-direction:column;gap:10px}
+.bp-head{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start}
+.bp-head > .i{margin-top:1px}
+.bp-acts{display:flex;gap:6px;align-items:center}
+.mini{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:10px 12px 10px 14px}
+.mini > .i{margin-top:1px}
+.more{align-self:flex-end;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid var(--line);box-shadow:var(--shadow-panel);font-size:12px;font-weight:500}
+.note{position:absolute;left:28px;bottom:24px;width:300px}
+</style>
+</helmet>
+<div class="board desk bs-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">5</span></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:51</span>
+	</div>
+
+	<div class="stack">
+		<div class="panel bp">
+			<div class="bp-head">
+				<span class="ripple c-block"><svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg></span>
+				<div>
+					<div class="headline">Action required</div>
+					<div class="tags" style="margin-top: 2px"><span class="tag">web · WEB-142 checkout</span><span class="tag plain">Claude desktop</span><span class="tag plain">now</span></div>
+				</div>
+				<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+			</div>
+			<div class="title" style="font-size: 15px; line-height: 20px">Allow Edit: src/checkout/cart.ts?</div>
+			<div class="code">- const total = lines.reduce(sumRounded, 0);
++ const total = round(lines.reduce(sum, 0));</div>
+			<div class="bp-acts">
+				<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve<span class="kbd" style="color: #fff">⌘↩</span></button>
+				<button class="btn danger"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
+				<span style="flex: 1"></span>
+				<button class="btn icon" aria-label="Open conversation"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
+				<button class="btn icon" aria-label="Snooze 15 minutes; the agent keeps working meanwhile"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></button>
+			</div>
+		</div>
+
+		<div class="panel mini">
+			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+			<div>
+				<div class="headline">Allow WebFetch: docs.rs?</div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag plain">9 min</span><span class="tag">re-pinged 1 of 3</span></div>
+			</div>
+			<button class="btn sm primary">Approve</button>
+		</div>
+
+		<div class="panel mini">
+			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<div>
+				<div class="headline">Which cluster gets the new certificates first?</div>
+				<div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag plain">Codex</span><span class="tag plain">13 min</span></div>
+			</div>
+			<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_down}}"></path></svg>
+		</div>
+
+		<button class="more"><svg class="i i14 c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble}}"></path></svg>2 more waiting · Open inbox</button>
+	</div>
+
+	<div class="note">
+		<div class="board-label">Stacked</div>
+		<div class="caption" style="color: var(--ink-2)">One panel per conversation, newest in front, at most three; a collapsed panel expands on click and keeps one-click Approve when its question fits one line</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":700}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

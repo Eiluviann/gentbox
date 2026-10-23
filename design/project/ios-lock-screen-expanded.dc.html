@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>iPhone ntfy expanded</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.blur{position:absolute;inset:0;background:rgba(20,26,34,.55)}
+.mode{position:relative;font-size:12px;line-height:16px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.8);margin:0 22px 6px}
+.legend{position:relative;margin:10px 22px 0;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
+.notif{grid-template-columns:38px minmax(0,1fr) 36px}
+.thumb{width:36px;height:36px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;align-self:center}
+</style>
+</helmet>
+<div class="lock">
+	<div class="blur"></div>
+	<div style="height: 70px"></div>
+
+	<div class="mode">Summary mode · long press</div>
+	<div class="notif" style="position: relative">
+		<div class="notif-app">ntfy</div>
+		<div>
+			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
+			<div class="notif-title">URGENT: Action required<span class="when">now</span></div>
+			<div class="notif-body">Claude Code wants to run a command in api</div>
+		</div>
+		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+	</div>
+	<div class="lock-action" style="position: relative">Approve<svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg></div>
+	<div class="lock-action" style="position: relative; margin-top: 1px">Snooze 15 min<svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></div>
+	<div class="legend">Answers go back through the ntfy answer topic. Deny is offered only when it is not destructive; replies need the Mac or the optional iPhone app</div>
+
+	<div style="height: 36px"></div>
+	<div class="mode">Minimal mode · long press</div>
+	<div class="notif" style="position: relative; grid-template-columns: 38px minmax(0, 1fr)">
+		<div class="notif-app">ntfy</div>
+		<div>
+			<div class="notif-sens"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>TIME SENSITIVE</div>
+			<div class="notif-title">URGENT: Action required<span class="when">now</span></div>
+		</div>
+	</div>
+	<div class="legend">The title phrase only: no description, icon or answer buttons, since you cannot approve what you cannot read</div>
+	<div class="home" style="background: #fff"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>
