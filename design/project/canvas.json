@@ -28,12 +28,12 @@
 			"x": 1520,
 			"y": 0,
 			"w": 460,
-			"h": 1060,
-			"title": "Menu-bar inbox popover"
+			"h": 760,
+			"title": "Menu-bar inbox popover · next up"
 		},
 		"mac-popover-empty.dc.html": {
 			"x": 1520,
-			"y": 1840,
+			"y": 2480,
 			"w": 460,
 			"h": 440,
 			"title": "Popover · all clear, quiet hours"
@@ -262,13 +262,6 @@
 			"h": 600,
 			"title": "Outcomes afterwards · inbox and conversation"
 		},
-		"mac-popover-topic-menu.dc.html": {
-			"x": 1520,
-			"y": 1180,
-			"w": 460,
-			"h": 540,
-			"title": "Popover · thread menu, muted and closed"
-		},
 		"mac-topic.dc.html": {
 			"x": 4400,
 			"y": 0,
@@ -290,33 +283,27 @@
 			"h": 880,
 			"title": "Thread detail · Phase 3 · ingest across two sessions"
 		},
-		"mac-popover-option-a.dc.html": {
-			"x": 0,
-			"y": 4900,
+		"mac-popover-undo.dc.html": {
+			"x": 1520,
+			"y": 880,
 			"w": 460,
-			"h": 960,
-			"title": "Option A · needs you first"
+			"h": 800,
+			"title": "Popover · undo before sending"
 		},
-		"mac-popover-option-b.dc.html": {
-			"x": 540,
-			"y": 4900,
+		"mac-popover-item-menu.dc.html": {
+			"x": 1520,
+			"y": 1800,
 			"w": 460,
-			"h": 960,
-			"title": "Option B · topics, one level less"
-		},
-		"mac-popover-option-c.dc.html": {
-			"x": 1080,
-			"y": 4900,
-			"w": 460,
-			"h": 960,
-			"title": "Option C · next up"
+			"h": 560,
+			"title": "Popover · item menu, mute and close"
 		}
 	},
 	"order": [
 		"Main.dc.html",
 		"mac-menubar-icons.dc.html",
 		"mac-popover.dc.html",
-		"mac-popover-topic-menu.dc.html",
+		"mac-popover-undo.dc.html",
+		"mac-popover-item-menu.dc.html",
 		"mac-popover-empty.dc.html",
 		"mac-blocking-popup.dc.html",
 		"mac-blocking-stacked.dc.html",
@@ -352,10 +339,7 @@
 		"ios-inbox.dc.html",
 		"ios-detail.dc.html",
 		"ios-detail-answered.dc.html",
-		"ios-history.dc.html",
-		"mac-popover-option-a.dc.html",
-		"mac-popover-option-b.dc.html",
-		"mac-popover-option-c.dc.html"
+		"ios-history.dc.html"
 	],
 	"notes": {
 		"group-mac": {
@@ -378,13 +362,6 @@
 			"text": "iPhone and Watch",
 			"kind": "title1",
 			"maxW": 4170
-		},
-		"group-popover-options": {
-			"x": 0,
-			"y": 4600,
-			"text": "Popover proposals · same messages, three layouts",
-			"kind": "title1",
-			"maxW": 1540
 		}
 	},
 	"designSystems": []

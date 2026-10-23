@@ -40,14 +40,13 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | --- | --- | --- |
 | Mac | `Main` foundations | |
 | | `mac-menubar-icons` | |
-| | `mac-popover` inbox grouped by topic | `mac-popover-topic-menu` (thread menu, muted and closed), `mac-popover-empty` |
+| | `mac-popover` next up: the blocked-on message as a full card, the rest as a two-line list, topic and thread as a breadcrumb | `mac-popover-undo` (actioned items held with a bar and Undo before sending), `mac-popover-item-menu` (mute and close from a message's menu), `mac-popover-empty` |
 | | `mac-blocking-popup` decision, waiting, urgent | `mac-blocking-stacked`, `mac-blocking-reply`, `mac-blocking-no-waiter`, `mac-popup-deferrable` (action, paused, Defer), `mac-popup-rescinded` (withdrawn transition and rows) |
 | | `mac-completion-toast` | |
 | | `mac-native-banner` decision, agent working | `mac-native-banner-expanded` |
 | | `mac-generic-row` silent inbox rows | |
 | | `mac-topic` topic detail: its threads | `mac-thread` (thread detail: open items and a timeline across its sessions) |
 | | `mac-conversation` detail: pending action, timeline, markdown body | `mac-outcomes` (answered, done, deferred, dismissed and withdrawn, afterwards in History and the conversation) |
-| Popover proposals | `mac-popover-option-a` needs you first: sorted by need, topic and thread as a breadcrumb | `mac-popover-option-b` (topics, threads folded into line two), `mac-popover-option-c` (next up: one full card, the rest as a list) |
 | Settings | `settings-notifications` policy by type, blocking-level and urgent rules, presence | |
 | | `settings-quiet-focus` Focus status permission (`INFocusStatusCenter`); Full Disk Access only as a note for builds without the paid team | |
 | | `settings-sources` per-source switch, wait-for-answers timeout | |
@@ -62,18 +61,26 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | | `ios-detail` | `ios-detail-answered` |
 | | `ios-history` | |
 
+## Undo before sending
+
+Anything acted on in the popover (approve, deny, a choice, reply, done, defer, dismiss) shrinks to a small box with a 5 s bar and Undo (⌘Z for the last one). Nothing is sent while the bar runs; Undo puts the message back on top as the card. Closing the popover does not cancel the timer, and several held actions stack, newest on top.
+
 ## Conflicts with the Phase 1 docs
 
 None open. ADR 0007 settled Snooze (local) versus Defer (an answer), permission prompts (decision_required + blocking), the per-source switch and the "wait for answers" timeout (Settings › Sources), and rules edited in the app. Still to confirm there: whether "URGENT:" follows the urgent flag, as drawn.
 
+Open: the undo window. `architecture.md` has the UI send answers straight to the hub actor, which closes the message on the first answer ("first answer wins"). Holding an answer for 5 s needs a decision on where the hold lives (in the app before the command is sent, or as a pending state in the hub), what the iPhone shows meanwhile, and what happens if the iPhone answers during the window (the held Mac answer would then get 409 and show "Already answered on iPhone").
+
 ## Open design questions
 
 1. Is the agent mark (speech bubble with `>_`) right?
-2. Inline Approve/Deny in popover rows and one-click Approve on collapsed stacked panels: keep, or require the full panel?
+2. The popover now answers only from the top card. One-click Approve on collapsed stacked panels: keep, or require the full panel?
 3. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
 4. Dark-mode boards for popups and windows before Phase 3?
 5. Popups say "Action required" without "URGENT:"; should they use the exact notification phrase?
 6. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
+7. Should popups and iPhone actions get the same undo window, and is 5 s right (fixed, or a setting)?
+8. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
 
 ## Tools
 
