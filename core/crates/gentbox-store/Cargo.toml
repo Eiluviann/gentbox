@@ -1,0 +1,22 @@
+[package]
+name = "gentbox-store"
+description = "Gentbox persistence: SQLite store, migrations and retention"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+gentbox-core = { path = "../gentbox-core" }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = "1.0.229"
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["serde-well-known"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
+time = { version = "0.3.55", features = ["macros"] }
