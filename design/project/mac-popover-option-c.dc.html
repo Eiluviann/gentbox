@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popover option C · next up</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.pp-board{height:960px}
+</style>
+</helmet>
+<div class="board desk pp-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">1</span></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:44</span>
+	</div>
+
+	<div class="popover pp-pop">
+		<div class="pp-head">
+			<div class="title" style="flex: 1">Inbox</div>
+			<button class="btn plain icon" aria-label="Filter"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.line_3_horizontal_decrease_circle}}"></path></svg></button>
+			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
+		</div>
+
+		<div class="pp-hero urgent-item">
+			<div class="pp-ctx" style="margin-bottom: 6px"><svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox}}"></path></svg>Gentbox › Phase 3 · ingest · Claude Code · 2 min</div>
+			<div style="display: flex; gap: 8px; align-items: flex-start">
+				<svg class="i i18 c-dec" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 1px; flex: none"><path d="{{ic.checkmark_shield}}"></path></svg>
+				<div style="flex: 1; min-width: 0">
+					<div class="headline">Allow Bash to run a command?</div>
+					<div class="pp-cmd">cargo test -p ingest -- --nocapture</div>
+					<div class="tags"><span class="tag wait">Agent waiting</span></div>
+				</div>
+			</div>
+			<div class="pp-acts">
+				<button class="btn primary">Approve<span class="kbd">↩</span></button>
+				<button class="btn danger">Deny<span class="kbd">⌘⌫</span></button>
+				<button class="btn">Reply<span class="kbd">R</span></button>
+			</div>
+		</div>
+
+		<div class="pp-sec">Then</div>
+		<div class="pp-line">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Sign in to the payments sandbox</div>
+				<div class="pp-ctx">Gentbox › v1.1 · 9 min</div>
+			</div>
+			<span class="pp-state paused">Paused</span>
+		</div>
+		<div class="pp-line">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Which cluster gets the new certificates first?</div>
+				<div class="pp-ctx">infra · rotate staging certs · 6 min</div>
+			</div>
+			<span class="pp-state paused">Paused</span>
+		</div>
+		<div class="pp-line">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Which title for the 1.1 release notes?</div>
+				<div class="pp-ctx">Gentbox › v1.1 · 12 min</div>
+			</div>
+			<span class="pp-state working">Working</span>
+		</div>
+
+		<div class="pp-sec ruled">Finished</div>
+		<div class="pp-line urgent-item">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one">Ingest auth accepts rotated tokens; 12 tests pass</div>
+				<div class="pp-ctx">Gentbox › Phase 3 · ingest · Codex · 40 min</div>
+			</div>
+			<span></span>
+		</div>
+		<div class="pp-line">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one">Search filters persist in the URL; 18 tests pass</div>
+				<div class="pp-ctx">web · WEB-139 search filters · Claude Code · 20 min</div>
+			</div>
+			<span></span>
+		</div>
+
+		<div class="pp-foot">
+			<span class="pp-keys">↑ ↓ to move · ↩ to answer · Space to open</span>
+			<a class="link" href="mac-topic.dc.html" style="font-size: 12px">Open Gentbox</a>
+		</div>
+	</div>
+
+	<div class="pp-note">
+		<div class="board-label">Option C · next up</div>
+		<ul>
+			<li>One message at a time gets the full card: the one the agent is blocked on, with big buttons and keyboard keys</li>
+			<li>Everything else is a two-line list with its state on the right. Selecting one moves it into the card</li>
+			<li>The popover can be cleared from the keyboard without reading the whole list</li>
+			<li>Topics and threads only appear as the grey breadcrumb, as in option A</li>
+		</ul>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":960}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

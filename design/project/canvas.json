@@ -289,6 +289,27 @@
 			"w": 1180,
 			"h": 880,
 			"title": "Thread detail · Phase 3 · ingest across two sessions"
+		},
+		"mac-popover-option-a.dc.html": {
+			"x": 0,
+			"y": 4900,
+			"w": 460,
+			"h": 960,
+			"title": "Option A · needs you first"
+		},
+		"mac-popover-option-b.dc.html": {
+			"x": 540,
+			"y": 4900,
+			"w": 460,
+			"h": 960,
+			"title": "Option B · topics, one level less"
+		},
+		"mac-popover-option-c.dc.html": {
+			"x": 1080,
+			"y": 4900,
+			"w": 460,
+			"h": 960,
+			"title": "Option C · next up"
 		}
 	},
 	"order": [
@@ -331,7 +352,10 @@
 		"ios-inbox.dc.html",
 		"ios-detail.dc.html",
 		"ios-detail-answered.dc.html",
-		"ios-history.dc.html"
+		"ios-history.dc.html",
+		"mac-popover-option-a.dc.html",
+		"mac-popover-option-b.dc.html",
+		"mac-popover-option-c.dc.html"
 	],
 	"notes": {
 		"group-mac": {
@@ -354,6 +378,13 @@
 			"text": "iPhone and Watch",
 			"kind": "title1",
 			"maxW": 4170
+		},
+		"group-popover-options": {
+			"x": 0,
+			"y": 4600,
+			"text": "Popover proposals · same messages, three layouts",
+			"kind": "title1",
+			"maxW": 1540
 		}
 	},
 	"designSystems": []

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popover option A · needs you first</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.pp-board{height:960px}
+</style>
+</helmet>
+<div class="board desk pp-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">1</span></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:44</span>
+	</div>
+
+	<div class="popover pp-pop">
+		<div class="pp-head">
+			<div class="title" style="flex: 1">Inbox</div>
+			<span class="pp-seg"><span class="on">By need</span><span>By topic</span></span>
+			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
+		</div>
+
+		<div class="pp-sec">Waiting on you</div>
+		<div class="pp-item urgent-item">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Allow Bash: cargo test -p ingest -- --nocapture?</div>
+				<div class="tags"><span class="tag wait">Agent waiting</span><span class="pp-ctx"><svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox}}"></path></svg>Gentbox › Phase 3 · ingest · 2 min</span></div>
+				<div class="pp-acts">
+					<button class="btn sm primary"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve</button>
+					<button class="btn sm danger"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
+				</div>
+			</div>
+			<button class="btn plain sm icon menu" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+
+		<div class="pp-sec ruled">When you can</div>
+		<div class="pp-item hover">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Sign in to the payments sandbox so the end-to-end tests can run</div>
+				<div class="tags"><span class="tag paused">Paused · can defer</span><span class="pp-ctx"><svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox}}"></path></svg>Gentbox › v1.1 · 9 min</span></div>
+				<div class="pp-acts">
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Done</button>
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
+				</div>
+			</div>
+			<button class="btn plain sm icon menu" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="pp-item">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Which cluster gets the new certificates first?</div>
+				<div class="tags"><span class="tag paused">Paused · can defer</span><span class="pp-ctx"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bubble_left_and_bubble_right}}"></path></svg>infra · rotate staging certs · 6 min</span></div>
+				<div class="pp-acts">
+					<button class="btn sm">staging-eu</button>
+					<button class="btn sm">staging-us</button>
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
+				</div>
+			</div>
+			<button class="btn plain sm icon menu" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="pp-item">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Which title for the 1.1 release notes?</div>
+				<div class="tags"><span class="tag working">Agent working</span><span class="pp-ctx"><svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox}}"></path></svg>Gentbox › v1.1 · 12 min</span></div>
+			</div>
+			<button class="btn plain sm icon menu" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+
+		<div class="pp-sec ruled">Finished</div>
+		<div class="pp-item urgent-item">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+			<div>
+				<div class="headline pp-quiet pp-one">Ingest auth accepts rotated tokens; 12 tests pass</div>
+				<div class="tags"><span class="pp-ctx"><svg class="i c-release" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.shippingbox}}"></path></svg>Gentbox › Phase 3 · ingest · Codex · 40 min</span></div>
+			</div>
+			<button class="btn plain sm icon menu" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="pp-item">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+			<div>
+				<div class="headline pp-quiet pp-one">Search filters persist in the URL; 18 tests pass</div>
+				<div class="tags"><span class="pp-ctx"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bubble_left_and_bubble_right}}"></path></svg>web · WEB-139 search filters · Claude Code · 20 min</span></div>
+			</div>
+			<button class="btn plain sm icon menu" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+
+		<div class="pp-foot">
+			<svg class="i i14 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>
+			<span class="caption" style="flex: 1">Dependency upgrades muted · iPhone rings after 2 min</span>
+			<a class="link" href="mac-topic.dc.html" style="font-size: 12px">Open Gentbox</a>
+		</div>
+	</div>
+
+	<div class="pp-note">
+		<div class="board-label">Option A · needs you first</div>
+		<ul>
+			<li>Sorted by what the agent needs from you, not by where it came from. The one blocking item is always on top</li>
+			<li>Topic and thread drop to a grey breadcrumb on line two, so the list has one level instead of three</li>
+			<li>No rules between items; only the three sections are ruled. The menu shows on hover</li>
+			<li>Finished items shrink to one line with no actions. By topic switches back to today's grouping</li>
+		</ul>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":960}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>

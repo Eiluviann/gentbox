@@ -47,6 +47,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | | `mac-generic-row` silent inbox rows | |
 | | `mac-topic` topic detail: its threads | `mac-thread` (thread detail: open items and a timeline across its sessions) |
 | | `mac-conversation` detail: pending action, timeline, markdown body | `mac-outcomes` (answered, done, deferred, dismissed and withdrawn, afterwards in History and the conversation) |
+| Popover proposals | `mac-popover-option-a` needs you first: sorted by need, topic and thread as a breadcrumb | `mac-popover-option-b` (topics, threads folded into line two), `mac-popover-option-c` (next up: one full card, the rest as a list) |
 | Settings | `settings-notifications` policy by type, blocking-level and urgent rules, presence | |
 | | `settings-quiet-focus` Focus status permission (`INFocusStatusCenter`); Full Disk Access only as a note for builds without the paid team | |
 | | `settings-sources` per-source switch, wait-for-answers timeout | |
