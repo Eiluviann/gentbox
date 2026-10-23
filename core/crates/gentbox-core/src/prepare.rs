@@ -20,6 +20,7 @@ use crate::title_guard::{
     GuardContext, GuardMode, GuardRejection, MessageTexts, guard_conversation_title,
     guard_message_texts,
 };
+use crate::topic::{ThreadRef, TopicRef};
 use crate::validate::{ValidationError, validate_message};
 
 /// Per-source strict modes (`titleGuard`, `actionPlan` in `config.toml`).
@@ -212,6 +213,17 @@ fn redact_texts(message: &mut MessageInput, warnings: &mut Vec<IngestWarning>) {
     note_redactions(warnings, "body", count);
     message.body = body;
 
+    let (conversation_title, count) = redact_optional(message.conversation.title.as_deref());
+    note_redactions(warnings, "conversation.title", count);
+    message.conversation.title = conversation_title;
+
+    if let Some(TopicRef::Key(topic)) = message.topic.as_mut() {
+        redact_group_texts(&mut topic.title, &mut topic.summary, "topic", warnings);
+    }
+    if let Some(ThreadRef::Key(thread)) = message.thread.as_mut() {
+        redact_group_texts(&mut thread.title, &mut thread.summary, "thread", warnings);
+    }
+
     if let Some(steps) = message.steps.take() {
         let redacted = steps
             .iter()
@@ -224,6 +236,20 @@ fn redact_texts(message: &mut MessageInput, warnings: &mut Vec<IngestWarning>) {
             .collect();
         message.steps = Some(redacted);
     }
+}
+
+fn redact_group_texts(
+    title: &mut Option<String>,
+    summary: &mut Option<String>,
+    prefix: &str,
+    warnings: &mut Vec<IngestWarning>,
+) {
+    let (redacted_title, count) = redact_optional(title.as_deref());
+    note_redactions(warnings, &format!("{prefix}.title"), count);
+    *title = redacted_title;
+    let (redacted_summary, count) = redact_optional(summary.as_deref());
+    note_redactions(warnings, &format!("{prefix}.summary"), count);
+    *summary = redacted_summary;
 }
 
 fn note_redactions(warnings: &mut Vec<IngestWarning>, field: &str, count: usize) {

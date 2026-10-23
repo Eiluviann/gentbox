@@ -1,6 +1,7 @@
 //! Every `docs/schema/examples/*.json` deserialises into its core type and
 //! serialises back to the same JSON.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+// The tests read files; the crate itself must not (see clippy.toml).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::disallowed_methods)]
 mod support;
 
 use std::collections::BTreeSet;

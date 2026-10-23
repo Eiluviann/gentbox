@@ -94,11 +94,11 @@ pub enum RescindError {
 
 /// Builds the effects of withdrawing one message.
 ///
-/// - **open:** the popup or toast that shows it is removed, the native
-///   notification is removed, the inbox row is kept as "Withdrawn".
-/// - **acknowledged:** closing a popup acknowledges, so no popup or toast is
-///   left to remove; the native notification may still sit in Notification
-///   Centre and is removed; the inbox row is kept.
+/// - the popup, toast and native notification that currently show the message
+///   are removed, whatever its state: acknowledging (opening the inbox,
+///   bringing the conversation forward) does not close a persistent popup, so
+///   the hub keeps [`OpenItem::delivered`] current and removal is idempotent;
+/// - the inbox row is kept as "Withdrawn".
 /// - **superseded:** the inbox row folds into `successor` instead of staying
 ///   as "Withdrawn".
 /// - a waiter with a live long-poll is woken with `rescinded`.
@@ -110,13 +110,11 @@ pub fn rescission_for(
     has_phone_channel: bool,
 ) -> Rescission {
     let mut effects = Vec::new();
-    if item.state == LifecycleState::Open {
-        if item.delivered.popup {
-            effects.push(ChannelEffect::RemovePopup);
-        }
-        if item.delivered.toast {
-            effects.push(ChannelEffect::RemoveToast);
-        }
+    if item.delivered.popup {
+        effects.push(ChannelEffect::RemovePopup);
+    }
+    if item.delivered.toast {
+        effects.push(ChannelEffect::RemoveToast);
     }
     if item.delivered.native_notification {
         effects.push(ChannelEffect::RemoveNativeNotification);

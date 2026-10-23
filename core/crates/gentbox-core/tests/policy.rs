@@ -187,10 +187,132 @@ fn blocking_badge_follows_the_blocking_level_independent_of_urgency() {
     }
 }
 
-/// Every cell × presence × Focus × quiet hours.
+/// What the policy does in a calm context, written out literally per cell of
+/// architecture §6.2 (for a message that awaits a response).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Expected {
+    mac: MacSurface,
+    native: NativeLevel,
+    sound: bool,
+    reping: Option<Reping>,
+    offer_defer: bool,
+    should_wait: bool,
+}
+
+fn calm_table() -> Vec<((MessageType, bool, Blocking), Expected)> {
+    use MacSurface::{Banner, InboxOnly, PersistentPopup, Toast};
+    use NativeLevel::{Active, None as NoNative, TimeSensitive};
+    let five = Some(Reping {
+        after: Duration::from_secs(300),
+        max: 3,
+    });
+    let ten = Some(Reping {
+        after: Duration::from_secs(600),
+        max: 2,
+    });
+    let row = |mac, native, sound, reping, offer_defer, should_wait| Expected {
+        mac,
+        native,
+        sound,
+        reping,
+        offer_defer,
+        should_wait,
+    };
+    let mut table = Vec::new();
+    for message_type in [MessageType::DecisionRequired, MessageType::ActionRequired] {
+        for (urgent, native) in [(false, Active), (true, TimeSensitive)] {
+            table.push((
+                (message_type, urgent, Blocking::Blocking),
+                row(PersistentPopup, native, true, five, false, true),
+            ));
+            table.push((
+                (message_type, urgent, Blocking::Deferrable),
+                row(PersistentPopup, native, true, ten, true, true),
+            ));
+            table.push((
+                (message_type, urgent, Blocking::NonBlocking),
+                row(Banner, native, true, None, false, true),
+            ));
+        }
+    }
+    for urgent in [false, true] {
+        table.push((
+            (MessageType::TaskCompleted, urgent, Blocking::NonBlocking),
+            row(Toast, NoNative, true, None, false, false),
+        ));
+    }
+    table.push((
+        (MessageType::Generic, false, Blocking::NonBlocking),
+        row(InboxOnly, NoNative, false, None, false, false),
+    ));
+    table
+}
+
+/// The spec's modulation rules, applied to a literal calm cell (independent of `decide`).
+fn modulate(calm: Expected, urgent: bool, focus: bool, quiet: bool, muted: bool) -> Expected {
+    let mut expected = calm;
+    if urgent {
+        return expected;
+    }
+    if muted {
+        return Expected {
+            mac: MacSurface::InboxOnly,
+            native: NativeLevel::None,
+            sound: false,
+            reping: None,
+            offer_defer: false,
+            should_wait: false,
+        };
+    }
+    let inbox_only = |expected: &mut Expected| {
+        expected.mac = MacSurface::InboxOnly;
+        expected.native = NativeLevel::None;
+    };
+    if quiet {
+        if matches!(expected.mac, MacSurface::Toast | MacSurface::Banner) {
+            inbox_only(&mut expected);
+        }
+        expected.sound = false;
+    }
+    if focus {
+        if expected.mac == MacSurface::Toast {
+            inbox_only(&mut expected);
+        }
+        expected.sound = false;
+    }
+    expected
+}
+
+fn observed(plan: &DeliveryPlan) -> Expected {
+    Expected {
+        mac: plan.mac,
+        native: plan.native_notification,
+        sound: plan.sound,
+        reping: plan.reping,
+        offer_defer: plan.offer_defer,
+        should_wait: plan.should_wait,
+    }
+}
+
+#[test]
+fn the_calm_table_has_all_fifteen_cells_and_decide_matches_it_literally() {
+    let table = calm_table();
+    assert_eq!(table.len(), 15);
+    for ((message_type, urgent, blocking), expected) in table {
+        let plan = plan_for(message_type, urgent, blocking, &calm_context());
+        assert_eq!(
+            observed(&plan),
+            expected,
+            "{message_type:?} urgent={urgent} {blocking:?}"
+        );
+    }
+}
+
+/// Every cell × presence × Focus × quiet hours, against the literal table.
 #[test]
 fn full_matrix_of_cells_presence_focus_and_quiet_hours() {
-    for (message_type, urgent, blocking) in valid_combinations() {
+    let mut checked = 0;
+    for ((message_type, urgent, blocking), calm) in calm_table() {
         for state in [
             PresenceState::Present,
             PresenceState::Away,
@@ -203,38 +325,22 @@ fn full_matrix_of_cells_presence_focus_and_quiet_hours() {
                     context.focus_active = focus;
                     context.quiet_hours_active = quiet;
                     let plan = plan_for(message_type, urgent, blocking, &context);
-                    let base = plan_for(message_type, urgent, blocking, &calm_context());
                     let label = format!(
                         "{message_type:?} urgent={urgent} {blocking:?} {state:?} focus={focus} quiet={quiet}"
                     );
-
-                    // Presence never changes the Mac plan; no phone channel exists.
+                    assert_eq!(
+                        observed(&plan),
+                        modulate(calm, urgent, focus, quiet, false),
+                        "{label}"
+                    );
+                    // No phone channel exists: no phone part, whatever the presence.
                     assert_eq!(plan.phone, PhonePlan::None, "{label}");
-                    if urgent || (!focus && !quiet) {
-                        assert_eq!(plan.mac, base.mac, "{label}");
-                        assert_eq!(plan.sound, base.sound, "{label}");
-                        assert_eq!(
-                            plan.native_notification, base.native_notification,
-                            "{label}"
-                        );
-                        continue;
-                    }
-                    // Non-urgent under Focus or quiet hours.
-                    assert!(!plan.sound, "{label}: held-back messages are silent");
-                    let expected_mac = match (base.mac, quiet, focus) {
-                        (MacSurface::Toast, _, _) => MacSurface::InboxOnly,
-                        (MacSurface::Banner, true, _) => MacSurface::InboxOnly,
-                        (other, _, _) => other,
-                    };
-                    assert_eq!(plan.mac, expected_mac, "{label}");
-                    if plan.mac == MacSurface::InboxOnly {
-                        assert_eq!(plan.native_notification, NativeLevel::None, "{label}");
-                    }
-                    assert_eq!(plan.reping, base.reping, "{label}: cadence is kept");
+                    checked += 1;
                 }
             }
         }
     }
+    assert_eq!(checked, 180);
 }
 
 #[test]
@@ -421,7 +527,8 @@ fn kind_and_topic_hints_never_change_a_decision() {
 #[test]
 fn a_rule_mute_acts_exactly_like_topic_or_thread_mute_for_every_combination() {
     let policy = Policy::default();
-    for (message_type, urgent, blocking) in valid_combinations() {
+    let mut checked = 0;
+    for ((message_type, urgent, blocking), calm) in calm_table() {
         for state in [
             PresenceState::Present,
             PresenceState::Away,
@@ -440,29 +547,29 @@ fn a_rule_mute_acts_exactly_like_topic_or_thread_mute_for_every_combination() {
                     let mut rule_muted = awaiting(message_type, urgent, blocking);
                     rule_muted.muted_by_rule = Some("Mute auth success".to_owned());
                     let by_rule = decide(&rule_muted, &context, &policy);
+                    assert_eq!(
+                        observed(&by_rule),
+                        modulate(calm, urgent, focus, quiet, true),
+                        "{label}"
+                    );
+                    if !urgent {
+                        assert_eq!(by_rule.reasons, vec![PlanReason::Muted], "{label}");
+                    }
 
                     let topic_muted = awaiting(message_type, urgent, blocking);
                     let mut muted_context = context.clone();
                     muted_context.is_muted = true;
-                    let by_topic = decide(&topic_muted, &muted_context, &policy);
-                    assert_eq!(by_rule, by_topic, "{label}: same plan as a muted topic");
-
-                    let unmuted = decide(&topic_muted, &context, &policy);
-                    if urgent {
-                        assert_eq!(by_rule, unmuted, "{label}: urgent is unaffected");
-                    } else {
-                        assert_eq!(by_rule.mac, MacSurface::InboxOnly, "{label}");
-                        assert_eq!(by_rule.native_notification, NativeLevel::None, "{label}");
-                        assert!(!by_rule.sound, "{label}");
-                        assert_eq!(by_rule.reping, None, "{label}");
-                        assert!(!by_rule.should_wait, "{label}: shouldWait is false");
-                        assert!(!by_rule.offer_defer, "{label}");
-                        assert_eq!(by_rule.reasons, vec![PlanReason::Muted], "{label}");
-                    }
+                    assert_eq!(
+                        by_rule,
+                        decide(&topic_muted, &muted_context, &policy),
+                        "{label}: the same plan as a muted topic"
+                    );
+                    checked += 1;
                 }
             }
         }
     }
+    assert_eq!(checked, 180);
 }
 
 #[test]

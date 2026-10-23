@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::message::ActionStep;
+use crate::message::{ActionStep, StepLink};
 
 /// What a redacted secret is replaced by.
 pub const REDACTION_MARKER: &str = "[redacted]";
@@ -118,10 +118,25 @@ pub fn redact_optional(text: Option<&str>) -> (Option<String>, usize) {
 pub fn redact_step(step: &ActionStep) -> (ActionStep, usize) {
     let text = redact_secrets(&step.text);
     let (detail, detail_redactions) = redact_optional(step.detail.as_deref());
+    let (link, link_redactions) = match &step.link {
+        Some(link) => {
+            let url = redact_secrets(&link.url);
+            let (label, label_redactions) = redact_optional(link.label.as_deref());
+            let redacted = StepLink {
+                url: url.text,
+                label,
+            };
+            (Some(redacted), url.redactions + label_redactions)
+        }
+        None => (None, 0),
+    };
     let redacted = ActionStep {
         text: text.text,
         detail,
-        link: step.link.clone(),
+        link,
     };
-    (redacted, text.redactions + detail_redactions)
+    (
+        redacted,
+        text.redactions + detail_redactions + link_redactions,
+    )
 }

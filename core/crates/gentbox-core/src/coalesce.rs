@@ -43,12 +43,17 @@ pub enum CoalesceOutcome {
         of: MessageId,
         /// Why it counts as a duplicate.
         kind: DuplicateKind,
+        /// The message's own `rescinds` still apply, except for an idempotent
+        /// retry, which changes nothing.
+        rescissions: Vec<Rescission>,
     },
     /// Not stored: it only increases the repeat counter of a message with a
     /// live waiter, which it must never displace.
     Folded {
         /// The message that absorbs it.
         into: MessageId,
+        /// The message's own `rescinds` still apply.
+        rescissions: Vec<Rescission>,
     },
     /// Stored, taking the slot of an open message in place (same popup, same
     /// native notification).
@@ -79,6 +84,13 @@ pub struct CoalesceInput<'a> {
     pub idempotent_match: Option<&'a MessageId>,
     /// The conversation's items (others are ignored).
     pub open_items: &'a [OpenItem],
+    /// Whether the incoming message's sender will long-poll for it. A new
+    /// message has no long-poll yet, so this stands in for "will have a live
+    /// waiter". The hub passes [`crate::policy::expects_live_waiter`]
+    /// (`awaitsResponse` and the plan's `shouldWait`), so a message whose
+    /// sender will not poll, such as a muted one, never displaces one that has
+    /// a live waiter.
+    pub will_have_live_waiter: bool,
     /// Whether a phone channel exists (v1: never).
     pub has_phone_channel: bool,
 }
@@ -90,6 +102,7 @@ pub fn coalesce(input: &CoalesceInput<'_>) -> CoalesceOutcome {
         return CoalesceOutcome::Duplicate {
             of: existing.clone(),
             kind: DuplicateKind::Idempotent,
+            rescissions: Vec::new(),
         };
     }
     let conversation = incoming.conversation_key();
@@ -98,18 +111,33 @@ pub fn coalesce(input: &CoalesceInput<'_>) -> CoalesceOutcome {
         .iter()
         .filter(|item| item.is_live() && item.conversation == conversation)
         .collect();
-    let will_have_waiter = incoming.awaits_response;
+    let will_have_waiter = input.will_have_live_waiter;
+    let keyed = latest_with_correlation_key(&items, incoming.correlation_key.as_deref());
 
-    if let Some(old) = latest_with_correlation_key(&items, incoming.correlation_key.as_deref()) {
-        if old.has_live_waiter && !will_have_waiter {
+    // Fold (rule 3): a message without a live waiter never displaces one that
+    // has a live waiter, whatever stale items share its key.
+    if !will_have_waiter {
+        let target = keyed.filter(|old| old.has_live_waiter).or_else(|| {
+            incoming
+                .blocking
+                .is_waiting()
+                .then(|| latest_waiting_with_live_waiter(&items))
+                .flatten()
+        });
+        if let Some(target) = target {
             return CoalesceOutcome::Folded {
-                into: old.id.clone(),
+                into: target.id.clone(),
+                rescissions: explicit_rescissions(input, &items, Some(&target.id)),
             };
         }
+    }
+
+    if let Some(old) = keyed {
         if is_repeat_of(incoming, old) {
             return CoalesceOutcome::Duplicate {
                 of: old.id.clone(),
                 kind: DuplicateKind::Dedupe,
+                rescissions: explicit_rescissions(input, &items, Some(&old.id)),
             };
         }
         let mut rescissions = vec![rescission_for(
@@ -123,14 +151,6 @@ pub fn coalesce(input: &CoalesceInput<'_>) -> CoalesceOutcome {
             replaces: old.id.clone(),
             pings: is_louder(incoming, old),
             rescissions,
-        };
-    }
-    if incoming.blocking.is_waiting()
-        && !will_have_waiter
-        && let Some(waiting) = latest_waiting_with_live_waiter(&items)
-    {
-        return CoalesceOutcome::Folded {
-            into: waiting.id.clone(),
         };
     }
     CoalesceOutcome::New {
@@ -177,17 +197,7 @@ fn other_rescissions(
             input.has_phone_channel,
         ));
     }
-    if let Some(request) = input.rescinds {
-        let owned: Vec<OpenItem> = items.iter().map(|&item| item.clone()).collect();
-        let explicit = rescind_by_correlation_keys(
-            &input.incoming.conversation_key(),
-            request,
-            &owned,
-            input.has_phone_channel,
-        )
-        .unwrap_or_default();
-        rescissions.extend(explicit);
-    }
+    rescissions.extend(explicit_rescissions(input, items, already_rescinded));
     let mut seen: Vec<&MessageId> = already_rescinded.into_iter().collect();
     let mut unique = Vec::new();
     for rescission in &rescissions {
@@ -197,6 +207,31 @@ fn other_rescissions(
         }
     }
     unique
+}
+
+/// Rule 7 on a message: its `rescinds` field withdraws the named keys, even
+/// when the message itself is folded or dropped as a repeat. The message that
+/// absorbs it (`excluded`) is never rescinded by it.
+fn explicit_rescissions(
+    input: &CoalesceInput<'_>,
+    items: &[&OpenItem],
+    excluded: Option<&MessageId>,
+) -> Vec<Rescission> {
+    let Some(request) = input.rescinds else {
+        return Vec::new();
+    };
+    let candidates: Vec<OpenItem> = items
+        .iter()
+        .filter(|item| Some(&item.id) != excluded)
+        .map(|&item| item.clone())
+        .collect();
+    rescind_by_correlation_keys(
+        &input.incoming.conversation_key(),
+        request,
+        &candidates,
+        input.has_phone_channel,
+    )
+    .unwrap_or_default()
 }
 
 /// Rule 5: a completion rescinds, as `obsolete`, the `blocking` and

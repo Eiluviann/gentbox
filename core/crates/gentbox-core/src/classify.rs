@@ -709,9 +709,9 @@ fn compile_rule(
     };
     for (field, template) in [("topic", &raw.topic), ("thread", &raw.thread)] {
         if let Some(template) = template {
-            template.check().map_err(|placeholder| {
-                invalid(format!("{field}: unknown placeholder `{{{placeholder}}}`"))
-            })?;
+            template
+                .check()
+                .map_err(|error| invalid(format!("{field}: {error}")))?;
         }
     }
     Ok(Rule {
@@ -769,11 +769,18 @@ fn syntax_error(source: &str, error: &toml::de::Error) -> RuleParseError {
     }
 }
 
+/// A `[[rule]]` header line, with or without a trailing comment.
+fn is_rule_header(line: &str) -> bool {
+    line.trim()
+        .strip_prefix("[[rule]]")
+        .is_some_and(|rest| rest.trim().is_empty() || rest.trim_start().starts_with('#'))
+}
+
 fn rule_header_line(source: &str, index: usize) -> Option<usize> {
     source
         .lines()
         .enumerate()
-        .filter(|(_, line)| line.trim() == "[[rule]]")
+        .filter(|(_, line)| is_rule_header(line))
         .nth(index)
         .map(|(line_index, _)| line_index + 1)
 }

@@ -8,6 +8,7 @@ use thiserror::Error;
 use time::OffsetDateTime;
 
 use crate::ids::{ThreadId, TopicId};
+use crate::secret_scan::{redact_optional, redact_secrets};
 use crate::template::GroupSpec;
 use crate::title_guard::{inline_group_title, is_plain_words};
 use crate::topic::{
@@ -109,6 +110,9 @@ pub struct NewTopic {
     pub style: Option<TopicStyle>,
     /// True for an agent's General topic.
     pub implicit: bool,
+    /// How many secrets the scan replaced in the title and summary of an
+    /// explicit create (inline ones are scanned with the message).
+    pub secrets_redacted: usize,
 }
 
 /// A thread to create, in the topic the resolution chose.
@@ -126,6 +130,9 @@ pub struct NewThread {
     pub implicit: bool,
     /// The conversation this thread becomes the default thread of.
     pub default_for: Option<DefaultFor>,
+    /// How many secrets the scan replaced in the title and summary of an
+    /// explicit create (inline ones are scanned with the message).
+    pub secrets_redacted: usize,
 }
 
 /// The topic a message lands in.
@@ -286,6 +293,7 @@ fn resolve_topic(
                     kind: by_key.kind.clone(),
                     style: by_key.style.clone(),
                     implicit: false,
+                    secrets_redacted: 0,
                 },
             ));
         }
@@ -302,6 +310,7 @@ fn resolve_topic(
                 kind: spec.kind.clone(),
                 style: None,
                 implicit: false,
+                secrets_redacted: 0,
             },
         ));
     }
@@ -320,6 +329,7 @@ fn resolve_topic(
             kind: Some(GENERAL_TOPIC_KIND.to_owned()),
             style: None,
             implicit: true,
+            secrets_redacted: 0,
         }),
     })
 }
@@ -354,6 +364,7 @@ fn resolve_thread(
                 summary: named.summary.clone(),
                 kind: named.kind.clone(),
                 implicit: false,
+                secrets_redacted: 0,
                 default_for: None,
             },
         );
@@ -370,6 +381,7 @@ fn resolve_thread(
                 summary: None,
                 kind: spec.kind.clone(),
                 implicit: false,
+                secrets_redacted: 0,
                 default_for: None,
             },
         );
@@ -411,6 +423,7 @@ fn implicit_default_thread(request: &GroupingRequest<'_>) -> NewThread {
         summary: None,
         kind: Some(CONVERSATION_THREAD_KIND.to_owned()),
         implicit: true,
+        secrets_redacted: 0,
         default_for: Some(DefaultFor {
             agent: request.agent.to_owned(),
             conversation_id: request.conversation_id.to_owned(),
@@ -465,16 +478,19 @@ pub fn create_topic(
     if let Some(existing) = snapshot.topic_by_key(&request.key) {
         return Ok(TopicCreateOutcome::Existing(existing.id.clone()));
     }
-    if !is_plain_words(&request.title) {
+    let title = redact_secrets(&request.title);
+    let (summary, summary_redactions) = redact_optional(request.summary.as_deref());
+    if !is_plain_words(&title.text) {
         return Err(GroupingError::TitleLooksLikeCommand);
     }
     Ok(TopicCreateOutcome::Created(NewTopic {
         key: Some(request.key.clone()),
-        title: request.title.clone(),
-        summary: request.summary.clone(),
+        title: title.text,
+        summary,
         kind: request.kind.clone(),
         style: request.style.clone(),
         implicit: false,
+        secrets_redacted: title.redactions + summary_redactions,
     }))
 }
 
@@ -550,7 +566,9 @@ pub fn create_thread(
             action: ThreadCreateAction::Existing(existing.id.clone()),
         });
     }
-    if !is_plain_words(&request.title) {
+    let title = redact_secrets(&request.title);
+    let (summary, summary_redactions) = redact_optional(request.summary.as_deref());
+    if !is_plain_words(&title.text) {
         return Err(GroupingError::TitleLooksLikeCommand);
     }
     let wants_default = request.kind.as_deref() == Some(CONVERSATION_THREAD_KIND);
@@ -562,10 +580,11 @@ pub fn create_thread(
     };
     let thread = NewThread {
         key: Some(request.key.clone()),
-        title: request.title.clone(),
-        summary: request.summary.clone(),
+        title: title.text,
+        summary,
         kind: request.kind.clone(),
         implicit: false,
+        secrets_redacted: title.redactions + summary_redactions,
         default_for,
     };
     Ok(ThreadCreateOutcome {

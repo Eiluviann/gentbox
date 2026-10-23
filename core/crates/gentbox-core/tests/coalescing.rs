@@ -24,6 +24,7 @@ fn run(incoming: &Message, items: &[OpenItem]) -> CoalesceOutcome {
         rescinds: None,
         idempotent_match: None,
         open_items: items,
+        will_have_live_waiter: incoming.awaits_response,
         has_phone_channel: false,
     })
 }
@@ -59,13 +60,15 @@ fn an_idempotency_key_match_returns_the_stored_message_and_changes_nothing() {
         rescinds: None,
         idempotent_match: Some(&existing),
         open_items: &[],
+        will_have_live_waiter: false,
         has_phone_channel: false,
     });
     assert_eq!(
         outcome,
         CoalesceOutcome::Duplicate {
             of: existing,
-            kind: DuplicateKind::Idempotent
+            kind: DuplicateKind::Idempotent,
+            rescissions: vec![]
         }
     );
 }
@@ -221,7 +224,8 @@ fn a_message_without_a_live_waiter_folds_into_one_with_a_live_waiter_by_key() {
     assert_eq!(
         run(&incoming, &[item_of(&old, true)]),
         CoalesceOutcome::Folded {
-            into: MessageId::new("OLD")
+            into: MessageId::new("OLD"),
+            rescissions: vec![]
         }
     );
 }
@@ -359,6 +363,7 @@ fn the_same_message_within_ten_seconds_is_dropped_as_a_repeat() {
     let dedupe = CoalesceOutcome::Duplicate {
         of: MessageId::new("OLD"),
         kind: DuplicateKind::Dedupe,
+        rescissions: vec![],
     };
     assert_eq!(run(&build(0, json!({})), &items), dedupe);
     assert_eq!(run(&build(9, json!({})), &items), dedupe);
@@ -565,6 +570,7 @@ fn the_rescinds_field_withdraws_the_named_keys_as_part_of_sending() {
         rescinds: Some(&request),
         idempotent_match: None,
         open_items: &[item_of(&old, false), item_of(&keep, false)],
+        will_have_live_waiter: false,
         has_phone_channel: false,
     });
     assert_eq!(
@@ -598,6 +604,7 @@ fn an_item_is_never_rescinded_twice_in_one_outcome() {
         rescinds: Some(&request),
         idempotent_match: None,
         open_items: &[item_of(&old, false)],
+        will_have_live_waiter: false,
         has_phone_channel: false,
     });
     assert_eq!(
@@ -628,4 +635,239 @@ fn closed_items_are_ignored_by_every_rule() {
         run(&incoming, &[closed]),
         CoalesceOutcome::New { .. }
     ));
+}
+
+fn keyed_run(
+    incoming: &Message,
+    items: &[OpenItem],
+    will_have_live_waiter: bool,
+    rescinds: Option<&RescindRequest>,
+) -> CoalesceOutcome {
+    coalesce(&CoalesceInput {
+        incoming,
+        rescinds,
+        idempotent_match: None,
+        open_items: items,
+        will_have_live_waiter,
+        has_phone_channel: false,
+    })
+}
+
+#[test]
+fn a_stale_same_key_item_does_not_stop_a_new_blocking_message_from_folding() {
+    // A stale blocking item holds the key; a different blocking item has a live waiter.
+    let stale = message(
+        "STALE",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "k" }),
+    );
+    let live = message(
+        "LIVE",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "other", "awaitsResponse": true }),
+    );
+    let incoming = stored_at(
+        "NEW",
+        NOW + Duration::minutes(1),
+        DecisionRequired,
+        false,
+        Blocks,
+        json!({ "correlationKey": "k", "title": "Different" }),
+    );
+    let items = [item_of(&stale, false), item_of(&live, true)];
+    assert_eq!(
+        keyed_run(&incoming, &items, false, None),
+        CoalesceOutcome::Folded {
+            into: MessageId::new("LIVE"),
+            rescissions: vec![]
+        },
+        "§7.3: it is not stored as a new item"
+    );
+    // A message that will wait still supersedes the stale item in place.
+    assert!(matches!(
+        keyed_run(&incoming, &items, true, None),
+        CoalesceOutcome::Superseded { .. }
+    ));
+    // Without a live-waiter item the stale item is superseded as before.
+    assert!(matches!(
+        keyed_run(&incoming, &items[..1], false, None),
+        CoalesceOutcome::Superseded { .. }
+    ));
+    // A non-blocking message is not folded by the blocking-into-blocking rule.
+    let calm = stored_at(
+        "CALM",
+        NOW + Duration::minutes(1),
+        DecisionRequired,
+        false,
+        NonBlocking,
+        json!({ "correlationKey": "k" }),
+    );
+    assert!(matches!(
+        keyed_run(&calm, &items, false, None),
+        CoalesceOutcome::Superseded { .. }
+    ));
+}
+
+#[test]
+fn a_message_whose_sender_will_not_poll_never_displaces_a_live_waiter() {
+    // `awaitsResponse` is declared, but the plan says shouldWait is false (a muted message).
+    let live = message(
+        "LIVE",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "k", "awaitsResponse": true, "title": "Old" }),
+    );
+    let incoming = stored_at(
+        "NEW",
+        NOW + Duration::minutes(1),
+        DecisionRequired,
+        false,
+        Blocks,
+        json!({ "correlationKey": "k", "awaitsResponse": true, "title": "New" }),
+    );
+    let items = [item_of(&live, true)];
+    assert!(matches!(
+        keyed_run(&incoming, &items, true, None),
+        CoalesceOutcome::Superseded { .. }
+    ));
+    assert_eq!(
+        keyed_run(&incoming, &items, false, None),
+        CoalesceOutcome::Folded {
+            into: MessageId::new("LIVE"),
+            rescissions: vec![]
+        }
+    );
+}
+
+#[test]
+fn the_hubs_waiter_flag_is_the_plans_should_wait() {
+    use gentbox_core::policy::{Policy, decide, expects_live_waiter};
+    use support::calm_context;
+    let awaiting_message = support::awaiting(DecisionRequired, false, Blocks);
+    let mut muted_context = calm_context();
+    muted_context.is_muted = true;
+    for context in [calm_context(), muted_context] {
+        assert_eq!(
+            expects_live_waiter(&awaiting_message, &context),
+            decide(&awaiting_message, &context, &Policy::default()).should_wait
+        );
+    }
+    let mut urgent = awaiting_message.clone();
+    urgent.urgent = true;
+    let mut muted_context = calm_context();
+    muted_context.is_muted = true;
+    assert!(
+        expects_live_waiter(&urgent, &muted_context),
+        "urgent breaks through a mute"
+    );
+    let mut rule_muted = awaiting_message.clone();
+    rule_muted.muted_by_rule = Some("Mute".to_owned());
+    assert!(!expects_live_waiter(&rule_muted, &calm_context()));
+    let not_awaiting = message("NA", DecisionRequired, Blocks, json!({}));
+    assert!(!expects_live_waiter(&not_awaiting, &calm_context()));
+    let completed = support::awaiting(TaskCompleted, false, NonBlocking);
+    assert!(!expects_live_waiter(&completed, &calm_context()));
+}
+
+#[test]
+fn a_folded_or_deduped_message_still_applies_its_rescinds() {
+    let target = message(
+        "TARGET",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "publish-plan" }),
+    );
+    let live = message(
+        "LIVE",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "k", "awaitsResponse": true }),
+    );
+    let request = RescindRequest {
+        reason: RescindReason::Superseded,
+        correlation_keys: Some(vec!["publish-plan".to_owned(), "k".to_owned()]),
+    };
+
+    let folded = message(
+        "NEW",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "k" }),
+    );
+    let items = [item_of(&target, false), item_of(&live, true)];
+    let CoalesceOutcome::Folded { into, rescissions } =
+        keyed_run(&folded, &items, false, Some(&request))
+    else {
+        panic!("expected a fold")
+    };
+    assert_eq!(into.as_str(), "LIVE");
+    let ids: Vec<_> = rescissions.iter().map(|r| r.message_id.as_str()).collect();
+    assert_eq!(
+        ids,
+        vec!["TARGET"],
+        "the absorbing item is never rescinded by the message it absorbed"
+    );
+
+    let old = message(
+        "OLD",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "same", "title": "Same" }),
+    );
+    let repeat = stored_at(
+        "REPEAT",
+        NOW + Duration::seconds(2),
+        DecisionRequired,
+        false,
+        Blocks,
+        json!({ "correlationKey": "same", "title": "Same" }),
+    );
+    let request = RescindRequest {
+        reason: RescindReason::Obsolete,
+        correlation_keys: Some(vec!["publish-plan".to_owned()]),
+    };
+    let items = [item_of(&old, false), item_of(&target, false)];
+    let CoalesceOutcome::Duplicate {
+        kind, rescissions, ..
+    } = keyed_run(&repeat, &items, false, Some(&request))
+    else {
+        panic!("expected a dedupe")
+    };
+    assert_eq!(kind, DuplicateKind::Dedupe);
+    assert_eq!(rescissions.len(), 1);
+    assert_eq!(rescissions[0].message_id.as_str(), "TARGET");
+}
+
+#[test]
+fn an_idempotent_retry_changes_nothing_not_even_through_rescinds() {
+    let target = message(
+        "TARGET",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "publish-plan" }),
+    );
+    let incoming = message("NEW", DecisionRequired, Blocks, json!({}));
+    let existing = MessageId::new("STORED");
+    let request = RescindRequest {
+        reason: RescindReason::Obsolete,
+        correlation_keys: Some(vec!["publish-plan".to_owned()]),
+    };
+    let outcome = coalesce(&CoalesceInput {
+        incoming: &incoming,
+        rescinds: Some(&request),
+        idempotent_match: Some(&existing),
+        open_items: &[item_of(&target, false)],
+        will_have_live_waiter: false,
+        has_phone_channel: false,
+    });
+    assert_eq!(
+        outcome,
+        CoalesceOutcome::Duplicate {
+            of: existing,
+            kind: DuplicateKind::Idempotent,
+            rescissions: vec![]
+        }
+    );
 }

@@ -571,3 +571,49 @@ fn validation_rejects_duplicate_action_ids_wrong_version_and_bad_rescinds() {
         Err(ValidationError::InvalidSteps(_))
     ));
 }
+
+#[test]
+fn rule_line_numbers_survive_comments_on_the_header() {
+    let source = "[[rule]] # first\nname = \"A\"\n\n[[rule]]   # second, broken\nname = \"B\"\nmatch = { title = \"(\" }\n";
+    let error = RuleSet::parse(source).unwrap_err();
+    assert_eq!(error.line(), Some(4));
+}
+
+#[test]
+fn templates_with_a_key_or_kind_that_can_never_be_valid_are_error_values() {
+    let cases = [
+        (
+            "uppercase literal",
+            "topic = { key = \"Project:{project}\" }",
+        ),
+        ("leading dash", "topic = { key = \"-{project}\" }"),
+        ("space", "thread = { key = \"a b {project}\" }"),
+        ("empty key", "topic = { key = \"\" }"),
+        (
+            "literal over 96",
+            &format!("topic = {{ key = \"{}\" }}", "a".repeat(97)),
+        ),
+        (
+            "bad kind",
+            "topic = { key = \"p:{project}\", kind = \"Project Kind\" }",
+        ),
+        ("unterminated", "topic = { key = \"p:{project\" }"),
+    ];
+    for (label, template) in cases {
+        let source = format!("[[rule]]\nname = \"R\"\n{template}\n");
+        let error = RuleSet::parse(&source).unwrap_err();
+        assert!(
+            matches!(&error, RuleParseError::InvalidRule { rule, .. } if rule == "R"),
+            "{label}: {error:?}"
+        );
+        assert_eq!(error.line(), Some(1), "{label}");
+    }
+    for template in [
+        "topic = { key = \"project:{project}\", kind = \"project\" }",
+        "topic = { key = \"{agent}\", title = \"{agent} sessions\" }",
+        "thread = { key = \"phase-{conversation}\", kind = \"{agent}\" }",
+    ] {
+        let source = format!("[[rule]]\nname = \"R\"\n{template}\n");
+        assert!(RuleSet::parse(&source).is_ok(), "{template}");
+    }
+}

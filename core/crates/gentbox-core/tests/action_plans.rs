@@ -382,6 +382,127 @@ fn step_text_goes_through_the_secret_scan_and_then_the_guard() {
     assert_eq!(redacted_fields, vec!["steps[0]", "steps[1]"]);
 }
 
+#[test]
+fn redaction_that_lengthens_a_step_never_turns_a_valid_plan_into_a_422() {
+    // 200 characters: valid. The scan turns `password=x` into `password=[redacted]`.
+    let text = format!("{}password=x", "a ".repeat(95));
+    assert_eq!(text.chars().count(), 200);
+    let detail = format!("{}password=x", "d".repeat(1990));
+    let prepared = prepare(
+        json!({ "type": "action_required", "steps": [{ "text": text, "detail": detail }] }),
+        IngestSettings::default(),
+    )
+    .unwrap();
+    let step = &prepared.message.steps.unwrap()[0];
+    assert!(step.text.ends_with("password=[redacted]"));
+    assert!(
+        step.text.chars().count() > 200,
+        "redaction lengthened the text"
+    );
+    assert!(step.detail.as_deref().unwrap().chars().count() > 2000);
+    assert!(
+        prepared
+            .warnings
+            .iter()
+            .any(|w| w.code == WarningCode::SecretRedacted)
+    );
+}
+
+#[test]
+fn lengths_are_still_checked_once_before_redaction() {
+    let too_long = format!("{}password=x", "a ".repeat(96));
+    let rejected = prepare(
+        json!({ "type": "action_required", "steps": [{ "text": too_long }] }),
+        IngestSettings::default(),
+    );
+    assert!(matches!(rejected, Err(IngestRejection::Invalid(_))));
+}
+
+#[test]
+fn the_scan_covers_step_link_urls_and_labels() {
+    let prepared = prepare(
+        json!({ "type": "action_required", "steps": [{
+            "text": "Open the dashboard",
+            "link": { "url": "https://example.com/?token=abc123def456", "label": "Dashboard ghp_abcdefghijklmnopqrstuvwxyz0123456789" }
+        }] }),
+        IngestSettings::default(),
+    )
+    .unwrap();
+    let link = prepared.message.steps.unwrap()[0].link.clone().unwrap();
+    assert_eq!(link.url, "https://example.com/?token=[redacted]");
+    assert_eq!(link.label.as_deref(), Some("Dashboard [redacted]"));
+}
+
+#[test]
+fn the_scan_covers_the_conversation_title_and_topic_and_thread_titles() {
+    let secret = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+    let prepared = prepare(
+        json!({
+            "conversation": { "id": "c", "title": format!("Debugging {secret} access") },
+            "topic": { "key": "k", "title": format!("Topic {secret}"), "summary": format!("Summary {secret}") },
+            "thread": { "key": "t", "title": format!("Thread {secret}"), "summary": format!("About {secret}") },
+        }),
+        IngestSettings::default(),
+    )
+    .unwrap();
+    let message = &prepared.message;
+    assert_eq!(
+        message.conversation.title.as_deref(),
+        Some("Debugging [redacted] access")
+    );
+    let serialized = serde_json::to_string(message).unwrap();
+    assert!(!serialized.contains("ghp_"), "{serialized}");
+    let fields: Vec<_> = prepared
+        .warnings
+        .iter()
+        .filter(|w| w.code == WarningCode::SecretRedacted)
+        .map(|w| w.field.clone().unwrap())
+        .collect();
+    for field in [
+        "conversation.title",
+        "topic.title",
+        "topic.summary",
+        "thread.title",
+        "thread.summary",
+    ] {
+        assert!(fields.iter().any(|f| f == field), "{field} in {fields:?}");
+    }
+}
+
+#[test]
+fn explicit_topic_and_thread_creates_are_scanned_too() {
+    use gentbox_core::resolve::{
+        GroupingSnapshot, ThreadCreateAction, ThreadCreateContext, TopicCreateOutcome,
+        create_thread, create_topic,
+    };
+    let secret = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+    let topic = serde_json::from_value(
+        json!({ "key": "k", "title": format!("Topic {secret}"), "summary": secret }),
+    )
+    .unwrap();
+    let TopicCreateOutcome::Created(created) =
+        create_topic(&GroupingSnapshot::default(), &topic).unwrap()
+    else {
+        panic!("expected a create")
+    };
+    assert_eq!(created.title, "Topic [redacted]");
+    assert_eq!(created.summary.as_deref(), Some("[redacted]"));
+    assert_eq!(created.secrets_redacted, 2);
+
+    let thread =
+        serde_json::from_value(json!({ "key": "t", "title": format!("Thread {secret}") })).unwrap();
+    let context = ThreadCreateContext {
+        agent: "claude-code",
+        rule_topic: None,
+    };
+    let outcome = create_thread(&GroupingSnapshot::default(), &thread, &context).unwrap();
+    let ThreadCreateAction::Created { thread, .. } = outcome.action else {
+        panic!("expected a create")
+    };
+    assert_eq!(thread.title, "Thread [redacted]");
+    assert_eq!(thread.secrets_redacted, 1);
+}
+
 // --- the secret scan ---
 
 /// `(label, text containing a secret, a fragment that must be gone)`.

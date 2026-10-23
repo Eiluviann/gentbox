@@ -133,21 +133,25 @@ fn is_flag(word: &str) -> bool {
 }
 
 fn is_path(word: &str) -> bool {
+    if word == "/" {
+        // A lone slash is a separator ("Ingest / auth tests"), not a path.
+        return false;
+    }
     if word.starts_with('/')
-        || word.starts_with("~/")
         || word.starts_with("./")
         || word.starts_with("../")
+        || (word.starts_with('~') && word.contains('/'))
         || (word.starts_with('@') && word.contains('/'))
     {
         return true;
     }
     let slash_count = word.matches('/').count();
-    slash_count >= 2 || (slash_count == 1 && has_file_extension(word))
+    slash_count >= 2 || (slash_count == 1 && word.split('/').any(has_file_extension))
 }
 
-fn has_file_extension(word: &str) -> bool {
-    let last_component = word.rsplit('/').next().unwrap_or(word);
-    match last_component.rsplit_once('.') {
+/// Whether a path component ends in a file extension (`lib.rs`, `npmjs.com`).
+fn has_file_extension(component: &str) -> bool {
+    match component.rsplit_once('.') {
         Some((stem, extension)) => {
             !stem.is_empty()
                 && (1..=5).contains(&extension.len())

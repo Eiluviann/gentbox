@@ -946,11 +946,34 @@ fn a_template_with_a_missing_value_assigns_nothing() {
         "nothing left after slugging"
     );
     let long = "x".repeat(200);
+    let truncated = template("project:{project}", None, None)
+        .render(&vars(Some(&long)))
+        .unwrap();
     assert_eq!(
-        template("project:{project}", None, None).render(&vars(Some(&long))),
-        None,
-        "keys have at most 96 characters"
+        truncated.key.chars().count(),
+        96,
+        "long keys are cut, not dropped"
     );
+    assert!(truncated.key.starts_with("project:xxx"));
+    assert!(is_valid_group_key(&truncated.key));
+}
+
+#[test]
+fn a_rendered_kind_is_reduced_to_kind_characters() {
+    let rendered = template("k-{agent}", None, Some("{agent}"))
+        .render(&vars(None))
+        .unwrap();
+    assert_eq!(rendered.kind.as_deref(), Some("claude-code"));
+    let long = TemplateVars {
+        agent: "A".repeat(80),
+        ..vars(None)
+    };
+    let kind = template("k", None, Some("{agent}"))
+        .render(&long)
+        .unwrap()
+        .kind
+        .unwrap();
+    assert_eq!(kind.chars().count(), 32);
 }
 
 #[test]

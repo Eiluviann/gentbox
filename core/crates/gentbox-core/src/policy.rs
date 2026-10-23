@@ -328,7 +328,7 @@ pub fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> De
     let mut reping = cell.reping;
     let mut reasons = Vec::new();
     let held_back = !message.urgent;
-    let is_muted = (context.is_muted || message.muted_by_rule.is_some()) && held_back;
+    let is_muted = is_held_by_mute(message, context);
 
     if is_muted {
         surface = MacSurface::InboxOnly;
@@ -357,7 +357,7 @@ pub fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> De
         reasons.push(PlanReason::FrontmostSuppression);
     }
 
-    let should_wait = message.awaits_response && message.message_type.is_answerable() && !is_muted;
+    let should_wait = expects_live_waiter(message, context);
     DeliveryPlan {
         mac: surface,
         native_notification: native_level(native, message.urgent),
@@ -379,6 +379,25 @@ pub fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> De
         },
         reasons,
     }
+}
+
+/// Whether a mute (the topic's or thread's via the context, or a `mute` rule
+/// recorded on the message) holds the message back: only a non-urgent message
+/// is held, urgent ones break through.
+pub fn is_held_by_mute(message: &Message, context: &PolicyContext) -> bool {
+    (context.is_muted || message.muted_by_rule.is_some()) && !message.urgent
+}
+
+/// Whether the sender of an incoming message will long-poll for it: it
+/// declared `awaitsResponse`, the type can be answered, and no mute makes
+/// `should_wait` false. This is the plan's `should_wait`, available before the
+/// message is stored; the hub passes it to coalescing as
+/// [`crate::coalesce::CoalesceInput::will_have_live_waiter`], so a muted message
+/// never displaces a message that has a live waiter.
+pub fn expects_live_waiter(message: &Message, context: &PolicyContext) -> bool {
+    message.awaits_response
+        && message.message_type.is_answerable()
+        && !is_held_by_mute(message, context)
 }
 
 /// Quiet hours: the Mac is silent; toasts and banners are inbox-only.

@@ -106,12 +106,24 @@ fn an_inbox_only_item_just_gets_the_withdrawn_mark() {
 }
 
 #[test]
-fn an_acknowledged_item_has_no_popup_left_to_remove_but_its_native_notification_may_remain() {
+fn an_acknowledged_item_removes_whatever_is_still_shown() {
     let mut item = popup_item("k");
     item.state = LifecycleState::Acknowledged;
     let rescission = rescind_by_id(&item, RescindReason::Obsolete, false).unwrap();
+    // Acknowledging (opening the inbox, bringing the conversation forward) does not
+    // close a persistent popup, so the removal follows what is actually shown.
     assert_eq!(
         rescission.effects,
+        vec![
+            RemovePopup,
+            RemoveNativeNotification,
+            MarkWithdrawn(RescindReason::Obsolete)
+        ]
+    );
+    item.delivered.popup = false;
+    let after_close = rescind_by_id(&item, RescindReason::Obsolete, false).unwrap();
+    assert_eq!(
+        after_close.effects,
         vec![
             RemoveNativeNotification,
             MarkWithdrawn(RescindReason::Obsolete)

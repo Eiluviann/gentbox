@@ -2,6 +2,7 @@
 //! `{project}`, `{agent}` and `{conversation}` placeholders.
 
 use serde::Deserialize;
+use thiserror::Error;
 
 use crate::message::{Conversation, Source};
 use crate::title_guard::inline_group_title;
@@ -10,6 +11,8 @@ use crate::title_guard::inline_group_title;
 pub const PLACEHOLDERS: [&str; 3] = ["project", "agent", "conversation"];
 /// Longest key a topic or thread may have.
 pub const MAX_GROUP_KEY_CHARS: usize = 96;
+/// Longest kind hint a topic or thread may have.
+pub const MAX_GROUP_KIND_CHARS: usize = 32;
 
 /// A topic or thread a rule assigns, before its placeholders are filled in.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -76,21 +79,44 @@ impl TemplateVars {
     }
 }
 
+/// Why a rule template is unusable. Found when the rules file is parsed, so
+/// the user sees it in Settings instead of a rule that silently assigns
+/// nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum TemplateError {
+    /// A `{placeholder}` that is not `project`, `agent` or `conversation`.
+    #[error("unknown placeholder `{{{0}}}`")]
+    UnknownPlaceholder(String),
+    /// A `{` without a closing `}`.
+    #[error("a `{{` has no closing `}}`")]
+    Unterminated,
+    /// The key can never be a valid key, whatever the placeholders stand for.
+    #[error(
+        "the key `{0}` can never be valid: keys use lower-case letters, digits and . _ : / - and have at most 96 characters"
+    )]
+    InvalidKey(String),
+    /// The kind can never be a valid kind, whatever the placeholders stand for.
+    #[error(
+        "the kind `{0}` can never be valid: kinds use lower-case letters, digits, _ and - and have at most 32 characters"
+    )]
+    InvalidKind(String),
+}
+
 /// Checks that every `{placeholder}` in a template string is known.
 ///
 /// # Errors
-/// Returns the first unknown placeholder name, or `"unterminated"` for a `{`
-/// without a closing `}`.
-pub fn check_placeholders(template: &str) -> Result<(), String> {
+/// Returns the first unknown placeholder, or `Unterminated` for a `{` without
+/// a closing `}`.
+pub fn check_placeholders(template: &str) -> Result<(), TemplateError> {
     let mut rest = template;
     while let Some(start) = rest.find('{') {
         let after = &rest[start + 1..];
         let Some(end) = after.find('}') else {
-            return Err("unterminated".to_owned());
+            return Err(TemplateError::Unterminated);
         };
         let name = &after[..end];
         if !PLACEHOLDERS.contains(&name) {
-            return Err(name.to_owned());
+            return Err(TemplateError::UnknownPlaceholder(name.to_owned()));
         }
         rest = &after[end + 1..];
     }
@@ -98,14 +124,32 @@ pub fn check_placeholders(template: &str) -> Result<(), String> {
 }
 
 impl GroupTemplate {
-    /// Checks every string of the template for unknown placeholders.
+    /// Checks the template: every placeholder is known, and the key and kind
+    /// are valid for any value the placeholders may take (a key such as
+    /// `Project:{project}` can never match the key pattern).
     ///
     /// # Errors
-    /// Returns the offending placeholder name.
-    pub fn check(&self) -> Result<(), String> {
+    /// Returns what is wrong with the template.
+    pub fn check(&self) -> Result<(), TemplateError> {
         check_placeholders(&self.key)?;
         self.title.as_deref().map_or(Ok(()), check_placeholders)?;
-        self.kind.as_deref().map_or(Ok(()), check_placeholders)
+        self.kind.as_deref().map_or(Ok(()), check_placeholders)?;
+        let sample = TemplateVars {
+            project: Some("x".to_owned()),
+            agent: "x".to_owned(),
+            conversation: Some("x".to_owned()),
+        };
+        let sample_key = fill(&self.key, &sample, slugify);
+        if !sample_key.as_deref().is_some_and(is_valid_group_key) {
+            return Err(TemplateError::InvalidKey(self.key.clone()));
+        }
+        if let Some(kind) = &self.kind {
+            let sample_kind = fill(kind, &sample, slugify);
+            if !sample_kind.as_deref().is_some_and(is_valid_group_kind) {
+                return Err(TemplateError::InvalidKind(kind.clone()));
+            }
+        }
+        Ok(())
     }
 
     /// Fills the placeholders. Returns `None` when a placeholder has no value
@@ -116,7 +160,10 @@ impl GroupTemplate {
     /// the title keeps them as written and goes through the title guard, with
     /// the key in words as the fallback.
     pub fn render(&self, vars: &TemplateVars) -> Option<GroupSpec> {
-        let key = fill(&self.key, vars, slugify)?;
+        let key: String = fill(&self.key, vars, slugify)?
+            .chars()
+            .take(MAX_GROUP_KEY_CHARS)
+            .collect();
         if !is_valid_group_key(&key) {
             return None;
         }
@@ -125,7 +172,16 @@ impl GroupTemplate {
             None => None,
         };
         let kind = match self.kind.as_deref() {
-            Some(template) => Some(fill(template, vars, keep_as_written)?),
+            Some(template) => {
+                let kind: String = fill(template, vars, slugify)?
+                    .chars()
+                    .take(MAX_GROUP_KIND_CHARS)
+                    .collect();
+                if !is_valid_group_kind(&kind) {
+                    return None;
+                }
+                Some(kind)
+            }
             None => None,
         };
         Some(GroupSpec {
@@ -149,6 +205,22 @@ pub fn is_valid_group_key(key: &str) -> bool {
             character.is_ascii_lowercase()
                 || character.is_ascii_digit()
                 || matches!(character, '.' | '_' | ':' | '/' | '-')
+        })
+}
+
+/// Whether `kind` matches `^[a-z0-9][a-z0-9_-]{0,31}$`, the kind pattern of
+/// the schema.
+pub fn is_valid_group_kind(kind: &str) -> bool {
+    let mut characters = kind.chars();
+    let first_is_valid = characters
+        .next()
+        .is_some_and(|first| first.is_ascii_lowercase() || first.is_ascii_digit());
+    first_is_valid
+        && kind.chars().count() <= MAX_GROUP_KIND_CHARS
+        && kind.chars().all(|character| {
+            character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '_' | '-')
         })
 }
 

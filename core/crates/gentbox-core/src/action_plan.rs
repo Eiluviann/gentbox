@@ -81,21 +81,28 @@ pub struct PreparedPlan {
     pub warnings: Vec<IngestWarning>,
 }
 
-/// Validates the shape of a plan: 1 to 12 steps, bounded texts, link schemes.
+/// Validates a plan as posted: 1 to 12 steps, bounded texts and details, link
+/// schemes. Lengths are checked here, once, before the secret scan: redaction
+/// may lengthen a field (`password=x` becomes `password=[redacted]`) and a plan
+/// that was valid when posted must never be refused for it.
 pub fn validate_steps(steps: &[ActionStep]) -> Result<(), PlanError> {
+    check_steps(steps, true)
+}
+
+fn check_steps(steps: &[ActionStep], check_lengths: bool) -> Result<(), PlanError> {
     if steps.is_empty() || steps.len() > MAX_STEPS {
         return Err(PlanError::StepCount { count: steps.len() });
     }
     for (index, step) in steps.iter().enumerate() {
-        let text_length = step.text.chars().count();
-        if step.text.trim().is_empty() || text_length > MAX_STEP_TEXT_CHARS {
+        let is_too_long = step.text.chars().count() > MAX_STEP_TEXT_CHARS;
+        if step.text.trim().is_empty() || (check_lengths && is_too_long) {
             return Err(PlanError::TextLength { index });
         }
-        if step
+        let detail_is_too_long = step
             .detail
             .as_ref()
-            .is_some_and(|detail| detail.chars().count() > MAX_STEP_DETAIL_CHARS)
-        {
+            .is_some_and(|detail| detail.chars().count() > MAX_STEP_DETAIL_CHARS);
+        if check_lengths && detail_is_too_long {
             return Err(PlanError::DetailLength { index });
         }
         if step
@@ -134,7 +141,8 @@ pub fn prepare_action_plan(
     let Some(steps) = steps else {
         return missing_plan(focus_url, mode);
     };
-    validate_steps(&steps)?;
+    // Lengths were checked by `validate_message` before the secret scan.
+    check_steps(&steps, false)?;
     let mut warnings = Vec::new();
     let steps = steps
         .into_iter()

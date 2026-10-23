@@ -1,6 +1,7 @@
 //! The crate is pure: no clock, IO, async, randomness or `unsafe` anywhere in
 //! its source (architecture §4: "no IO, no clock, no async").
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+// The tests read files; the crate itself must not (see clippy.toml).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::disallowed_methods)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
