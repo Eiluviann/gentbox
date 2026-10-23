@@ -1168,3 +1168,4 @@ a.side-item { text-decoration: none; }
 .pp-actbar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--line); background: #fff; }
 .pp-back { text-decoration: none; }
 .pp-actbar .kbd { color: inherit; opacity: 0.6; font-weight: 400; }
+.pp-hero-body .btn:not(.primary) .kbd { color: var(--ink-3); opacity: 1; }
