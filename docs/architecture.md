@@ -21,7 +21,7 @@ ADR: [0007](adr/0007-message-type-urgency-blocking.md). Three independent fields
 | | `deferrable` | The agent has paused; you may Defer to let it continue with work that needs no input |
 | | `blocking` | Work cannot continue until you decide |
 
-Defaults `generic`, `false`, `non_blocking`. `task_completed` and `generic` are always `non_blocking`, and `generic` is never urgent (§5.3). The definitions of `decision_required` and `action_required` are to be confirmed with the user.
+Defaults `generic`, `false`, `non_blocking`. `task_completed` and `generic` are always `non_blocking`, and `generic` is never urgent (§5.3).
 
 The sender may declare any of the fields; deterministic rules fill the rest. No model is involved (§5.3).
 

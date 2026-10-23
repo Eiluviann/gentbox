@@ -20,7 +20,7 @@ Schema v1 is unreleased, so v1 is amended in place; there is no v2.
 | `urgent` | `true`, `false` | `false` |
 | `blocking` | `non_blocking`, `deferrable`, `blocking` | `non_blocking` |
 
-Definitions (**to confirm with the user**; this is the orchestrator's and this session's reading):
+Definitions (confirmed by the user, 2026-10-23: "The reading is correct."):
 
 - **`decision_required`:** the agent needs your answer: approve or deny, pick a choice, reply. Example: a permission prompt.
 - **`action_required`:** you must do something yourself outside the conversation, then tell the agent with Done. Examples: sign in, add an API key, review a pull request.
