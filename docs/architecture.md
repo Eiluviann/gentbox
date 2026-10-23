@@ -60,21 +60,24 @@ State folder, following Vaultday's signing modes:
 | Ad hoc / unsigned / `agent-notifierd` on macOS | `~/Library/Application Support/AgentNotifier` |
 | `agent-notifierd` on Linux | `$XDG_STATE_HOME/agent-notifier` (default `~/.local/state/agent-notifier`) |
 
-The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/` discovery folder (§6).
+The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/` discovery folder (§8).
 
 ## 4. Crates and processes
 
 | Crate | Status | Responsibility | Depends on |
 | --- | --- | --- | --- |
-| `notifier-core` | Now (PR 1) | Domain types (`Message`, `MessageClass`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions. Pure: no IO, no clock (time is passed in), no async | — |
-| `notifier-store` | Now (PR 2) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `notifier-core` |
-| `notifier-ingest` | Now (PR 2) | HTTP/1.1 on loopback and a Unix socket (`axum` on `tokio`), bearer auth, schema validation, rate limits, long-poll; the hub actor that serialises every state change | `notifier-core`, `notifier-store` |
-| `agent-notifierd` | Now (PR 2) | Binary: config, lock, logging, signal handling around `notifier-ingest` | `notifier-ingest`, `notifier-relay` |
-| `notifier-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter, digest batching, the Tailscale remote action endpoint | `notifier-core` |
-| `notifier-ffi` | Now (PR 3) | UniFFI bindings for Swift. The only crate allowed `unsafe` (generated scaffolding); it has its own `[lints]` table | all of the above |
-| `notifier-node` | Planned | napi-rs bindings for the Linux Electron client | all of the above |
+| `notifier-core` | Now (PR 1) | Domain types (`Message`, `MessageClass`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
+| `notifier-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `notifier-core` |
+| `notifier-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter, payload modes, digest formatting. Knows nothing of the hub | `notifier-core` |
+| `notifier-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `notifier-core`, `notifier-store`, `notifier-relay` (trait only) |
+| `notifier-ingest` | Now (PR 2b, remote routes PR 5) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `notifier-hub` |
+| `agent-notifierd` | Now (PR 2b) | Binary: config, lock, logging, signal handling; wires hub, ingest and the configured relay | `notifier-ingest`, `notifier-hub`, `notifier-relay` |
+| `notifier-ffi` | Now (PR 3) | UniFFI bindings for Swift. The only crate allowed `unsafe` (generated scaffolding); it has its own `[lints]` table | `notifier-hub`, `notifier-ingest`, `notifier-relay` |
+| `notifier-node` | Planned | napi-rs bindings for the Linux Electron client | as `notifier-ffi` |
 
-**Concurrency.** A single hub actor (one `tokio` task) owns the in-memory view and is the only writer to the store. Ingest handlers, the UI (through FFI), the relay's remote endpoint and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede/resolve races impossible by construction rather than by locking.
+The graph is acyclic: core ← store, relay ← hub ← ingest ← binaries and bindings.
+
+**Concurrency.** A single hub actor (one `tokio` task in `notifier-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers (local and remote), the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede/resolve races impossible by construction rather than by locking.
 
 **Platform sensing stays on the platform side.** Presence (frontmost app, idle seconds, screen locked, Focus) is read by Swift on the Mac and pushed into the core as `PresenceUpdate` commands; the daemon on Linux will read logind's idle hint (Planned). The core never calls platform APIs, so the policy engine stays a pure function with table tests.
 
@@ -88,8 +91,8 @@ POST /v1/messages
   → rate limit (per source.agent)           429 + Retry-After
   → size limit (128 KiB body)               413
   → validate against message-v1.json        422 with the failing JSON pointer
-  → idempotency (source.agent, id)          200 with the stored message
-  → classify                                declared → rules → generic
+  → idempotency (source.agent, idempotencyKey)  200 with the stored message
+  → classify                                declared → user rules → built-in rules → generic
   → coalesce / dedupe / supersede / resolve (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
@@ -99,8 +102,10 @@ POST /v1/messages
 Response body of `POST /v1/messages`:
 
 ```json
-{ "id": "01JB…", "class": "action_blocking", "classSource": "declared", "state": "open", "shouldWait": true }
+{ "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "class": "action_blocking", "classSource": "declared", "state": "open", "shouldWait": true }
 ```
+
+`id` is a ULID the hub assigns. It is the only message id in URLs and in `actionResponse.messageId`; the sender's `idempotencyKey` only deduplicates retries.
 
 `shouldWait` tells a blocking sender whether long-polling is worthwhile. It is `false` when no channel can answer (every answer channel is muted, or the user is at the very app the agent runs in and the policy says not to interrupt there, §6.2), so a hook falls back to the agent's own prompt at once instead of holding it.
 
@@ -109,7 +114,9 @@ Response body of `POST /v1/messages`:
 ```mermaid
 stateDiagram-v2
   [*] --> open
-  open --> acknowledged: seen (popup shown and dismissed, inbox opened, conversation became frontmost)
+  open --> acknowledged: seen (popup closed, inbox opened, conversation became frontmost)
+  open --> acknowledged: snoozed (snoozedUntil set)
+  acknowledged --> open: snoozedUntil passed
   open --> resolved
   acknowledged --> resolved
   open --> expired: expiresAt passed
@@ -119,13 +126,29 @@ stateDiagram-v2
 ```
 
 - `open`: delivered, needs attention; counts towards the menu-bar badge, may re-ping.
-- `acknowledged`: you have seen it. No re-ping, no badge, still answerable.
-- `resolved` carries a reason: `answered` (an action was taken), `superseded` (a newer message with the same correlation key replaced it), `completed` (the conversation's completion closed it), `resolved_by_sender` (`resolves` or `POST /v1/messages/{id}/resolve`), `dismissed` (you closed it without answering).
+- `acknowledged`: you have seen it. No re-ping, no badge, still answerable. With `snoozedUntil` set it is hidden from the inbox's open list until then, and returns to `open` with one re-ping when the time passes (unless it was resolved meanwhile).
+- `resolved` carries a reason: `answered` (an answer action was taken), `superseded` (a newer message took its slot, §7), `completed` (the conversation's completion closed it), `resolved_by_sender` (`resolves`, `POST /v1/messages/{id}/resolve`, or conversation progress), `dismissed` (you chose "Mark done" in the inbox without answering).
 - `expired`: `expiresAt` passed while open or acknowledged.
 
-`generic` messages are born `acknowledged`: they never badge. Default `expiresAt` when the sender gives none: `action_blocking` 24 h, `action_nonblocking` 7 days, `completion` and `generic` never (retention handles them).
+Closing a popup or a notification only acknowledges; "Mark done" is the only user gesture that resolves without an answer.
 
-**Retention.** Resolved and expired messages are deleted after 30 days, open ones never. Configurable; the sweep runs at start and daily.
+**Answers and non-answers.** `approve`, `deny`, `choice` and `reply` are answers: the first one resolves the message as `answered` and wakes the waiter. `open` and `snooze` are non-answers: `open` acknowledges and brings the conversation forward, `snooze` acknowledges with `snoozedUntil = now + value` minutes (default 15). Neither is ever returned to a waiting sender.
+
+**Live waiter.** A message has a live waiter while a long-poll for it is in flight or ended less than 10 s ago (the gap between two polls). `awaitsResponse` only declares the intent; it is the live waiter that counts everywhere below (answer buttons, supersede, completion). A sender that stops waiting (deadline, error, fallback to its own prompt) resolves its message with `POST /v1/messages/{id}/resolve`; if it dies without doing so, the waiter lapses after 10 s and the message becomes an ordinary item that completion or progress can close.
+
+**What the long-poll returns** (`actionResponse.status`):
+
+| Lifecycle | `status` |
+| --- | --- |
+| `open`, `acknowledged` (including snoozed) | `pending` |
+| `resolved` / `answered` | `answered`, with `actionId`, `actionKind`, `value` |
+| `resolved` / `superseded` | `superseded` |
+| `resolved` / `completed`, `resolved_by_sender`, `dismissed` | `resolved` |
+| `expired` | `expired` |
+
+Default `expiresAt` when the sender gives none: `action_blocking` 24 h, `action_nonblocking` 7 days, `completion` 7 days, `generic` 24 h. `generic` messages are born `acknowledged`: they never badge.
+
+**Retention.** Resolved and expired messages are deleted after 30 days. Since every class has a default expiry, nothing stays open forever unless a sender sets a far `expiresAt`. Configurable; the sweep runs at start and daily.
 
 ### 5.3 Classification
 
@@ -163,10 +186,10 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 
 | Hook event | `event` | Class | Notes |
 | --- | --- | --- | --- |
-| `PermissionRequest` | `claude-code.permission_request` | `action_blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission"` |
-| `Notification` `permission_prompt` | `claude-code.notification.permission_prompt` | `action_blocking` | Same `correlationKey = "permission"`: while a `PermissionRequest` message is open it only counts as a repeat (§7.2); it stands alone for sandbox network prompts, which have no `PermissionRequest` |
+| `PermissionRequest` | `claude-code.permission_request` | `action_blocking` | Approve/deny/reply, `awaitsResponse`, `correlationKey = "permission:<agent_id or main>:<first 12 hex of SHA-256 of tool_name + tool_input>"` (the input has no `tool_use_id`), so parallel subagents' requests never supersede each other |
+| `Notification` `permission_prompt` | `claude-code.notification.permission_prompt` | `action_blocking` | No waiter; while the conversation has a blocking item with a live waiter it folds into it as a repeat (§7.3). It stands alone for sandbox network prompts, which have no `PermissionRequest` |
 | `Notification` `elicitation_dialog`, `elicitation_url_dialog` | `claude-code.notification.elicitation_*` | `action_blocking` | Answer in the session; `open` action only |
-| `Notification` `idle_prompt` | `claude-code.notification.idle_prompt` | `action_nonblocking` | Fires 60 s after a response with no typing; superseded by the next turn |
+| `Notification` `idle_prompt` | `claude-code.notification.idle_prompt` | `action_nonblocking` | Fires 60 s after a response with no typing, i.e. after the `Stop` completion already pinged. Deviation from the plan (which listed idle as blocking): a second loud ping for the same turn is noise. `correlationKey = "idle"`; resolved by conversation progress |
 | `Notification` `agent_needs_input` | `…agent_needs_input` | `action_blocking` | |
 | `Notification` `agent_completed` | `…agent_completed` | `completion` | |
 | `Notification` `quota_auto_resume_stale` | `…quota_auto_resume_stale` | `action_nonblocking` | Waits for Enter after a sleep |
@@ -175,7 +198,8 @@ Match keys (all optional, all must hold): `source` (exact), `event` (glob), `tit
 | `Stop`, `background_tasks` non-empty | `claude-code.stop.paused` | `generic` | The session waits on its own background work; not done yet |
 | `StopFailure` | `claude-code.stop_failure` | `action_nonblocking` | The turn ended on an API error |
 | `SubagentStop` | `claude-code.subagent_stop` | `generic` | |
-| `SessionStart` | — | — | Registers or renames the conversation (`PUT /v1/conversations/{id}`), sends no message |
+| `SessionStart` | — | — | Registers or renames the conversation (`PUT /v1/conversations/{agent}/{id}`), sends no message |
+| `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` (all `async`) | — | — | `POST /v1/conversations/{agent}/{id}/progress`, sends no message (§7.6) |
 
 ## 6. Noise-policy engine
 
@@ -218,13 +242,16 @@ A completion is suppressed when `conversation.focus.bundleId` equals the frontmo
 
 All within one conversation (`source.agent` + `conversation.id`):
 
-1. **Idempotency.** Same `source.agent` + `id` → return the stored message, change nothing.
-2. **Supersede.** A message whose `correlationKey` matches an `open` or `acknowledged` message replaces it: the old one resolves as `superseded`, the new one takes over its popup and native notification in place (same notification identifier, same ntfy sequence id). It does not re-ping unless its class is louder than the old one's. A waiting sender of the old message gets `superseded`. Exception: a message with no waiter never supersedes one whose sender is waiting; it only increases that message's repeat counter.
-3. **Dedupe.** If the superseding message has the same class, title and summary as the old one and arrives within 10 s, it is dropped and only a repeat counter increases.
-4. **Completion resolves.** A `completion` resolves every `open`/`acknowledged` `action_blocking` and `action_nonblocking` message of the conversation that is not awaiting a response, with reason `completed`. Messages a sender is still waiting on stay open: the agent cannot have finished while it waits.
-5. **Explicit resolve.** `resolves: [keys]` on any message, or `POST /v1/messages/{id}/resolve`, closes those messages as `resolved_by_sender`. The Claude Code hook uses this when a permission was answered in the terminal (Phase 4: an async `PostToolUse` hook resolves `"permission"`).
-6. **New turn.** Any message in a conversation resolves that conversation's `idle_prompt` item (correlation key `idle`).
-7. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest blocking item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
+Rules are applied in this order by the hub actor, one message at a time, so none of them can interleave with an answer.
+
+1. **Idempotency.** Same `source.agent` + `idempotencyKey` → return the stored message, change nothing.
+2. **Supersede.** A message whose `correlationKey` matches an `open` or `acknowledged` message takes its slot: the old one resolves as `superseded`, the new one takes over its popup and native notification in place (same notification identifier, same ntfy sequence id). It does not re-ping unless its class is louder than the old one's. A live waiter of the old message gets `superseded`.
+3. **Fold.** A message with no live waiter never displaces one that has a live waiter: if its correlation key matches such a message, or it is a blocking message while the conversation has a blocking item with a live waiter, it is not stored as a new item and only increases that item's repeat counter.
+4. **Dedupe.** If the superseding message has the same class, title and summary as the old one and arrives within 10 s, it is dropped and only a repeat counter increases.
+5. **Completion resolves blocking items.** A `completion` resolves the conversation's `open`/`acknowledged` `action_blocking` messages that have no live waiter, with reason `completed`. A message with a live waiter stays open (the agent cannot have finished while it waits). `action_nonblocking` messages are left alone: questions that can wait must survive the end of the turn, or the digest would never show them.
+6. **Progress resolves.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) resolves, as `resolved_by_sender`, the conversation's `idle` item and its blocking items without a live waiter: something happened, so whatever they asked for was answered in the session. This covers a permission answered or denied in the terminal, where `PostToolUse` alone would not fire.
+7. **Explicit resolve.** `resolves: [keys]` on any message, or `POST /v1/messages/{id}/resolve`, closes those messages as `resolved_by_sender`.
+8. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest blocking item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
 
 ## 8. Ingest API and transport
 
@@ -232,24 +259,27 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 **Listeners.**
 
-- HTTP/1.1 on `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`).
-- The same router on a Unix socket `<state>/API/hub.sock` (mode 0600) for local clients that prefer not to touch TCP.
+- A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it.
+- The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
 - Remote listener, off by default (§9.3).
 
-**Discovery** (Vaultday's pattern). `<state>/API/` (0700) holds `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/AgentNotifier/API`, then `$XDG_STATE_HOME/agent-notifier/API`, and use the first folder whose server answers `GET /v1/hello` for that token. `AGENT_NOTIFIER_API_DIR` overrides the search.
+**Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/AgentNotifier/API`, then `$XDG_STATE_HOME/agent-notifier/API` (`AGENT_NOTIFIER_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `HMAC-SHA256(token, nonce)`. The client sends its bearer token only after checking that proof, so a process of another user squatting on a port left behind by a crash learns nothing.
 
-**Endpoints** (all require `Authorization: Bearer <token>`):
+**Endpoints** (all but `hello` require `Authorization: Bearer <token>`, the sender token). `{id}` is always the hub-assigned message id.
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /v1/hello` | Proof that this token belongs to this hub; returns hub version and schema versions |
+| `POST /v1/hello` | Challenge-response proof (above); returns hub version and schema versions |
 | `POST /v1/messages` | Ingest one message (§5.1) |
 | `GET /v1/messages/{id}/response?wait=<s>` | Long-poll for the answer; holds up to `wait` seconds (max 55), returns `actionResponse` (`pending` on timeout) |
-| `POST /v1/messages/{id}/resolve` | Sender closes its own message (answered elsewhere) |
-| `POST /v1/messages/{id}/actions/{actionId}` | Answer from a local client (CLI); body `{ "value": "…" }` for reply |
-| `GET /v1/messages?state=open&class=…` | Inbox listing for the CLI |
+| `POST /v1/messages/{id}/resolve` | Sender closes its own message (answered elsewhere, or it stopped waiting) |
 | `PUT /v1/conversations/{agent}/{id}` | Register or rename a conversation (Claude Code `SessionStart`) |
+| `POST /v1/conversations/{agent}/{id}/progress` | The conversation moved on (§7.6) |
 | `POST /v1/presence/focus` | `{ "focused": true }` from the Shortcuts automation |
+
+**No answer route for senders.** The sender token can post, wait and resolve, but cannot answer or list messages: an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone through the remote listener with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
+
+**`Host` check.** On TCP, `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; on the Unix socket it is not checked (clients send `Host: localhost` or nothing).
 
 **Rate limits.** Token bucket per `source.agent`: burst 30, refill 1/s; per-conversation burst 10. Over the limit → 429 with `Retry-After`. Body limit 128 KiB.
 
@@ -277,7 +307,8 @@ sequenceDiagram
 ```
 
 - **First answer wins.** The hub actor accepts the first answer and resolves the message; later answers (the other device, a re-tap) get 409 and the UI shows "Already answered on <channel>".
-- **Answer buttons need a waiter.** If no long-poll has arrived for 2 min after the message (or none ever, `awaitsResponse: false`), approve/deny/reply/choice are hidden and only open and snooze remain, so a button never pretends to do something.
+- **Answer buttons need a live waiter** (§5.2). Without one, approve/deny/reply/choice are hidden (and disappear from an open popup when the waiter lapses) and only open, snooze and Mark done remain, so a button never pretends to do something.
+- **The hook cleans up.** Whenever it stops waiting without an answer it calls `POST /v1/messages/{id}/resolve` before printing nothing, so the popup closes as the agent's own prompt takes over.
 - **Mapping for Claude Code `PermissionRequest`** (Phase 4): `approve` → `{"behavior": "allow"}`; `deny` → `{"behavior": "deny", "message": "Denied from Agent Notifier"}`; `reply` → `deny` with your text as `message`, which tells Claude what to do instead.
 - **Timeouts.** Command hooks default to a 600 s timeout and are cancelled at it, output discarded; no maximum is documented [CC-hooks › Common fields, Timeouts]. The hook sets its own deadline below its configured `timeout` and exits with no output, which leaves the permission flow unchanged [CC-hooks › PermissionRequest decision control].
 - **Fallback.** No answer by the deadline, `shouldWait: false`, hub unreachable, or any error → the hook prints nothing and Claude Code shows its own prompt. The notifier never decides on its own.
@@ -291,7 +322,8 @@ sequenceDiagram
 - The ntfy notification carries up to 3 buttons. On iOS only `view` and `http` actions exist [ntfy-ios Actions.swift]; `http` is sent by the phone itself (`URLSession`), so the target must be reachable from the phone [ntfy-ios ActionExecutor.swift].
 - The `http` action posts to the hub's **remote action endpoint**: `POST https://<mac>.<tailnet>.ts.net:<port>/r/v1/actions` with the action token in the body, never in the URL. The listener binds only to the Mac's Tailscale address (100.64.0.0/10 or the MagicDNS name) and is off until you turn it on in Settings.
 - **Action tokens.** `base64url(payload) "." base64url(HMAC-SHA256(key, payload))`, payload = message id, action id, nonce, expiry. The key is 256-bit, per hub, in the Keychain (Mac) or a 0600 file (daemon). Expiry = min(message `expiresAt`, 30 min); the nonce is recorded on first use, so a replay gets 409. Constant-time comparison.
-- **Which actions go to the phone.** `approve`, `choice` (at most 2), `snooze` as `http` buttons; `open` as a `view` button to the iOS app's inbox when it is installed. Never `reply` (no text input in ntfy) and never `destructive` actions. `deny` is sent only when it is not destructive.
+- **Self-answers are refused.** The remote listener rejects requests whose Tailscale source address is the hub's own node, so a process on the Mac cannot use it as a side door, and the ntfy topic and access token live in the Keychain, not in `config.toml`, so an agent cannot subscribe to the topic to read action tokens.
+- **Which actions go to the phone.** Never a one-tap answer you cannot read: in the default `minimal` payload mode the notification says only "Claude Code needs approval", so it carries no `http` answer buttons, only a `view` button (and the click URL) into the own iOS app's detail view, where you see what you approve. In `title` and `full` modes, where the notification shows what is asked, `approve`, `deny` (when not `destructive`), `choice` (at most 2) and `snooze` go out as `http` buttons, at most 3 in total. Never `reply` (no text input in ntfy), never `destructive` actions.
 - **Feedback.** ntfy on iOS gives no result for an `http` action and opens the ntfy app [ntfy-ios NotificationContent.swift:166]. The hub therefore republishes the same sequence id with "Approved from phone" (Spike S2: whether the iOS app honours updates is unverified).
 
 ## 10. Phone relay
@@ -307,7 +339,7 @@ ADR: [0005](adr/0005-ios-transport.md).
 | Topic | Random 32-character base64url string, generated at setup; it acts as the password on servers without ACLs [ntfy-faq] |
 | Auth | `Authorization: Bearer tk_…` when the server has ACLs [ntfy-publish › Access tokens]; the token lives in the Keychain |
 | Priority | `action_blocking` 5, `completion` and digest 3. On iOS 5 maps to Time Sensitive (Critical if you enabled critical alerts in the ntfy app), 4 to Time Sensitive, 3 to Active [ntfy-ios NotificationContent.swift:44-68] |
-| Sequence id | The message id, so supersede updates and resolve clears the phone notification [ntfy-publish › Updating notifications] |
+| Sequence id | The hub message id of the slot (kept across supersedes), so supersede updates and resolve clears the phone notification [ntfy-publish › Updating notifications] |
 | Click | Deep link into the own iOS app's detail view, when installed |
 | Markdown | Off: the iOS app has no markdown rendering in its source |
 
@@ -317,6 +349,8 @@ ADR: [0005](adr/0005-ios-transport.md).
 - `title`: adds the message title and the conversation title.
 - `full`: title and summary (never `body`, never `cwd`). Recommended only with a self-hosted ntfy server.
 - `sensitive: true` on a message forces `minimal`, whatever the mode.
+
+Consequence: in `minimal` mode the phone answers only through the own iOS app (PR 6). Until it exists, approving from the phone needs `title` mode; `minimal` still pings you to go back to the Mac.
 
 **Limits that shape this** [ntfy-publish › Limitations]: message 4,096 bytes, title 1 KB; ntfy.sh allows 250 messages a day per visitor and a burst of 60 requests. The digest for `action_nonblocking` keeps a busy day far below that.
 
@@ -369,12 +403,13 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 ## 12. Security model
 
-**Trust boundary: your macOS user account.** Any process running as you can already read your files and drive your apps; the notifier does not try to defend against them, only against other users, other machines, and the third-party push service.
+**Trust boundary: your macOS user account, minus the agents.** Any process running as you can already read your files and drive your apps, so the notifier does not try to defend its data against them. The one exception is the decision it gates: the agents that send messages run as you too, and none of them may answer its own question. Hence the split between the sender token (readable by any of your processes) and the answer paths (in-process UI, phone with per-action tokens, Planned Keychain-held answer credential).
 
 | Threat | Mitigation |
 | --- | --- |
-| Another user or a remote host posts messages | Ingest binds loopback only; Unix socket 0600; bearer token 0600 in a 0700 folder (or the App Group container) |
-| A web page in your browser posts to the loopback port (DNS rebinding, CSRF) | Bearer token required on every route; `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; no CORS headers, so browsers cannot read responses; `Content-Type: application/json` only |
+| An agent approves its own permission prompt | The sender token cannot answer or list (§8); the remote listener refuses the hub's own Tailscale node; ntfy topic and token in the Keychain; Claude Code itself still evaluates deny rules after an allow [CC-hooks › PermissionRequest decision control] |
+| Another user or a remote host posts messages | Ingest binds loopback only; Unix socket 0600 in a 0700 folder, preferred; bearer token 0600 (or the App Group container); TCP clients send the token only after the hub's challenge-response proof (§8) |
+| A web page in your browser posts to the loopback port (DNS rebinding, CSRF) | Bearer token required on every route but `hello`; `Host` must be `127.0.0.1:<port>` or `localhost:<port>` on TCP; no CORS headers, so browsers cannot read responses; `Content-Type: application/json` only |
 | A buggy agent floods you | Rate limits per agent and per conversation (§8); supersede and dedupe (§7); per-source mute rules |
 | Malicious content in a message | Markdown rendered without HTML, without remote images; links show their URL and need a click; `focus.url` limited to an allowlist of schemes; titles and summaries are plain text |
 | ntfy.sh (third party) reads notifications | `minimal` payload by default; `sensitive` forces it; full content only recommended with self-hosted ntfy; topic is a random 32-character secret; access token when ACLs exist |

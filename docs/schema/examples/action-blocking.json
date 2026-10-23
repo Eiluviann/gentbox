@@ -1,6 +1,6 @@
 {
 	"version": 1,
-	"id": "cc-perm-7f3a9c1e-0004",
+	"idempotencyKey": "cc-perm-7f3a9c1e-0004",
 	"source": {
 		"agent": "claude-code",
 		"displayName": "Claude Code",
@@ -41,7 +41,7 @@
 		}
 	],
 	"awaitsResponse": true,
-	"correlationKey": "permission",
+	"correlationKey": "permission:main:3f9a0c2d71be",
 	"createdAt": "2026-10-23T18:42:07Z",
 	"expiresAt": "2026-10-23T18:52:07Z",
 	"metadata": {

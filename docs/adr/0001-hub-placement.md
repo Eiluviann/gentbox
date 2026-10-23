@@ -14,7 +14,7 @@ Something must own the message store, accept messages from agents, run the noise
 
 ## Consequences
 
-- One process, one SQLite writer, no IPC between UI and core. Quitting the app stops the hub; messages sent meanwhile fail fast (connection refused) and senders fall back to their own prompts.
+- One process, one SQLite writer, no IPC between UI and core. The UI is also the only local answer path, which keeps agents from answering their own questions (architecture §8). Quitting the app stops the hub; messages sent meanwhile fail fast (connection refused) and senders fall back to their own prompts.
 - Presence sensing (frontmost app, idle, lock, Focus) lives in Swift and is pushed into the core; the core stays pure and portable.
 - Linux gets the full hub on day one, with a UI later (Electron on `notifier-node`).
 - A crash of the UI takes the hub down with it. Acceptable for a menu-bar app; `SMAppService` relaunches at login only, so the store (PR 2) runs SQLite in WAL mode and the hub re-arms timers for open messages at start.

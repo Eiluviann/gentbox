@@ -1,6 +1,6 @@
 # Implementation plan (Phase 3)
 
-The plan's seven PRs, refined against [`architecture.md`](architecture.md). PR 2 is split in two (store, then ingest and daemon), pairing moves from the iOS PR into the relay PR (it is security code), and each PR names the spike it must close first. PR 0 (repo bootstrap) is done.
+The plan's seven PRs, refined against [`architecture.md`](architecture.md). PR 2 is split in two (store, then hub, ingest and daemon), a `notifier-hub` crate is added so the crate graph stays acyclic, pairing moves from the iOS PR into the relay PR (it is security code), and each PR names the spike it must close first. PR 0 (repo bootstrap) is done.
 
 Every PR passes, before merge:
 
@@ -22,18 +22,18 @@ Model column: the implementing session's `/model` and effort, per the routing ru
 | --- | --- | --- | --- | --- |
 | 1 | `notifier-core`: domain, classification, policy engine | 0 | Sonnet · high | — |
 | 2a | `notifier-store`: SQLite, migrations, retention | 1 | Sonnet · high | — |
-| 2b | `notifier-ingest` + `agent-notifierd`: HTTP API, hub actor, long-poll | 2a | Opus · high | — |
+| 2b | `notifier-hub` + `notifier-ingest` + `agent-notifierd`: hub actor, HTTP API, long-poll | 2a | Opus · high | — |
 | 3 | `notifier-ffi` + macOS app shell: menu-bar inbox, login item, presence | 2b | Opus · high | — |
 | 4 | Rich popups, native notifications, action round-trip, Focus endpoint | 3 | Sonnet · high | S3 |
-| 5 | `notifier-relay` ntfy adapter + Tailscale remote endpoint + pairing | 2b (4 for the Mac settings UI) | Opus · high | S2 |
+| 5 | `notifier-relay` ntfy adapter + Tailscale remote routes + pairing | 2b; its Settings pane after 4 | Opus · high | S2 |
 | 6 | iOS app: inbox and detail over Tailscale | 5 | Sonnet · high | — |
 | 7 | `agent-notify` CLI + stdio MCP server | 2b | Sonnet · medium | — |
 
-PRs 5 and 7 can run in parallel with 3 and 4 once 2b has merged; they touch disjoint folders (`core/crates/notifier-relay`, `cli/`).
+PR 7 can run in parallel with 3 and 4 once 2b has merged (it only touches `cli/`). PR 5's Rust part (`notifier-relay`, the remote routes in `notifier-ingest`, token minting in `notifier-hub`) can too; its Mac Settings pane waits for PR 4, since both edit `apps/apple/AgentNotifier/`.
 
 ## PR 1 · `notifier-core`
 
-**Scope.** The pure domain from architecture §1, §5, §6, §7: types, validation of semantic rules the JSON Schema cannot express, classification, the policy function, lifecycle transitions and the coalescing decisions. No IO, no async, no clock.
+**Scope.** The pure domain from architecture §1, §5, §6, §7: types, validation of semantic rules the JSON Schema cannot express, classification, the policy function, lifecycle transitions (including snooze), the coalescing decisions (supersede, fold, dedupe, completion, progress) as functions of the conversation's open items and their live-waiter flags, and action-token signing/verification over bytes. No IO, no async, no clock.
 
 **Files.**
 
@@ -43,16 +43,18 @@ PRs 5 and 7 can run in parallel with 3 and 4 once 2b has merged; they touch disj
 - `classify.rs` (`Rule`, `RuleSet` parsed from TOML, `classify(&Message, &RuleSet, &BuiltInRules) -> Classification` with the class source)
 - `builtin_rules.toml` (the Claude Code table of architecture §5.3, `include_str!`)
 - `policy.rs` (`Policy`, `PolicyContext`, `Presence`, `DeliveryPlan`, `decide`)
-- `coalesce.rs` (`CoalesceOutcome`: new, superseded, duplicate, repeat; completion and `resolves` effects)
+- `coalesce.rs` (`CoalesceOutcome`: new, superseded, folded, duplicate; completion, progress and `resolves` effects)
+- `action_token.rs` (payload encoding, HMAC-SHA256 sign and constant-time verify; the nonce ledger is the store's)
 - `tests/` table tests; `tests/schema_examples.rs` deserialises every `docs/schema/examples/*.json`
-- Dependencies: `serde`, `serde_json`, `toml`, `globset`, `regex`, `thiserror`, `time` (types only).
+- Dependencies: `serde`, `serde_json`, `toml`, `globset`, `regex`, `thiserror`, `time` (types only), `hmac`, `sha2`, `subtle`, `base64`.
 
 **Tests.** Table-driven, one row each:
 
 - Classification: declared wins; user rule; `override = true` beats declared; built-in rule; fallback `generic`; `mute`; invalid TOML is an error value, not a panic.
 - Policy: every class × {present, away, locked} × {Focus off/on} × {quiet hours off/on}; blocking breakthrough setting; phone grace; frontmost suppression of completions.
-- Coalescing: idempotent id; supersede in place; no re-ping unless louder; waiter never superseded by a non-waiter; dedupe within 10 s; completion resolves non-waiting items only; `resolves`; new turn resolves `idle`.
-- Lifecycle: every allowed transition and that every other one is rejected.
+- Coalescing: idempotency key; supersede in place; no re-ping unless louder; a message without a live waiter folds into one with a live waiter (same key, and blocking-into-blocking); dedupe within 10 s; completion resolves blocking items without a live waiter and leaves `action_nonblocking` alone; progress resolves `idle` and blocking items without a live waiter; `resolves`; parallel `permission:<agent>:<hash>` keys coexist.
+- Lifecycle: every allowed transition (including acknowledged → open when a snooze ends) and that every other one is rejected; `open` and `snooze` never resolve; the lifecycle → `actionResponse.status` table of architecture §5.2.
+- Action tokens: valid, expired, wrong message, wrong action, tampered payload, tampered MAC.
 
 **Acceptance.** `cargo test -p notifier-core` green; the examples deserialise; `decide` and `classify` are free of `std::time::SystemTime::now`, IO and `unsafe` (a test greps the crate source).
 
@@ -68,22 +70,23 @@ PRs 5 and 7 can run in parallel with 3 and 4 once 2b has merged; they touch disj
 
 **Model note.** Sonnet: the first migration has no user data to lose. Later migrations that transform data go to Opus.
 
-## PR 2b · `notifier-ingest` + `agent-notifierd`
+## PR 2b · `notifier-hub` + `notifier-ingest` + `agent-notifierd`
 
-**Scope.** Architecture §5.1, §8, §9.1: the hub actor, axum router on loopback and the Unix socket, auth, `Host` check, schema validation, rate limits, idempotency, long-poll with `watch`, timers (re-ping, grace, expiry, digest flush hooks for PR 5), discovery files, the hub lock, the daemon binary.
+**Scope.** Architecture §4, §5, §7, §8, §9.1: the hub actor in `notifier-hub` (commands, live-waiter tracking, timers for re-ping, grace, snooze, expiry and the digest flush hook for PR 5, dispatch to a `dyn Relay` and a UI delegate), the axum router on the Unix socket and loopback, sender-token auth, the challenge-response `hello`, `Host` check on TCP only, schema validation, rate limits, idempotency, long-poll with `watch`, `progress`, discovery files, the hub lock, the daemon binary. No answer route on the local router.
 
 **Files.**
 
-- `core/crates/notifier-ingest/src/{lib.rs, hub.rs (actor + commands), routes.rs, auth.rs, limits.rs, long_poll.rs, timers.rs, discovery.rs}`
+- `core/crates/notifier-hub/src/{lib.rs, actor.rs, commands.rs, waiters.rs, timers.rs, dispatch.rs}`
+- `core/crates/notifier-ingest/src/{lib.rs, local_routes.rs, auth.rs, hello.rs, limits.rs, long_poll.rs, discovery.rs}`
 - `core/crates/agent-notifierd/src/main.rs` (config, lock, tracing, SIGTERM)
 - `core/tests/http/*.sh` or Rust integration tests with `reqwest`
 - The schema is embedded with `include_str!("../../../../docs/schema/message-v1.json")` and validated with `jsonschema`.
 
 **Tests.**
 
-- 401 without or with a wrong token; 400 on a foreign `Host`; 413; 422 with the JSON pointer; 429 with `Retry-After`.
+- 401 without or with a wrong token; 400 on a foreign `Host` over TCP and no check on the socket; `hello` proof verifies and never needs the token; 413; 422 with the JSON pointer; 429 with `Retry-After`; no route answers or lists messages with the sender token.
 - One message per class through the real router; store state after each.
-- Long-poll: `pending` after `wait`; `answered` when an answer lands mid-wait; two concurrent answers → one 200, one 409; `superseded` and `expired` wake the waiter.
+- Long-poll: `pending` after `wait`; `answered` when an answer (injected through the hub handle, as the UI does) lands mid-wait; two concurrent answers → one accepted, one 409; `superseded`, `resolved` and `expired` wake the waiter; the live waiter lapses 10 s after the last poll; snooze and open never wake it.
 - Second hub on the same state folder exits non-zero naming the lock holder.
 - Discovery: `token` 0600, folder 0700, `port` removed on clean shutdown.
 
@@ -120,15 +123,15 @@ PRs 5 and 7 can run in parallel with 3 and 4 once 2b has merged; they touch disj
 
 ## PR 5 · `notifier-relay` + remote endpoint + pairing
 
-**Scope.** Architecture §9.3, §10, §12: the `Relay` trait, ntfy adapter (publish, update by sequence id, clear, retries), payload modes, digest batching, the remote listener bound to the Tailscale address, HMAC action tokens and the nonce ledger, device pairing (QR code with a device token for the iOS app), read-only inbox routes for the iOS app, and the Mac Settings pane for phone and Tailscale.
+**Scope.** Architecture §9.3, §10, §12: the `Relay` trait, ntfy adapter (publish, update by sequence id, clear, retries), payload modes and the phone action rules (no answer buttons in `minimal`), digest batching, the remote router in `notifier-ingest` bound to the Tailscale address and refusing the hub's own node, token minting and redemption in `notifier-hub` against the store's nonce ledger, device pairing (QR code with a device token for the iOS app), inbox, detail and answer routes for paired devices, the ntfy topic and token in the Keychain, and the Mac Settings pane for phone and Tailscale.
 
 **Spike S2 first.** On the user's iPhone and Watch with the ntfy app: an `http` action reaches a Tailscale address; republishing the same sequence id updates the notification; `clear` removes it; buttons appear on the Watch and work there. Record results in architecture §11; if updates or Watch buttons fail, decide with the user whether to evaluate the Pushover adapter (ADR 0005 alternatives) before going on.
 
-**Files.** `core/crates/notifier-relay/src/{lib.rs, relay.rs, ntfy.rs, digest.rs, payload.rs, remote/{listener.rs, tokens.rs, pairing.rs, routes.rs}}`, a mock ntfy server in `tests/`, `apps/apple/AgentNotifier/Settings/Phone*`.
+**Files.** `core/crates/notifier-relay/src/{lib.rs, relay.rs, ntfy.rs, digest.rs, payload.rs}`, `core/crates/notifier-ingest/src/remote/{listener.rs, routes.rs, pairing.rs}`, `core/crates/notifier-hub/src/action_tokens.rs`, a mock ntfy server in `tests/`, `apps/apple/AgentNotifier/Settings/Phone*`.
 
-**Tests.** Payload modes (minimal never contains title, cwd or body; `sensitive` forces minimal); priority mapping; digest timing; retries with backoff against the mock; tokens: valid, expired, wrong message, wrong action, tampered, replayed (409), constant-time compare used; listener refuses to bind to anything but a 100.64.0.0/10 address or the configured MagicDNS name; pairing token revocation.
+**Tests.** Payload modes (minimal never contains title, cwd or body and carries no `http` answer button; `body` never sent in any mode; `sensitive` forces minimal); priority mapping; digest timing; retries with backoff against the mock; tokens: valid, expired, wrong message, wrong action, tampered, replayed (409), constant-time compare used; requests from the hub's own Tailscale address refused; listener refuses to bind to anything but a 100.64.0.0/10 address or the configured MagicDNS name; pairing token revocation.
 
-**Acceptance.** End to end with the user's phone: blocking message pings with priority 5 when away, Approve on the phone reaches the waiting sender over Tailscale, replaying the same action is rejected.
+**Acceptance.** End to end with the user's phone in `title` mode: blocking message pings with priority 5 when away, Approve on the phone reaches the waiting sender over Tailscale, replaying the same action is rejected. In `minimal` mode the notification shows no answer button.
 
 ## PR 6 · iOS app
 
@@ -142,16 +145,16 @@ PRs 5 and 7 can run in parallel with 3 and 4 once 2b has merged; they touch disj
 
 ## PR 7 · `agent-notify` CLI + stdio MCP server
 
-**Scope.** TypeScript (ESM, strict) package `cli/`: discovery (§8), `agent-notify send|ask|wait|list|answer|focus on|off`, and a stdio MCP server with `notify` (class `action_nonblocking` or `generic`, explicit) and `ask` (sends with `awaitsResponse`, waits up to a timeout, returns the answer or "no answer"). Types written against the schema and checked against the examples.
+**Scope.** TypeScript (ESM, strict) package `cli/`: discovery with the `hello` proof and socket-first transport (§8), `agent-notify send|ask|wait|resolve|progress|focus on|off` (no `answer` or `list`: the sender token cannot do either, by design), and a stdio MCP server with `notify` (class `action_nonblocking` or `generic`, explicit) and `ask` (sends with `awaitsResponse`, waits up to a timeout, returns the answer or "no answer"). Types written against the schema and checked against the examples.
 
 **Files.** `cli/src/{discovery.ts, hub-client.ts, message-types.ts, commands/*.ts, mcp-server.ts, main.ts}`, Vitest tests next to each.
 
-**Tests.** Vitest: discovery order and the `/v1/hello` proof; request building per command; the examples parse into the TS types; MCP tool schemas; `ask` timeout path. One integration test against `agent-notifierd` (skipped when the binary is absent).
+**Tests.** Vitest: discovery order, socket preference and the `hello` proof (a wrong proof never sends the token); request building per command; the examples parse into the TS types; MCP tool schemas; `ask` timeout path. One integration test against `agent-notifierd` (skipped when the binary is absent).
 
 **Acceptance.** `agent-notify send --class completion --title …` reaches the Mac app; the MCP server answers `tools/list` and an `ask` round-trips through the app.
 
 ## After Phase 3: Phase 4 inputs
 
 - **Spike S1** (first task of Phase 4): in a terminal CLI session, does Claude Code show its permission prompt while a `PermissionRequest` hook is still running? It decides whether the hook may wait long when you are at the terminal (architecture §11).
-- Hook mapping is fixed in architecture §5.3; the hook adds `PostToolUse` (async) to resolve `"permission"` when a prompt was answered in the terminal.
+- Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook resolving its own message whenever it stops waiting.
 - Packaging as a Claude Code plugin (hooks + MCP), merged with the existing user hooks, never replacing them.

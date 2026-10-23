@@ -10,7 +10,7 @@ Blocking items should reach the iPhone and Watch when you are away. The app is s
 
 - **Push through ntfy** (ntfy.sh by default, self-hosted supported) via the `Relay` trait in `notifier-relay`. The ntfy iOS app (App Store, with its own push entitlements) shows the notification, mirrored to the Watch.
 - **Minimal payload by default**: agent name and a class phrase, no message title or content. `title` and `full` modes are opt-in; `full` is recommended only with self-hosted ntfy, where only a poll id transits ntfy.sh.
-- **Answers over Tailscale**: ntfy `http` action buttons POST to a remote action endpoint bound to the Mac's Tailscale address, off by default, accepting only HMAC-signed, single-use, short-lived action tokens carried in the request body.
+- **Answers over Tailscale**: in the `title` and `full` payload modes (where the notification shows what is asked), ntfy `http` action buttons POST to a remote action endpoint bound to the Mac's Tailscale address, off by default, accepting only HMAC-signed, single-use, short-lived action tokens carried in the request body, and refusing requests from the Mac's own Tailscale node. In the default `minimal` mode the phone gets no one-tap answer, only a link into the own iOS app, so you never approve something you cannot read.
 - **Own iOS app** as an inbox and detail viewer over the same Tailscale listener (HTTPS with the MagicDNS certificate), for text replies and full content.
 - **APNs adapter later** behind the same trait, once the paid membership exists; it sends directly to the own iOS app with native action categories.
 

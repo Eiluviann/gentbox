@@ -11,13 +11,14 @@ Every sender speaks one wire format. It must carry enough to classify without a 
 The schema is [`../schema/message-v1.json`](../schema/message-v1.json) (JSON Schema 2020-12), examples in [`../schema/examples/`](../schema/examples/). Key choices:
 
 - **camelCase field names.** The clients that write it (hook, CLI, MCP server) are TypeScript under Biome's naming rule; Rust renames with `#[serde(rename_all = "camelCase")]`. Claude Code's snake_case hook payloads are translated by the hook, never passed through.
+- **No sender-chosen message id.** The hub assigns a ULID and returns it; it is the only id in URLs and responses. The optional `idempotencyKey` only makes retries safe.
 - **`version: 1` required**, `additionalProperties: false` at the top level and in nested objects, so a typo fails with 422 instead of being ignored. `metadata` (flat, ≤ 32 keys, scalar values) is the extension point.
 - **`class` optional.** Declared wins; otherwise rules (ADR 0004). `event` is the sender's own dotted event name, the main thing rules match on.
 - **`conversation.id` required.** Coalescing, supersede and resolve all work within a conversation; senders without sessions use a stable id per task.
 - **`correlationKey`** names the slot a message occupies in its conversation (`permission`, `idle`): a newer message with the same key supersedes the open one in place. **`resolves`** closes other slots.
-- **`awaitsResponse`** declares a long-poller. Answer buttons are shown only while one waits.
-- **Actions** `approve`, `deny`, `choice` (with `value`), `reply` (free text), `open`, `snooze`. `choice` is an addition to the plan's list, for multiple-choice questions (MCP `ask`, elicitation-like prompts) that `approve`/`deny` cannot express.
-- **`sensitive`** forces the minimal phone payload whatever the setting.
+- **`awaitsResponse`** declares the intent to long-poll; the hub acts on the live waiter (a poll in flight or ended under 10 s ago), shown as answer buttons only while one exists.
+- **Actions** `approve`, `deny`, `choice` (with `value`), `reply` (free text) are answers; `open` and `snooze` (minutes in `value`) are non-answers, never returned to the sender. `choice` is an addition to the plan's list, for multiple-choice questions (MCP `ask`, elicitation-like prompts) that `approve`/`deny` cannot express.
+- **`sensitive`** forces the minimal phone payload whatever the setting. `body` never goes to the phone relay in any mode.
 - **`focus`** (`url`, `bundleId`, `terminal`) describes how to bring the conversation forward; the hub tries them in that order.
 - The **`actionResponse`** returned by the long-poll is defined in the same file (`$defs/actionResponse`).
 - Size caps: title 120, summary 400, body 64 KiB, 6 actions; request body 128 KiB.

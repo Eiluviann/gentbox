@@ -8,10 +8,11 @@ Senders are hook scripts (short-lived processes, TypeScript or shell), an MCP se
 
 ## Decision
 
-- **HTTP/1.1 JSON on `127.0.0.1:<random port>`** and the same router on a **Unix socket** (`<state>/API/hub.sock`, 0600). `axum` on `tokio`.
-- **Bearer token** (256-bit) in `<state>/API/token`, 0600 in a 0700 folder, discovered like Vaultday's (`GET /v1/hello` proves the pairing; `AGENT_NOTIFIER_API_DIR` overrides).
+- **HTTP/1.1 JSON on a Unix socket** (`<state>/API/hub.sock`, 0600 in a 0700 folder), preferred by local clients, and the same router on **`127.0.0.1:<random port>`** for clients that cannot use a socket. `axum` on `tokio`.
+- **Bearer sender token** (256-bit) in `<state>/API/token`, 0600, discovered like Vaultday's (`AGENT_NOTIFIER_API_DIR` overrides). Over TCP the client first checks the hub's challenge-response proof (`POST /v1/hello` answers `HMAC(token, nonce)`) and only then sends the token, so a port squatted after a crash learns nothing.
+- **The sender token cannot answer.** It posts, long-polls, resolves and reports progress; it cannot answer or list messages, so an agent cannot approve its own prompt. Answers come from the in-process UI and the phone (per-action tokens); a CLI answer credential in the Keychain is Planned.
 - **Answers by long-poll**: `GET /v1/messages/{id}/response?wait=≤55`. The sender loops until its own deadline. The hub replies `pending` at the end of each wait, so no intermediary or client timeout ever sees a hung request.
-- `Host` header check, JSON-only content type, no CORS: a browser cannot use the port even if it guesses it.
+- `Host` header check on TCP (not on the socket), JSON-only content type, no CORS: a browser cannot use the port even if it guesses it.
 - A **separate remote listener** for the phone, bound only to the Tailscale address and off by default, serving only `/r/v1/…` routes (ADR 0005).
 
 ## Consequences

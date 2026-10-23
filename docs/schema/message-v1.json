@@ -11,8 +11,8 @@
 			"description": "Schema major version. The hub rejects any other value with 422.",
 			"const": 1
 		},
-		"id": {
-			"description": "Sender-chosen idempotency key. A retry with the same id and source returns the stored message instead of creating a second one. The hub assigns a ULID when it is absent.",
+		"idempotencyKey": {
+			"description": "Sender-chosen key that makes retries safe: a second POST with the same key from the same source.agent returns the stored message instead of creating another. Not the message id: the hub assigns that (a ULID) and returns it.",
 			"$ref": "#/$defs/token"
 		},
 		"source": {
@@ -22,7 +22,7 @@
 			"$ref": "#/$defs/conversation"
 		},
 		"class": {
-			"description": "Declared class. When present it wins over every rule. When absent, the user's rules decide, then `generic`.",
+			"description": "Declared class. When present it wins over the rules, except a user rule with `override = true`. When absent: user rules, then built-in rules, then `generic`.",
 			"$ref": "#/$defs/messageClass"
 		},
 		"event": {
@@ -42,12 +42,12 @@
 			"maxLength": 400
 		},
 		"body": {
-			"description": "Markdown shown in the conversation detail and the rich popup. Stays on the hub unless the relay runs in full-payload mode.",
+			"description": "Markdown shown in the conversation detail and the rich popup. Never sent to the phone relay in any payload mode; the own iOS app reads it over Tailscale.",
 			"type": "string",
 			"maxLength": 65536
 		},
 		"actions": {
-			"description": "Buttons, in display order. Phone channels show the first three that make sense remotely (see docs/architecture.md › Phone relay).",
+			"description": "Buttons, in display order. The phone gets at most three, and answer buttons only when its payload mode shows what is asked (docs/architecture.md §9.3).",
 			"type": "array",
 			"maxItems": 6,
 			"items": {
@@ -55,12 +55,12 @@
 			}
 		},
 		"awaitsResponse": {
-			"description": "True when the sender will long-poll /v1/messages/{id}/response. Answer buttons (approve, deny, reply, choice) are only offered while a sender waits; without a waiter they are hidden and only open and snooze remain.",
+			"description": "True when the sender intends to long-poll /v1/messages/{id}/response. What counts is the live waiter (a poll in flight or ended under 10 s ago): answer buttons (approve, deny, choice, reply) are offered only while one exists.",
 			"type": "boolean",
 			"default": false
 		},
 		"correlationKey": {
-			"description": "Dedupe and supersede key within the conversation. A new message with the key of an open message replaces it in place (same notification, updated content) instead of pinging again.",
+			"description": "The slot this message occupies in its conversation. A new message with the key of an open message takes its slot in place (same notification, updated content) instead of pinging again, unless the open one has a live waiter and the new one has not; then it only counts as a repeat (docs/architecture.md §7).",
 			"$ref": "#/$defs/token"
 		},
 		"resolves": {
@@ -213,7 +213,7 @@
 					"$ref": "#/$defs/actionKind"
 				},
 				"value": {
-					"description": "For `choice`: the value returned to the sender. For `snooze`: minutes, as a string.",
+					"description": "For `choice`: the value returned to the sender. For `snooze`: minutes as a decimal string (default 15).",
 					"type": "string",
 					"maxLength": 256
 				},
@@ -240,11 +240,27 @@
 					"then": {
 						"required": ["value"]
 					}
+				},
+				{
+					"if": {
+						"properties": {
+							"kind": {
+								"const": "snooze"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"value": {
+								"pattern": "^[1-9][0-9]{0,3}$"
+							}
+						}
+					}
 				}
 			]
 		},
 		"actionKind": {
-			"description": "approve, deny and choice answer with a fixed value; reply answers with text; open focuses the conversation and answers nothing; snooze hides the message and re-pings later.",
+			"description": "Answers: approve and deny (fixed meaning), choice (returns its value), reply (returns free text); the first answer resolves the message. Non-answers, never returned to the sender: open (acknowledges and brings the conversation forward) and snooze (acknowledges and re-pings after `value` minutes).",
 			"type": "string",
 			"enum": ["approve", "deny", "choice", "reply", "open", "snooze"]
 		},
@@ -255,10 +271,12 @@
 			"required": ["messageId", "status"],
 			"properties": {
 				"messageId": {
-					"$ref": "#/$defs/token"
+					"description": "The hub-assigned message id (ULID) from the 201 response.",
+					"type": "string",
+					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
 				},
 				"status": {
-					"description": "`pending`: the long-poll timed out with no answer, poll again. `answered`: see actionId. `resolved`, `superseded`, `expired`: closed without an answer; the sender falls back to its own prompt.",
+					"description": "`pending`: open or acknowledged (snoozed included), poll again. `answered`: see actionId. `superseded`: a newer message took the slot. `resolved`: closed without an answer (completed, resolved by the sender or by progress, marked done). `expired`. On anything but `answered` the sender falls back to its own prompt.",
 					"type": "string",
 					"enum": ["pending", "answered", "resolved", "superseded", "expired"]
 				},
@@ -266,7 +284,9 @@
 					"type": "string"
 				},
 				"actionKind": {
-					"$ref": "#/$defs/actionKind"
+					"description": "Only answer kinds are ever returned.",
+					"type": "string",
+					"enum": ["approve", "deny", "choice", "reply"]
 				},
 				"value": {
 					"description": "The choice value or the reply text.",
