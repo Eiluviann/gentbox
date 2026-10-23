@@ -1135,3 +1135,6 @@ a.side-item { text-decoration: none; }
 .icol > .i { margin-top: 0; }
 .i.urgent-mark { color: var(--wait); }
 .tag.urgent { background: none; padding: 0; color: var(--wait-ink); font-weight: 600; }
+/* Popover list: a rule between every item, no section titles */
+.pp-line { padding-top: 9px; padding-bottom: 9px; }
+.pp-line + .pp-line, .pp-hero + .pp-line { border-top: 1px solid var(--line); }
