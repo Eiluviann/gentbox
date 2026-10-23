@@ -21,7 +21,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 | `deferrable` | Paused · can defer, orange `#E8710A`, `pause.circle.fill` | popup with Defer |
 | `non_blocking` | Agent working, grey, `play.circle.fill` | as the type says |
 
-- **Urgent** is a solid red pill (`clock.badge.exclamationmark`, white on `#D70015`; the waiting label is the soft red tint) that combines with any type but generic: Time Sensitive on the Mac, iPhone and Watch, through quiet hours and Focus, "URGENT:" before the title, and looped ripple rings around the whole popup (red when waiting, orange when paused).
+- **Urgent** gives the item a red background (`#FDECEE`) with URGENT in caps at its bottom right, no pill that combines with any type but generic: Time Sensitive on the Mac, iPhone and Watch, through quiet hours and Focus, "URGENT:" before the title, and looped ripple rings around the whole popup (red when waiting, orange when paused).
 - Lists are one sorted list, waiting first, with no category headers; each row shows its blocking label, and the type symbol leads it.
 - **Defer** (`forward`) is an answer on deferrable items, on the Mac, the iPhone push and the Watch; the item then reads as Agent working. **Snooze** (`moon.zzz`) is local and never reaches the agent, so it is not a push button.
 - **Withdrawn** (`arrow.uturn.backward.circle`): the popup says why and slides out, the inbox row is struck through with the reason in words, the iPhone removes the notification; superseded messages fold into their replacement.

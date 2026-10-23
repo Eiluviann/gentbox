@@ -1017,10 +1017,9 @@ a.side-item { text-decoration: none; }
 /* Ripple on an urgent popup: looped rings around the whole panel, red when the agent waits, orange when paused */
 .ripple-panel { --ripple: var(--wait); }
 .ripple-panel.paused { --ripple: var(--paused); }
-.ripple-panel::before, .ripple-panel::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; border: 2px solid var(--ripple); opacity: 0; pointer-events: none; animation: panel-ripple 2.4s ease-out infinite; }
-.ripple-panel::after { animation-delay: 1.2s; }
+.ripple-panel::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; border: 2px solid var(--ripple); opacity: 0; pointer-events: none; animation: panel-ripple 1.8s ease-out infinite; }
 @keyframes panel-ripple { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.06, 1.12); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .ripple-panel::before { animation: none; opacity: 0.5; } .ripple-panel::after { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ripple-panel::before { animation: none; opacity: 0.5; } }
 
 /* Topics: one grouping level; a header row, then its messages indented under it */
 :root { --topic-release: #a2845e; --topic-deps: #5e6e82; }
@@ -1044,3 +1043,13 @@ a.side-item { text-decoration: none; }
 .menu-pop div { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 6px; }
 .menu-pop div.hl { background: var(--accent); color: #fff; }
 .menu-pop hr { border: none; border-top: 1px solid var(--line); margin: 4px 6px; }
+
+/* Urgent: the item gets a red background and URGENT in caps at its bottom right; no pill */
+.tag.urgent { background: none; padding: 0; color: var(--wait-ink); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10px; }
+.tag.urgent .i { display: none; }
+.urgent-item { background: var(--wait-soft) !important; position: relative; }
+.urgent-item::after { content: "URGENT"; position: absolute; right: 12px; bottom: 8px; font-size: 10px; line-height: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--wait-ink); pointer-events: none; }
+.panel.urgent-item { padding-bottom: 30px !important; }
+.panel.urgent-item::after { right: 14px; bottom: 10px; }
+.ios a.irow.urgent-item { display: grid; }
+.ios .urgent-item::after { right: 16px; bottom: 10px; font-size: 11px; }
