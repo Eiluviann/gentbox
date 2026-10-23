@@ -12,9 +12,9 @@ Enrolment can take a day or two, and other people may build the app without a me
 
 ### Delivery: APNs straight from the Mac
 
-- The `apns` adapter in `notifier-relay` sends from the Mac to Apple's push service, `api.push.apple.com` (production) or `api.sandbox.push.apple.com` (development builds), over HTTP/2 on port 443 (2197 as a firewall fallback) [APNs-send].
+- The `apns` adapter in `gentbox-relay` sends from the Mac to Apple's push service, `api.push.apple.com` (production) or `api.sandbox.push.apple.com` (development builds), over HTTP/2 on port 443 (2197 as a firewall fallback) [APNs-send].
 - **Auth: token-based.** An ES256 JWT signed with the user's own APNs key (`.p8`), header `kid` = key id, claims `iss` = team id and `iat`. The `.p8`, key id and team id are entered once in Settings and kept in the Keychain. The hub refreshes the JWT no more often than every 20 min and no less often than every 60 min, since APNs rejects a token older than an hour (403 `ExpiredProviderToken`) and refreshing too often (429 `TooManyProviderTokenUpdates`) [APNs-token, APNs-responses].
-- **Our own iOS app** (bundle `com.eiluviann.agentnotifier`, signed by the user's paid team) receives the pushes. No relay, no server: this works only for people who build and sign the app with their own team, because an APNs key only reaches apps of its own team.
+- **Our own iOS app** (bundle `com.eiluviann.gentbox`, signed by the user's paid team) receives the pushes. No relay, no server: this works only for people who build and sign the app with their own team, because an APNs key only reaches apps of its own team.
 - **Device tokens** reach the hub through pairing (below). Each token is stored with its environment (`development` for Xcode builds, `production` for TestFlight). The hub drops a token on 410 `Unregistered` or `ExpiredToken`, and on 400 `BadDeviceToken` or `DeviceTokenNotForTopic` after one retry against the other environment. It retries 429 and 5xx with backoff [APNs-responses].
 
 ### What a push carries (4 KB cap)
@@ -47,7 +47,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
   - `completion`: Open.
   - `info`: no actions.
 
-  Each answerable category has a `-defer` variant that adds Defer for `deferrable` messages. Snooze is not a push button: it stays notifier-local (ADR 0007).
+  Each answerable category has a `-defer` variant that adds Defer for `deferrable` messages. Snooze is not a push button: it stays local to Gentbox (ADR 0007).
 - **Approve requires an unlocked device** (`.authenticationRequired`): the system asks for Face ID before the app sees the tap, so a locked phone cannot approve anything [APNs-auth-required]. Deny and snooze do not.
 - **Reply** is a `UNTextInputNotificationAction`: type, dictate or Scribble a reply from the lock screen or the Watch.
 - **Choices** are per message, but categories are static. The optional Notification Content Extension sets the expanded notification's buttons at display time with `notificationActions` (iOS 12+) [Content-ext]. Without the extension a `choice` message offers Reply and Open, and the reply text is matched against the choice labels.

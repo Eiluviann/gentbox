@@ -9,7 +9,7 @@ rust-version = "1.93"
 publish = false
 
 # Every crate opts in with `[lints] workspace = true`. The one exception is the
-# future `notifier-ffi` crate: UniFFI's generated scaffolding needs `unsafe`, so
+# future `gentbox-ffi` crate: UniFFI's generated scaffolding needs `unsafe`, so
 # it declares its own `[lints]` table with the same rules minus `unsafe_code`.
 [workspace.lints.rust]
 unsafe_code = "forbid"

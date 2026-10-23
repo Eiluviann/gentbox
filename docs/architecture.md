@@ -1,6 +1,6 @@
 # Architecture
 
-Agent Notifier receives messages from LLM agents, decides how loud each one should be, and delivers it to the Mac and the phone. The goal is a ping only for what needs you: a blocked session, a finished task when you are away, a question that can wait in an inbox. This document is the Phase 1 design. The decisions behind it are in [`adr/`](adr/), the wire format in [`schema/message-v1.json`](schema/message-v1.json), and the build order in [`implementation-plan.md`](implementation-plan.md).
+Gentbox receives messages from LLM agents, decides how loud each one should be, and delivers it to the Mac and the phone. The goal is a ping only for what needs you: a blocked session, a finished task when you are away, a question that can wait in an inbox. This document is the Phase 1 design. The decisions behind it are in [`adr/`](adr/), the wire format in [`schema/message-v1.json`](schema/message-v1.json), and the build order in [`implementation-plan.md`](implementation-plan.md).
 
 Status tags: **Now** is built in Phase 3, **Planned** comes later, **Spike** must be verified before the PR that depends on it.
 
@@ -31,19 +31,19 @@ The sender may declare any of the fields; deterministic rules fill the rest. No 
 flowchart LR
   subgraph senders[Senders]
     hook[Claude Code hook<br/>Phase 4]
-    mcp[agent-notify MCP / CLI<br/>PR 7]
+    mcp[gentbox CLI · gentbox-mcp<br/>PR 7]
     other[Any agent<br/>HTTP API]
   end
-  subgraph mac[Mac: Agent Notifier.app]
-    ingest[notifier-ingest<br/>127.0.0.1 + Unix socket]
-    core[notifier-core<br/>classify · policy · lifecycle]
-    store[(notifier-store<br/>SQLite)]
-    relay[notifier-relay<br/>APNs · ntfy answers and fallback]
-    ui[SwiftUI over notifier-ffi<br/>menu-bar inbox · popups · native notifications]
+  subgraph mac[Mac: Gentbox.app]
+    ingest[gentbox-ingest<br/>127.0.0.1 + Unix socket]
+    core[gentbox-core<br/>classify · policy · lifecycle]
+    store[(gentbox-store<br/>SQLite)]
+    relay[gentbox-relay<br/>APNs · ntfy answers and fallback]
+    ui[SwiftUI over gentbox-ffi<br/>menu-bar inbox · popups · native notifications]
   end
   apns[(Apple Push<br/>your own .p8 key)]
   ntfy[(ntfy server<br/>ntfy.sh or self-hosted)]
-  phone[iPhone + Watch<br/>Agent Notifier iOS app]
+  phone[iPhone + Watch<br/>Gentbox iOS app]
 
   hook & mcp & other -->|POST /v1/messages| ingest
   hook -.->|long-poll response| ingest
@@ -59,37 +59,37 @@ flowchart LR
 
 ADR: [0001](adr/0001-hub-placement.md).
 
-- **Mac (Now).** The Rust core runs in-process inside the SwiftUI menu-bar app, which registers itself as a login item (`SMAppService.mainApp`). One process owns the store, the ingest listener, the relay and the UI. The app talks to the core through UniFFI (`notifier-ffi`), not over HTTP.
-- **Headless (Now, Linux-first).** The same crates build the `agent-notifierd` binary: ingest, store, policy and relay without a UI. It serves Linux, a Mac without the app, and the integration tests. On Linux it runs as a systemd user unit (Planned: the unit file and desktop notifications over D-Bus).
-- **One hub per user.** Each hub takes an exclusive lock on `<state>/hub.lock` before it binds anything. A second hub (the app while `agent-notifierd` runs, or two app builds) exits with "another hub is running (pid …)" instead of splitting state. The app does not become a client of a running daemon; on the Mac the app is the hub.
+- **Mac (Now).** The Rust core runs in-process inside the SwiftUI menu-bar app, which registers itself as a login item (`SMAppService.mainApp`). One process owns the store, the ingest listener, the relay and the UI. The app talks to the core through UniFFI (`gentbox-ffi`), not over HTTP.
+- **Headless (Now, Linux-first).** The same crates build the `gentboxd` binary: ingest, store, policy and relay without a UI. It serves Linux, a Mac without the app, and the integration tests. On Linux it runs as a systemd user unit (Planned: the unit file and desktop notifications over D-Bus).
+- **One hub per user.** Each hub takes an exclusive lock on `<state>/hub.lock` before it binds anything. A second hub (the app while `gentboxd` runs, or two app builds) exits with "another hub is running (pid …)" instead of splitting state. The app does not become a client of a running daemon; on the Mac the app is the hub.
 
 State folder, by signing:
 
 | Signing | State folder |
 | --- | --- |
-| Paid team (the default from Phase 3 on) | `~/Library/Group Containers/group.com.eiluviann.agentnotifier` |
-| Personal Team (App Group; ntfy fallback only) | `~/Library/Group Containers/<TEAM>.com.eiluviann.agentnotifier` |
-| Ad hoc / unsigned / `agent-notifierd` on macOS | `~/Library/Application Support/AgentNotifier` |
-| `agent-notifierd` on Linux | `$XDG_STATE_HOME/agent-notifier` (default `~/.local/state/agent-notifier`) |
+| Paid team (the default from Phase 3 on) | `~/Library/Group Containers/group.com.eiluviann.gentbox` |
+| Personal Team (App Group; ntfy fallback only) | `~/Library/Group Containers/<TEAM>.com.eiluviann.gentbox` |
+| Ad hoc / unsigned / `gentboxd` on macOS | `~/Library/Application Support/Gentbox` |
+| `gentboxd` on Linux | `$XDG_STATE_HOME/gentbox` (default `~/.local/state/gentbox`) |
 
-The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/` discovery folder (§8).
+The folder holds `hub.db`, `hub.lock`, `rules.toml`, `config.toml` and the `API/` discovery folder (§8). On Linux the two editable files, `config.toml` and `rules.toml`, live in `$XDG_CONFIG_HOME/gentbox` instead (default `~/.config/gentbox`), following the XDG split between configuration and state; on macOS everything stays in the one folder above.
 
 ## 4. Crates and processes
 
 | Crate | Status | Responsibility | Depends on |
 | --- | --- | --- | --- |
-| `notifier-core` | Now (PR 1) | Domain types (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
-| `notifier-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `notifier-core` |
-| `notifier-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `notifier-core` |
-| `notifier-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `notifier-core`, `notifier-store`, `notifier-relay` (trait only) |
-| `notifier-ingest` | Now (PR 2b; optional remote routes for the iOS app in PR 8) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `notifier-hub` |
-| `agent-notifierd` | Now (PR 2b) | Binary: config, lock, logging, signal handling; wires hub, ingest and the configured relay | `notifier-ingest`, `notifier-hub`, `notifier-relay` |
-| `notifier-ffi` | Now (PR 3) | UniFFI bindings for Swift. The only crate allowed `unsafe` (generated scaffolding); it has its own `[lints]` table | `notifier-hub`, `notifier-ingest`, `notifier-relay` |
-| `notifier-node` | Planned | napi-rs bindings for the Linux Electron client | as `notifier-ffi` |
+| `gentbox-core` | Now (PR 1) | Domain types (`Message`, `MessageType`, `Blocking`, `Source`, `Conversation`, `Action`, `LifecycleState`), classification, the policy engine, lifecycle transitions, action-token signing and verification (pure HMAC over bytes). Pure: no IO, no clock (time is passed in), no async | — |
+| `gentbox-store` | Now (PR 2a) | SQLite through `rusqlite` (bundled), migrations, retention sweep, the single-use action-token ledger | `gentbox-core` |
+| `gentbox-relay` | Now (PR 5) | `Relay` trait, `ntfy` adapter (publish, update, clear, the answer-topic subscription), payload modes, icon attachments. Knows nothing of the hub | `gentbox-core` |
+| `gentbox-hub` | Now (PR 2b) | The hub actor that serialises every state change, timers, dispatch to channels (the UI delegate and a `dyn Relay`), action-token minting against the ledger | `gentbox-core`, `gentbox-store`, `gentbox-relay` (trait only) |
+| `gentbox-ingest` | Now (PR 2b; optional remote routes for the iOS app in PR 8) | HTTP/1.1 (`axum` on `tokio`): the local router on loopback and the Unix socket, and the optional remote router on the Tailscale address; auth, schema validation, rate limits, long-poll. Routes only translate HTTP to hub commands | `gentbox-hub` |
+| `gentboxd` | Now (PR 2b) | Binary: config, lock, logging, signal handling; wires hub, ingest and the configured relay | `gentbox-ingest`, `gentbox-hub`, `gentbox-relay` |
+| `gentbox-ffi` | Now (PR 3) | UniFFI bindings for Swift. The only crate allowed `unsafe` (generated scaffolding); it has its own `[lints]` table | `gentbox-hub`, `gentbox-ingest`, `gentbox-relay` |
+| `gentbox-node` | Planned | napi-rs bindings for the Linux Electron client | as `gentbox-ffi` |
 
 The graph is acyclic: core ← store, relay ← hub ← ingest ← binaries and bindings.
 
-**Concurrency.** A single hub actor (one `tokio` task in `notifier-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers, redeemed phone answers, the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede, rescind and defer races impossible by construction rather than by locking.
+**Concurrency.** A single hub actor (one `tokio` task in `gentbox-hub`) owns the in-memory view and is the only writer to the store. Ingest handlers, redeemed phone answers, the UI (through FFI) and the timers send it commands over an `mpsc` channel and await a reply. Long-polls wait on a per-message `tokio::sync::watch`. This makes "first answer wins" and supersede, rescind and defer races impossible by construction rather than by locking.
 
 **Platform sensing stays on the platform side.** Presence (frontmost app, idle seconds, screen locked, Focus) is read by Swift on the Mac and pushed into the core as `PresenceUpdate` commands; the daemon on Linux will read logind's idle hint (Planned). The core never calls platform APIs, so the policy engine stays a pure function with table tests.
 
@@ -283,7 +283,7 @@ Every cell is configurable per `(type, urgent, blocking)` (and per source, Plann
 
 - **Quiet hours** (a weekly schedule, default off): non-urgent messages stay silent on the Mac and the phone and do not escalate; urgent ones break through (table above).
 - **Focus.** macOS filters our native notifications by the active Focus; urgent ones are Time Sensitive and break through unless you turn that off for the app. Our own popups and toasts are not subject to Focus, so the engine applies the same rule to them: non-urgent popups appear silently and toasts become inbox-only; urgent ones are shown and audible.
-- **How the hub learns Focus** (Spike S3, §11). `INFocusStatusCenter`, which the paid team's Communication Notifications capability allows: the app asks once for Focus status access and polls `isFocused` on presence changes (key-value observation is reported not to work [Apple-forum-682143]). `isFocused` is true only when a Focus is on and Agent Notifier is not on its allowed list, which is exactly when the engine should hold back. Fallbacks, for builds without the paid team: read `~/Library/DoNotDisturb/DB/` behind Full Disk Access, or a Shortcuts automation running `agent-notify focus on|off`.
+- **How the hub learns Focus** (Spike S3, §11). `INFocusStatusCenter`, which the paid team's Communication Notifications capability allows: the app asks once for Focus status access and polls `isFocused` on presence changes (key-value observation is reported not to work [Apple-forum-682143]). `isFocused` is true only when a Focus is on and Gentbox is not on its allowed list, which is exactly when the engine should hold back. Fallbacks, for builds without the paid team: read `~/Library/DoNotDisturb/DB/` behind Full Disk Access, or a Shortcuts automation running `gentbox focus on|off`.
 
 ### 6.4 Frontmost suppression
 
@@ -312,7 +312,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 - The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
 - Remote listener for the own iOS app's full bodies, off by default and only with Tailscale (§10, optional PR 8).
 
-**Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/AgentNotifier/API`, then `$XDG_STATE_HOME/agent-notifier/API` (`AGENT_NOTIFIER_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `HMAC-SHA256(token, nonce)`. The client sends its bearer token only after checking that proof, so a process of another user squatting on a port left behind by a crash learns nothing.
+**Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/Gentbox/API`, then `$XDG_STATE_HOME/gentbox/API` (`GENTBOX_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `HMAC-SHA256(token, nonce)`. The client sends its bearer token only after checking that proof, so a process of another user squatting on a port left behind by a crash learns nothing.
 
 **Endpoints** (all but `hello` require `Authorization: Bearer <token>`, the sender token). `{id}` is always the hub-assigned message id.
 
@@ -359,9 +359,9 @@ sequenceDiagram
 - **First answer wins.** The hub actor accepts the first answer and closes the message; later answers (the other device, a re-tap) get 409 and the UI shows "Already answered on <channel>".
 - **Answer buttons need a live waiter** (§5.2). Without one, approve/deny/reply/choice are hidden (and disappear from an open popup when the waiter lapses) and only open, snooze and Mark done remain, so a button never pretends to do something.
 - **The hook cleans up.** Whenever it stops waiting without an answer it calls `DELETE /v1/messages/{id}` (`resolved_elsewhere`) before printing nothing, so the popup closes as the agent's own prompt takes over.
-- **Mapping for Claude Code `PermissionRequest`** (Phase 4): `approve` → `{"behavior": "allow"}`; `deny` → `{"behavior": "deny", "message": "Denied from Agent Notifier"}`; `reply` → `deny` with your text as `message`, which tells Claude what to do instead.
+- **Mapping for Claude Code `PermissionRequest`** (Phase 4): `approve` → `{"behavior": "allow"}`; `deny` → `{"behavior": "deny", "message": "Denied from Gentbox"}`; `reply` → `deny` with your text as `message`, which tells Claude what to do instead.
 - **Timeouts.** Command hooks default to a 600 s timeout and are cancelled at it, output discarded; no maximum is documented [CC-hooks › Common fields, Timeouts]. The hook sets its own deadline below its configured `timeout` and exits with no output, which leaves the permission flow unchanged [CC-hooks › PermissionRequest decision control].
-- **Fallback.** No answer by the deadline, `shouldWait: false`, hub unreachable, or any error → the hook prints nothing and Claude Code shows its own prompt. The notifier never decides on its own.
+- **Fallback.** No answer by the deadline, `shouldWait: false`, hub unreachable, or any error → the hook prints nothing and Claude Code shows its own prompt. Gentbox never decides on its own.
 
 ### 9.2 Open
 
@@ -378,14 +378,14 @@ Common to both:
 
 - **Action tokens.** `base64url(payload) "." base64url(HMAC-SHA256(key, payload))`, payload = message id, action id, nonce, expiry. The key is 256-bit, per hub, in the Keychain (Mac) or a 0600 file (daemon). Expiry = min(message `expiresAt`, 30 min); the nonce is recorded on first use, so a replay is ignored and logged. Constant-time comparison. Tokens are not secret from Apple's push service or the ntfy server (they ride in the notification), which is why they are single-use, short-lived and bound to one message and action.
 - **Self-answers are refused.** Tokens are minted only by the hub and sent only to your phone; topic names, the ntfy credentials and the APNs key live in the Keychain, not in `config.toml`. An agent on the Mac can neither read a token nor forge one.
-- **Which actions go to the phone.** In the default `summary` payload mode the notification says what is needed (§10), so the answers go out as buttons: `approve`, `deny` (when not `destructive`), `choice`, `done`, and `defer` on `deferrable` messages (at most 3 on ntfy; Defer takes priority over a second choice). Snooze is a notifier-local reminder and stays off the push buttons (ADR 0007). In `minimal` mode, and for `sensitive` messages, there are no answer buttons: you cannot read what you would approve. Never `destructive` actions.
+- **Which actions go to the phone.** In the default `summary` payload mode the notification says what is needed (§10), so the answers go out as buttons: `approve`, `deny` (when not `destructive`), `choice`, `done`, and `defer` on `deferrable` messages (at most 3 on ntfy; Defer takes priority over a second choice). Snooze is a local to Gentbox reminder and stays off the push buttons (ADR 0007). In `minimal` mode, and for `sensitive` messages, there are no answer buttons: you cannot read what you would approve. Never `destructive` actions.
 - **Feedback.** Once the token is redeemed, the hub replaces the notification (same collapse or sequence id) with a passive "Approved from phone".
 
 ## 10. Phone relay
 
 ADRs: [0006](adr/0006-phone-apns.md) (current), [0005](adr/0005-ios-transport.md) (superseded; its ntfy design lives on as the fallback).
 
-**Relay trait** (`notifier-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`, and an answer source `answers() -> Stream<AnswerEnvelope>` (action tokens and device registrations). Adapters, each configured with your own credentials:
+**Relay trait** (`gentbox-relay`): `publish(PhoneNotification) -> RelayReceipt`, `update(receipt, PhoneNotification)`, `clear(receipt)`, and an answer source `answers() -> Stream<AnswerEnvelope>` (action tokens and device registrations). Adapters, each configured with your own credentials:
 
 - `apns` (Now, the default delivery with the paid team): HTTP/2 to `api.push.apple.com` / `api.sandbox.push.apple.com`, ES256 JWT from your `.p8` key, refreshed every 20–60 min; device tokens from pairing, stored with their environment, dropped on 410 [APNs-token, APNs-responses].
 - `ntfy` (Now): always the answer channel (answer-topic subscription); also the delivery fallback until the membership is active, for anyone without one, and when no APNs device is registered. ntfy.sh by default, self-hosted supported, optional ntfy account token.
@@ -408,7 +408,7 @@ Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
 - **Subtitle:** project · conversation title (Mac and the own iOS app; left out on the ntfy fallback).
 - **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · project · conversation"); the ntfy fallback leads the body with it.
-- **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.agent-notifier/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
+- **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.gentbox/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).
   - ntfy fallback: uploaded as the message's image attachment, which the ntfy app shows as the thumbnail [ntfy-ios NotificationContent.swift:79-123].
@@ -475,7 +475,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 ### Signing: paid team, Personal Team as fallback
 
-- **Paid team (from Phase 3 on).** The shipped identifiers (`com.eiluviann.agentnotifier`, App Group `group.com.eiluviann.agentnotifier`) belong to the user's paid team. Development profiles and Apple Development certificates last a year, so the weekly rebuild goes away; the Mac app claims Time Sensitive and Communication Notifications (profile required), the iOS app also Push Notifications (`aps-environment`). Devices: up to 100 per device type per membership year [Apple-memberships].
+- **Paid team (from Phase 3 on).** The shipped identifiers (`com.eiluviann.gentbox`, App Group `group.com.eiluviann.gentbox`) belong to the user's paid team. Development profiles and Apple Development certificates last a year, so the weekly rebuild goes away; the Mac app claims Time Sensitive and Communication Notifications (profile required), the iOS app also Push Notifications (`aps-environment`). Devices: up to 100 per device type per membership year [Apple-memberships].
 - **Personal Team (fallback, documented for builds without a membership).** Limits below; such builds deliver to the phone through ntfy only.
 
 - Free accounts can use App Groups and Keychain Sharing on macOS and iOS (plus Background Modes on iOS); not Push Notifications, iCloud/CloudKit, Time Sensitive, Communication Notifications, Associated Domains, Network Extensions [Apple-caps-macos, Apple-caps-ios].
@@ -485,7 +485,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 ## 12. Security model
 
-**Trust boundary: your macOS user account, minus the agents.** Any process running as you can already read your files and drive your apps, so the notifier does not try to defend its data against them. The one exception is the decision it gates: the agents that send messages run as you too, and none of them may answer its own question. Hence the split between the sender token (readable by any of your processes) and the answer paths (in-process UI, phone with per-action tokens, Planned Keychain-held answer credential).
+**Trust boundary: your macOS user account, minus the agents.** Any process running as you can already read your files and drive your apps, so Gentbox does not try to defend its data against them. The one exception is the decision it gates: the agents that send messages run as you too, and none of them may answer its own question. Hence the split between the sender token (readable by any of your processes) and the answer paths (in-process UI, phone with per-action tokens, Planned Keychain-held answer credential).
 
 | Threat | Mitigation |
 | --- | --- |
@@ -503,11 +503,11 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 ## 13. Future paths
 
-- **Linux (Planned).** `agent-notifierd` as a systemd user unit; desktop notifications over `org.freedesktop.Notifications` with actions; presence from logind's `IdleHint`; an Electron tray client on `notifier-node` (napi-rs) for the inbox and popups. Discovery uses `$XDG_STATE_HOME`. The ntfy relay works unchanged.
+- **Linux (Planned).** `gentboxd` as a systemd user unit; desktop notifications over `org.freedesktop.Notifications` with actions; presence from logind's `IdleHint`; an Electron tray client on `gentbox-node` (napi-rs) for the inbox and popups. Discovery uses `$XDG_STATE_HOME`. The ntfy relay works unchanged.
 - **APNs** moved from Planned to Now with the paid team (ADR 0006). The rule stays: the Mac pushes with your own key to your own signed build, so a build for other people needs their own team and key; this project runs no push relay.
 - **watchOS app (Planned).** Custom notification scenes and a glanceable inbox on the Watch.
 - **Windows (Planned, unscheduled).** Same as Linux with toast notifications.
-- **Other agents.** Any agent can POST the v1 schema; the CLI and MCP server (PR 7) cover agents that can run a command or an MCP tool.
+- **Other agents.** Any agent can POST the v1 schema; the `gentbox` CLI and the `gentbox-mcp` MCP server (PR 7) cover agents that can run a command or an MCP tool.
 
 ## 14. Sources
 

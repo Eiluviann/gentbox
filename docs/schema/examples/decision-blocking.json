@@ -9,7 +9,7 @@
 	"conversation": {
 		"id": "7f3a9c1e-5b2d-4e8a-9c61-2f0d8e4b7a10",
 		"title": "Fix flaky ingest test",
-		"cwd": "/Users/me/Developer/agent-notifier",
+		"cwd": "/Users/me/Developer/gentbox",
 		"focus": {
 			"bundleId": "com.mitchellh.ghostty",
 			"terminal": {
@@ -21,9 +21,9 @@
 	"urgent": false,
 	"blocking": "blocking",
 	"event": "claude-code.permission_request",
-	"title": "Allow Bash: cargo test -p notifier-ingest?",
-	"summary": "Claude Code wants to run a command in agent-notifier",
-	"body": "```bash\ncargo test -p notifier-ingest -- --nocapture\n```\n\nDescription: Run the ingest tests with output",
+	"title": "Allow Bash: cargo test -p gentbox-ingest?",
+	"summary": "Claude Code wants to run a command in gentbox",
+	"body": "```bash\ncargo test -p gentbox-ingest -- --nocapture\n```\n\nDescription: Run the ingest tests with output",
 	"actions": [
 		{
 			"id": "allow",

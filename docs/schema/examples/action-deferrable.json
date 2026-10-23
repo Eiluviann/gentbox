@@ -7,13 +7,13 @@
 	"conversation": {
 		"id": "5d0c7a92-3e41-4b8f-a6d2-9f1e0b7c4a33",
 		"title": "Publish the CLI package",
-		"cwd": "/Users/me/Developer/agent-notifier"
+		"cwd": "/Users/me/Developer/gentbox"
 	},
 	"type": "action_required",
 	"urgent": true,
 	"blocking": "deferrable",
 	"event": "mcp.ask",
-	"title": "Sign in to npm so I can publish @agent-notifier/cli",
+	"title": "Sign in to npm so I can publish @gentbox/cli",
 	"summary": "Run npm login in a terminal, then tap Done. Defer if I should finish the changelog first",
 	"actions": [
 		{

@@ -7,7 +7,7 @@
 	"conversation": {
 		"id": "c2e81d44-0a7b-4f19-8d3e-6b5a9f2c1e07",
 		"title": "Rename the relay crate",
-		"cwd": "/Users/me/Developer/agent-notifier"
+		"cwd": "/Users/me/Developer/gentbox"
 	},
 	"type": "decision_required",
 	"blocking": "non_blocking",

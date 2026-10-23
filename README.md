@@ -1,4 +1,4 @@
-# Agent Notifier
+# Gentbox
 
 Receives notifications from LLM agents (Claude Code first) and pings you only with what needs you: a blocked session waiting for an answer, a finished task, a question that can wait. Everything else lands silently in an inbox. Rust core, a SwiftUI menu-bar app on macOS, an iOS app with actionable push on the iPhone and Apple Watch (sent from your Mac to Apple with your own APNs key; ntfy carries the answers and is the fallback without a paid Apple team), a Linux client later.
 
@@ -8,8 +8,8 @@ Every message has a type (`decision_required`, `action_required`, `task_complete
 
 ## Layout
 
-- `core/` Cargo workspace. `notifier-core` is a placeholder until Phase 3. Planned: `notifier-store`, `notifier-ingest`, `notifier-relay`, `notifier-ffi`, the `agent-notifierd` binary, and `notifier-node` (napi-rs).
-- `cli/` `@agent-notifier/cli`, placeholder. Planned: the `agent-notify` CLI and stdio MCP server.
+- `core/` Cargo workspace. `gentbox-core` is a placeholder until Phase 3. Planned: `gentbox-store`, `gentbox-ingest`, `gentbox-relay`, `gentbox-ffi`, the `gentboxd` binary, and `gentbox-node` (napi-rs).
+- `cli/` `@gentbox/cli`, placeholder. Planned: the `gentbox` CLI and the `gentbox-mcp` stdio MCP server.
 - `apps/apple/` placeholder. Planned: the macOS menu-bar app and the iOS app (XcodeGen).
 - `docs/` [architecture](docs/architecture.md), [ADRs](docs/adr/), the [message schema v1](docs/schema/message-v1.json) with examples, and the [implementation plan](docs/implementation-plan.md).
 

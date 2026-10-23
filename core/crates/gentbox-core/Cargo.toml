@@ -1,6 +1,6 @@
 [package]
-name = "notifier-core"
-description = "Agent Notifier domain: messages, classification and the noise-policy engine"
+name = "gentbox-core"
+description = "Gentbox domain: messages, classification and the noise-policy engine"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
