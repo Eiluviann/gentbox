@@ -1,6 +1,6 @@
 # 0005 Phone transport: ntfy now, APNs later
 
-Status: Accepted, 2026-10-23 (revised the same day with the user's answers: ntfy.sh by default, answers through ntfy instead of Tailscale)
+Status: Superseded by [0006](0006-phone-apns.md), 2026-10-23. Its ntfy answer topic and ntfy delivery live on in 0006 as the answer channel and the fallback. (Earlier the same day: revised with the user's answers, ntfy.sh by default, answers through ntfy instead of Tailscale.)
 
 ## Context
 

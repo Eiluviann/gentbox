@@ -42,7 +42,7 @@
 			"maxLength": 400
 		},
 		"body": {
-			"description": "Markdown shown in the conversation detail and the rich popup. Never sent to the phone relay in any payload mode.",
+			"description": "Markdown shown in the conversation detail and the rich popup. In the `summary` payload mode an excerpt trimmed to the 4 KB push budget goes to the own iOS app over APNs (ADR 0006); never to the ntfy fallback.",
 			"type": "string",
 			"maxLength": 65536
 		},

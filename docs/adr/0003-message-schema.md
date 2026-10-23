@@ -18,7 +18,7 @@ The schema is [`../schema/message-v1.json`](../schema/message-v1.json) (JSON Sch
 - **`correlationKey`** names the slot a message occupies in its conversation (`permission`, `idle`): a newer message with the same key supersedes the open one in place. **`resolves`** closes other slots.
 - **`awaitsResponse`** declares the intent to long-poll; the hub acts on the live waiter (a poll in flight or ended under 10 s ago), shown as answer buttons only while one exists.
 - **Actions** `approve`, `deny`, `choice` (with `value`), `reply` (free text) are answers; `open` and `snooze` (minutes in `value`) are non-answers, never returned to the sender. `choice` is an addition to the plan's list, for multiple-choice questions (MCP `ask`, elicitation-like prompts) that `approve`/`deny` cannot express.
-- **`sensitive`** forces the minimal phone payload whatever the setting. `body` never goes to the phone relay in any mode.
+- **`sensitive`** forces the minimal phone payload whatever the setting. `body` reaches the phone only as an excerpt trimmed to the 4 KB APNs budget, never through ntfy (amended by ADR 0006).
 - **`focus`** (`url`, `bundleId`, `terminal`) describes how to bring the conversation forward; the hub tries them in that order.
 - The **`actionResponse`** returned by the long-poll is defined in the same file (`$defs/actionResponse`).
 - Size caps: title 120, summary 400, body 64 KiB, 6 actions; request body 128 KiB.
