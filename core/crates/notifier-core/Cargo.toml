@@ -1,0 +1,12 @@
+[package]
+name = "notifier-core"
+description = "Agent Notifier domain: messages, classification and the noise-policy engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.93"
+publish = false
+
+# Every crate opts in with `[lints] workspace = true`. The one exception is the
+# future `notifier-ffi` crate: UniFFI's generated scaffolding needs `unsafe`, so
+# it declares its own `[lints]` table with the same rules minus `unsafe_code`.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

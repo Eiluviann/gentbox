@@ -1,0 +1,9 @@
+node_modules
+dist
+target/
+*.xcframework
+.DS_Store
+# Apple app: generated project, build output and the local signing override.
+apps/apple/*.xcodeproj
+apps/apple/build/
+apps/apple/Signing.local.xcconfig
