@@ -1146,3 +1146,4 @@ a.side-item { text-decoration: none; }
 /* The top card is the active item on white; the rest of the list sits on a very light grey */
 .pp-hero { background: #fff; }
 .pp-line { background: #f8f8fa; }
+.pp-cmd { background: var(--track); border-radius: 6px; padding: 6px 9px; margin-top: 8px; color: var(--ink); }
