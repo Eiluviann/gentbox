@@ -571,7 +571,7 @@
 					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
 				},
 				"status": {
-					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: cleared without an answer (never for `action_required`, which is closed with Done and reports `answered`). `rescinded`: withdrawn (see rescindReason). `expired`. On `dismissed`, `rescinded` and `expired` the sender falls back to its own prompt.",
+					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: cleared without an answer (never for `action_required`, which is closed with Done and reports `answered`). `rescinded`: withdrawn (see rescindReason). `expired`. `gone`: the message closed long ago and retention deleted it (30 days after closing), so its outcome is no longer known; an id the hub never issued answers 404 instead. On `dismissed`, `rescinded`, `expired` and `gone` the sender falls back to its own prompt.",
 					"type": "string",
 					"enum": [
 						"pending",
@@ -579,7 +579,8 @@
 						"deferred",
 						"dismissed",
 						"rescinded",
-						"expired"
+						"expired",
+						"gone"
 					]
 				},
 				"rescindReason": {

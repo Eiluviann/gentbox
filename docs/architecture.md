@@ -197,6 +197,7 @@ Closing a popup or a notification only acknowledges.
 | `dismissed` | `dismissed` |
 | `rescinded` | `rescinded`, with `rescindReason` |
 | `expired` | `expired` |
+| Deleted by retention (30 days after closing) | `gone`: the outcome is no longer known; an id the hub never issued answers 404 instead |
 
 Default `expiresAt` when the sender gives none: `blocking` and `deferrable` 24 h, `non_blocking` decisions and actions 7 days, `task_completed` 7 days, `generic` 24 h. `generic` messages are born `acknowledged`: they never badge.
 

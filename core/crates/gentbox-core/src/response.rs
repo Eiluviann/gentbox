@@ -27,6 +27,10 @@ pub enum ResponseStatus {
     Rescinded,
     /// Expired.
     Expired,
+    /// Retention deleted the message (30 days after it closed): its outcome is
+    /// no longer known. Distinct from an id the hub never issued, which is a
+    /// 404. No lifecycle state maps here; the hub answers it for a swept id.
+    Gone,
 }
 
 /// The status a long-poll reports for a message in `state`.
@@ -95,6 +99,20 @@ pub struct ActionResponse {
 }
 
 impl ActionResponse {
+    /// The long-poll response for a message retention has deleted.
+    pub fn gone(message_id: MessageId) -> Self {
+        Self {
+            message_id,
+            status: ResponseStatus::Gone,
+            rescind_reason: None,
+            action_id: None,
+            action_kind: None,
+            value: None,
+            answered_via: None,
+            answered_at: None,
+        }
+    }
+
     /// The long-poll response for a stored message.
     ///
     /// An answered message reports the recorded answer, so a sender that polls
