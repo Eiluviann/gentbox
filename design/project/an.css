@@ -1087,3 +1087,6 @@ a.side-item { text-decoration: none; }
 
 /* Indent: thread labels and notifications share one indent, aligned with the topic title */
 .thread-row, .row.in-thread { padding-left: 40px; }
+/* thread label centred between its top border and the first notification */
+.thread-row { padding-top: 5px; padding-bottom: 5px; }
+.topic-row + .thread-row { padding-top: 2px; padding-bottom: 4px; }
