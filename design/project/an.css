@@ -1142,3 +1142,4 @@ a.side-item { text-decoration: none; }
 /* State on the right of a popover row: an icon only for paused (orange) and waiting (red), centred on the row */
 .pp-state-icon { align-self: center; }
 .pp-ctx .i[aria-label="Codex"] { color: var(--ink-2); }
+.pp-dot { font-size: 14px; font-weight: 700; line-height: 0; }
