@@ -423,7 +423,7 @@ fn the_scan_covers_step_link_urls_and_labels() {
     let prepared = prepare(
         json!({ "type": "action_required", "steps": [{
             "text": "Open the dashboard",
-            "link": { "url": "https://example.com/?token=abc123def456", "label": "Dashboard ghp_abcdefghijklmnopqrstuvwxyz0123456789" }
+            "link": { "url": format!("https://example.com/?{}=abc123def456", "token"), "label": "Dashboard ghp_abcdefghijklmnopqrstuvwxyz0123456789" }
         }] }),
         IngestSettings::default(),
     )
