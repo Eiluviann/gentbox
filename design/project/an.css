@@ -1080,7 +1080,7 @@ a.side-item { text-decoration: none; }
 .topic-row + .thread-row { border-top: none; padding-top: 2px; }
 
 /* Nesting: notification rows sit on a slightly darker ground than their topic and thread rows */
-.row.in-thread { background: #f7f7f9; }
+.row.in-thread { background: #fafafc; }
 
 /* Every notification row is ruled on top, including the first one under a thread label */
 .thread-row + .row.in-thread, .row.in-thread + .row.in-thread { border-top: 1px solid var(--line); }
