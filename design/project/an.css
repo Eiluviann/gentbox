@@ -1078,3 +1078,6 @@ a.side-item { text-decoration: none; }
 /* Each thread section is ruled top and bottom; neighbouring sections share one line */
 .thread-row { border-top: 1px solid var(--line); padding-top: 8px; }
 .topic-row + .thread-row { border-top: 1px solid var(--line); }
+
+/* Nesting: thread sections sit on a slightly darker ground than their topic row */
+.thread-row, .row.in-thread { background: #f7f7f9; }
