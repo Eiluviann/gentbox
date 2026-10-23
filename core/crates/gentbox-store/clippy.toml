@@ -1,0 +1,16 @@
+# The store has no clock: callers pass `now`. `tests/purity.rs` scans the source
+# as a backstop; these rules resolve paths.
+
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "no clock: callers pass `now`" },
+    { path = "std::time::Instant::now", reason = "no clock: callers pass `now`" },
+    { path = "time::OffsetDateTime::now_utc", reason = "no clock: callers pass `now`" },
+    { path = "time::UtcDateTime::now", reason = "no clock: callers pass `now`" },
+    { path = "std::thread::sleep", reason = "no clock and no threads in the store" },
+    { path = "std::thread::spawn", reason = "no threads in the store" },
+]
+
+disallowed-types = [
+    { path = "std::time::SystemTime", reason = "no clock: callers pass `now`" },
+    { path = "std::time::Instant", reason = "no clock: callers pass `now`" },
+]
