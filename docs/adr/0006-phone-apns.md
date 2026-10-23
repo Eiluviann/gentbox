@@ -27,7 +27,7 @@ APNs accepts at most 4,096 bytes of JSON per notification [APNs-payload]. The hu
 | `aps.alert.subtitle` | Project · conversation title | ≤ 120 B |
 | `aps.alert.body` | The message summary | ≤ 400 chars |
 | `aps.category` | `approval`, `question`, `choice`, `action`, `completion`, `info`, each with a `-defer` variant for `deferrable` messages | small |
-| `aps.thread-id` | Topic id, else conversation id, so the phone groups by topic or session (ADR 0008) | ≤ 64 B |
+| `aps.thread-id` | The message's topic id (implicit conversation topics included), so the phone groups by topic (ADR 0008) | ≤ 64 B |
 | `aps.interruption-level` | `passive`, `active` or `time-sensitive` (below) | small |
 | `aps.sound`, `aps.relevance-score`, `aps.mutable-content: 1` | | small |
 | `m` | Hub message id | 26 B |

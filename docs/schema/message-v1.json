@@ -22,7 +22,7 @@
 			"$ref": "#/$defs/conversation"
 		},
 		"topic": {
-			"description": "Groups this message under a Gentbox topic (not an ntfy topic). `{ \"id\": … }` names an existing topic; `{ \"key\": … }` names one by its stable key and creates it on first use, titled `title` or, without one, the key. An existing topic's title is never changed from here (PATCH /v1/topics/{id} does that). A message sent to a closed topic reopens it. Without `topic`, rules may assign one; otherwise the message belongs only to its conversation.",
+			"description": "The Gentbox topic (not an ntfy topic) to group this message under: any grouping the agent chooses, such as a project, a conversation or a release. `{ \"id\": … }` names an existing topic; `{ \"key\": … }` names one by its stable key and creates it on first use, titled `title` or, without one, the key. The inline form never changes an existing topic. A message sent to a closed topic reopens it. Without `topic`, a rule may assign one; otherwise the message lands in its conversation's default topic (an implicit topic, or an explicit `kind: \"conversation\"` topic that took it over; docs/adr/0008-topics.md).",
 			"$ref": "#/$defs/topicRef"
 		},
 		"type": {
@@ -220,13 +220,16 @@
 						},
 						"style": {
 							"$ref": "#/$defs/topicStyle"
+						},
+						"kind": {
+							"$ref": "#/$defs/topicKind"
 						}
 					}
 				}
 			]
 		},
 		"topicCreate": {
-			"description": "Body of POST /v1/topics: an upsert by `key`. Creating an existing key returns it unchanged (200 instead of 201); use PATCH to change it.",
+			"description": "Body of POST /v1/topics: an upsert by `key`. Creating an existing key returns it unchanged (200 instead of 201); use PATCH to change it. With `kind: \"conversation\"` and `conversation.id`, the topic takes over that conversation's implicit topic (its messages and mute state move in, later topicless messages land in it) unless the conversation's default topic is already explicit.",
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["key", "title"],
@@ -243,11 +246,14 @@
 					"type": "string",
 					"maxLength": 400
 				},
+				"kind": {
+					"$ref": "#/$defs/topicKind"
+				},
 				"style": {
 					"$ref": "#/$defs/topicStyle"
 				},
 				"conversation": {
-					"description": "The conversation creating it, recorded in `createdBy`.",
+					"description": "The conversation creating it, recorded in `createdBy`; with `kind: \"conversation\"` also the conversation whose implicit topic it takes over.",
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["id"],
@@ -260,7 +266,7 @@
 			}
 		},
 		"topicUpdate": {
-			"description": "Body of PATCH /v1/topics/{id}. Only the given fields change; `summary: null` clears it.",
+			"description": "Body of PATCH /v1/topics/{id}. Only the given fields change; `summary: null` clears it. Implicit topics answer 409 to agents.",
 			"type": "object",
 			"additionalProperties": false,
 			"minProperties": 1,
@@ -276,6 +282,9 @@
 				},
 				"style": {
 					"$ref": "#/$defs/topicStyle"
+				},
+				"kind": {
+					"$ref": "#/$defs/topicKind"
 				}
 			}
 		},
@@ -294,13 +303,13 @@
 			}
 		},
 		"topicRecord": {
-			"description": "A topic as the hub returns it (POST, PATCH, GET).",
+			"description": "A topic as the hub returns it (POST, PATCH, GET). Implicit topics have no `key`.",
 			"type": "object",
 			"additionalProperties": false,
 			"required": [
 				"id",
-				"key",
 				"title",
+				"implicit",
 				"status",
 				"createdBy",
 				"createdAt",
@@ -320,12 +329,33 @@
 				"summary": {
 					"type": "string"
 				},
+				"kind": {
+					"$ref": "#/$defs/topicKind"
+				},
+				"implicit": {
+					"description": "True for a conversation's hub-managed default topic.",
+					"type": "boolean"
+				},
 				"style": {
 					"$ref": "#/$defs/topicStyle"
 				},
 				"status": {
 					"type": "string",
 					"enum": ["open", "closed"]
+				},
+				"defaultFor": {
+					"description": "The conversation whose default topic this is, if any (implicit topics, and explicit `kind: \"conversation\"` topics that took over).",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["agent", "conversationId"],
+					"properties": {
+						"agent": {
+							"type": "string"
+						},
+						"conversationId": {
+							"type": "string"
+						}
+					}
 				},
 				"createdBy": {
 					"type": "object",
@@ -572,6 +602,11 @@
 					"format": "date-time"
 				}
 			}
+		},
+		"topicKind": {
+			"description": "Free-form hint the UI may show, never changing behaviour. Suggested: `project`, `conversation`, `other`.",
+			"type": "string",
+			"pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
 		}
 	},
 	"allOf": [

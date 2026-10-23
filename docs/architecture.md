@@ -25,7 +25,7 @@ Defaults `generic`, `false`, `non_blocking`. `task_completed` and `generic` are 
 
 The sender may declare any of the fields; deterministic rules fill the rest. No model is involved (§5.3).
 
-A message also belongs to its **conversation** (one agent session) and, optionally, to a **topic**: an agent-created group that may span several conversations and agents, such as "Release 1.4" across an API and a web session (§5.4, ADR [0008](adr/0008-topics.md)). Gentbox topics are unrelated to ntfy topics, which the docs always call "ntfy topic".
+A message also belongs to its **conversation** (one agent session, kept as metadata for Open, focus and coalescing) and to exactly one **topic**: whatever grouping the agent chooses, such as a project, a conversation, or "Release 1.4" across an API and a web session. A message that names none lands in its conversation's implicit topic, so the inbox groups one level deep, topic → messages (§5.4, ADR [0008](adr/0008-topics.md)). Gentbox topics are unrelated to ntfy topics, which the docs always call "ntfy topic".
 
 ## 2. System overview
 
@@ -107,7 +107,7 @@ POST /v1/messages
   → validate against message-v1.json        422 with the failing JSON pointer
   → idempotency (source.agent, idempotencyKey)  200 with the stored message
   → classify, per field                     declared → user rules → built-in rules → defaults → normalize
-  → resolve topic                           declared or rule-assigned; create on first use; reopen if closed (§5.4)
+  → resolve topic                           declared → rule-assigned → conversation default; create on first use; reopen if closed (§5.4)
   → coalesce / dedupe / supersede / rescind (§7)
   → persist
   → policy engine → DeliveryPlan            (§6)
@@ -209,7 +209,7 @@ match = { event = "claude-code.notification.auth_success" }
 mute = true          # stored as generic, never shown outside the inbox history
 ```
 
-Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute` and `topic` (`topic = { key = "repo:{project}", title = "{project}" }`, where `{project}` is the working-directory name; only when the message names no topic). Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
+Match keys (all optional, all must hold): `source` (exact), `event` (glob), `title` (regex), `cwd` (glob), `metadata.<key>` (exact). A rule sets any of `type`, `urgent`, `blocking`, `mute` and `topic` (`topic = { key = "project:{project}", title = "{project}", kind = "project" }`, where `{project}` is the working-directory name; only when the message names no topic, and ahead of the conversation's default topic). Rules reload on file change; an invalid file keeps the last good rules and shows the parse error in Settings.
 
 **Built-in Claude Code mapping** (the Phase 4 hook sends `event` and, where it is certain, the fields; `urgent` is false unless a user rule says otherwise):
 
@@ -237,12 +237,13 @@ The MCP `ask` tool (PR 7) declares the fields itself: `decision_required` by def
 
 ADR: [0008](adr/0008-topics.md).
 
-- **A topic** has a hub `id`, a stable agent-chosen `key` (unique per hub, across agents), `title`, optional `summary` and `style` (SF Symbol and colour hints), `status` `open` or `closed`, `createdBy` and timestamps. Topics are flat.
-- **Created and changed by agents:** `POST /v1/topics` upserts by key; `PATCH /v1/topics/{id}` renames or edits; close, reopen and list (§8). A message joins with `topic: { "id": … }`, or `topic: { "key": …, "title": … }`, which creates the topic on first use; a message to a closed topic reopens it. `PUT /v1/messages/{id}/topic` moves a message between topics.
+- **A topic is whatever grouping the agent decides on:** a project, a conversation, or anything else. It has a hub `id`, a stable agent-chosen `key` (unique per hub, across agents; none for implicit topics), `title`, optional `summary`, a free-form `kind` hint the UI may show (`project`, `conversation`, `other`, or any short string; never changes behaviour), `style` (SF Symbol and colour hints), `implicit`, `status` `open` or `closed`, `createdBy` and timestamps. Topics are flat.
+- **Every message has exactly one topic:** the one it names, else one a rule assigns, else its conversation's **default topic**. That default is an **implicit topic** the hub creates on the conversation's first topicless message (`kind: "conversation"`, no key, titled and renamed with the conversation), until an agent creates an explicit `kind: "conversation"` topic linked to that conversation (`conversation.id` in `POST /v1/topics`). The explicit one **takes over**: the implicit topic's messages and mute state move into it, the implicit topic is deleted, and later topicless messages land in it. Only the first such topic takes over; later ones are ordinary topics.
+- **Created and changed by agents:** `POST /v1/topics` upserts by key; `PATCH /v1/topics/{id}` renames or edits (implicit topics: 409, they are hub-managed); close, reopen and list (§8). A message joins with `topic: { "id": … }`, or `topic: { "key": …, "title": …, "kind": … }`, which creates the topic on first use; a message to a closed topic reopens it. `PUT /v1/messages/{id}/topic` moves a message, or back to its conversation's default topic with `null`.
 - **Grouping only.** A message keeps its own `type`, `urgent` and `blocking`; coalescing and implicit rescinds stay per conversation (§7). The one delivery effect is mute (§6.2).
 - **Closing** leaves the topic's open messages alone, unless `rescindOpenMessages: true` (then they are rescinded, default reason `obsolete`); `POST /v1/topics/{id}/rescind` withdraws them without closing.
-- **For you:** mute and unmute, mark all read (acknowledges every open message, answers nothing), close and reopen, move a message.
-- **Inbox:** topic → conversation → message; messages without a topic group by conversation. Closed topics move to a Closed section.
+- **For you:** mute and unmute (implicit topics too), mark all read (acknowledges every open message, answers nothing), close and reopen, move a message.
+- **Inbox:** one level, topic → messages; each message row shows its conversation. Closed topics move to a Closed section.
 
 ## 6. Noise-policy engine
 
@@ -346,7 +347,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `GET /v1/topics?status=open` | List topics (no messages) |
 | `GET /v1/topics/{id}` · `PATCH /v1/topics/{id}` | Read one; rename or edit it |
 | `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
-| `PUT /v1/messages/{id}/topic` | Move a message to another topic, or out of any |
+| `PUT /v1/messages/{id}/topic` | Move a message to another topic, or back to its conversation's default topic with `null` |
 
 **No answer route for senders.** The sender token can post, wait, rescind and report progress, but cannot answer or list messages (rescinding never answers): an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
 
@@ -427,9 +428,9 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the user, 2026-10-23). The blocking level never changes the title; it shows as its own badge (below).
 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
-- **Subtitle:** topic title (or the project when the message has no topic) · conversation title (Mac and the own iOS app; on the ntfy fallback the topic title leads the body instead).
-- **Grouping:** APNs `thread-id` is the topic id, falling back to the conversation id, so the lock screen and Notification Centre group a topic's notifications; Mac native notifications use the same thread identifier.
-- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · topic or project · conversation"); the ntfy fallback leads the body with it.
+- **Subtitle:** topic title · conversation title, leaving out the conversation title when it equals the topic title (implicit and `kind: "conversation"` topics); Mac and the own iOS app. On the ntfy fallback the topic title leads the body instead.
+- **Grouping:** APNs `thread-id` is the message's topic id (implicit topics included), so the lock screen and Notification Centre group a topic's notifications; Mac native notifications use the same thread identifier. Notifications already delivered keep their thread after a takeover or a move.
+- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · topic · conversation"); the ntfy fallback leads the body with it.
 - **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.gentbox/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).

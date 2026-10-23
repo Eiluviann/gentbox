@@ -3,6 +3,8 @@
 	"key": "release-1.4",
 	"title": "Release 1.4",
 	"summary": "API and web changes shipping together on Friday",
+	"kind": "other",
+	"implicit": false,
 	"style": {
 		"symbol": "shippingbox",
 		"color": "orange"

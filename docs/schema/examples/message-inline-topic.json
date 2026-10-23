@@ -11,7 +11,8 @@
 	},
 	"topic": {
 		"key": "release-1.4",
-		"title": "Release 1.4"
+		"title": "Release 1.4",
+		"kind": "other"
 	},
 	"type": "decision_required",
 	"urgent": false,

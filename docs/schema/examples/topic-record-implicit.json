@@ -1,0 +1,18 @@
+{
+	"id": "01JBM7A1B2C3D4E5F6G7H8J9KM",
+	"title": "Fix flaky ingest test",
+	"kind": "conversation",
+	"implicit": true,
+	"status": "open",
+	"defaultFor": {
+		"agent": "claude-code",
+		"conversationId": "7f3a9c1e-5b2d-4e8a-9c61-2f0d8e4b7a10"
+	},
+	"createdBy": {
+		"agent": "claude-code",
+		"conversationId": "7f3a9c1e-5b2d-4e8a-9c61-2f0d8e4b7a10"
+	},
+	"createdAt": "2026-10-23T18:40:00Z",
+	"updatedAt": "2026-10-23T18:47:31Z",
+	"openMessages": 1
+}
