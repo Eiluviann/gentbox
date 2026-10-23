@@ -92,3 +92,10 @@ exclamationmark.bubble.fill
 faceid
 qrcode.viewfinder
 arrow.down.circle
+list.bullet.clipboard.fill
+list.bullet.clipboard
+clock.badge.exclamationmark
+pause.circle.fill
+forward
+arrow.uturn.backward.circle
+play.circle.fill

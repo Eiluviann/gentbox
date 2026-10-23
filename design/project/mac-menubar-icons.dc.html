@@ -21,7 +21,7 @@ body{margin:0}
 <div class="board mbi">
 	<div>
 		<div class="title">Menu-bar icon</div>
-		<div class="body">The agent mark, a custom symbol from <span class="mono">bubble.left</span> with a terminal prompt, as a template image; red appears only while an agent is blocked</div>
+		<div class="body">The agent mark, a custom symbol from <span class="mono">bubble.left</span> with a terminal prompt, as a template image; red appears only while an agent waits on you</div>
 	</div>
 	<div class="state">
 		<span></span><span class="eyebrow">Light menu bar</span><span class="eyebrow">Dark menu bar</span>
@@ -40,13 +40,13 @@ body{margin:0}
 	</div>
 
 	<div class="state">
-		<div><div class="headline">Blocked</div><div class="caption">Count of blocked conversations; badge in red</div></div>
+		<div><div class="headline">Blocked</div><div class="caption">Count of agents waiting on you; badge in red</div></div>
 		<div class="strip"><div class="menubar"><span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">2</span></span><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg><span>Fri 18:42</span></div></div>
 		<div class="strip"><div class="menubar dark"><span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#ff453a"></path></svg><span class="mb-count">2</span></span><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg><span>Fri 18:42</span></div></div>
 	</div>
 
 	<div class="state">
-		<div><div class="headline">Quiet hours or Focus</div><div class="caption">Toasts wait in the inbox; blocked still breaks through, silently</div></div>
+		<div><div class="headline">Quiet hours or Focus</div><div class="caption">Toasts wait in the inbox; urgent items still break through</div></div>
 		<div class="strip"><div class="menubar"><span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="slash-knock" d="{{ic.agent_slash}}"></path><path class="slash" d="{{ic.agent_slash}}"></path></svg></span><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg><span>Fri 22:10</span></div></div>
 		<div class="strip"><div class="menubar dark"><span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="slash-knock" d="{{ic.agent_slash}}"></path><path class="slash" d="{{ic.agent_slash}}"></path></svg></span><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg><span>Fri 22:10</span></div></div>
 	</div>

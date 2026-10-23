@@ -12,14 +12,13 @@
 <helmet>
 <style>
 body{margin:0}
-.bp-board{width:520px;height:520px}
+.bp-board{width:520px;height:540px}
 .bp{position:absolute;top:40px;right:16px;width:380px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .bp-head{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start}
 .bp-head > .i{margin-top:1px}
 .bp-acts{display:flex;gap:6px;align-items:center}
 .bp-foot{display:flex;align-items:center;gap:6px}
-.mark{width:10px;height:10px}
-.note{position:absolute;left:28px;bottom:24px;width:300px}
+.note{position:absolute;left:28px;bottom:24px;width:320px}
 </style>
 </helmet>
 <div class="board desk bp-board">
@@ -31,10 +30,10 @@ body{margin:0}
 
 	<div class="panel bp">
 		<div class="bp-head">
-			<span class="ripple c-block"><svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg></span>
+			<span class="ripple c-wait"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg></span>
 			<div>
-				<div class="headline">Action required</div>
-				<div class="tags" style="margin-top: 2px"><span class="tag">api · fix flaky test</span><span class="tag plain"><svg class="i" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code · Ghostty</span><span class="tag plain">2 min</span></div>
+				<div class="headline">Decision required</div>
+				<div class="tags" style="margin-top: 2px"><span class="tag">api · fix flaky test</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Agent waiting</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain">Claude Code · Ghostty · 2 min</span></div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
@@ -42,12 +41,12 @@ body{margin:0}
 		<div class="code">cargo test -p ingest -- --nocapture</div>
 		<div class="body">Run the ingest tests with output</div>
 		<div class="bp-acts">
-			<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve<span class="kbd" style="color: #fff">⌘↩</span></button>
+			<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve</button>
 			<button class="btn danger"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
 			<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
 			<span style="flex: 1"></span>
 			<button class="btn icon" aria-label="Open conversation"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></button>
-			<button class="btn icon" aria-label="Snooze 15 minutes; the agent keeps working meanwhile"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></button>
+			<button class="btn icon" aria-label="Snooze 15 minutes; the agent is not told"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg></button>
 		</div>
 		<div class="bp-foot">
 			<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock}}"></path></svg>
@@ -56,15 +55,15 @@ body{margin:0}
 	</div>
 
 	<div class="note">
-		<div class="board-label">Non-activating panel</div>
-		<div class="caption" style="color: var(--ink-2)">Floats above every Space without taking focus; closing it only acknowledges. Its symbol ripples in a loop, red for Blocked and orange for a Question shown as a popup, and holds still with Reduce Motion. Snooze also tells the agent to keep working on what it can until you answer. ⌘↩ approves, ⌘⌫ denies, ⌘R replies</div>
+		<div class="board-label">Decision required · blocking · urgent</div>
+		<div class="caption" style="color: var(--ink-2)">A non-activating panel that floats above every Space; closing it only acknowledges. Urgent makes the symbol ripple, red because the agent waits, and lets it through quiet hours. Snooze only reminds you later; a blocking item has no Defer. ⌘↩ approves, ⌘⌫ denies, ⌘R replies</div>
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":520}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":520,"height":540}}'>
 class Component extends DCLogic {
 	renderVals() {
-		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+		return { ic: window.SF_SYMBOLS || {} };
 	}
 }
 </script>

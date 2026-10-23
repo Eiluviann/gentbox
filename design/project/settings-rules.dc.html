@@ -12,8 +12,8 @@
 <helmet>
 <style>
 body{margin:0}
-.sr-board{height:940px}
-.win{height:880px}
+.sr-board{height:1000px}
+.win{height:940px}
 .arrow{color:var(--ink-3)}
 </style>
 </helmet>
@@ -36,7 +36,7 @@ body{margin:0}
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.doc_text}}"></path></svg>Open rules.toml</button>
 			</div>
 			<div class="set-pane">
-				<p class="lede">Matched top to bottom; the first match wins. A message's declared class beats every rule unless the rule overrides. Changes here and in rules.toml stay in sync</p>
+				<p class="lede">Matched top to bottom; the first match wins. A rule can set the type, the urgent flag and the blocking level; what the agent declared wins unless the rule overrides. Edits here are saved back to rules.toml, and edits to the file show here</p>
 
 				<div class="card">
 					<div class="card-head">
@@ -45,18 +45,18 @@ body{margin:0}
 						<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.plus}}"></path></svg>Add rule</button>
 					</div>
 					<div class="row" style="border-top: 1px solid var(--line-faint)">
-						<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
-						<div><div class="headline">Deploys need me</div><div class="tags"><span class="tag mono">cwd ~/Developer/infra/**</span><span class="tag mono">title ~ deploy</span><span class="tag plain">to</span><span class="tag block">Blocked</span><span class="tag">overrides</span></div></div>
+						<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
+						<div><div class="headline">Deploys need me</div><div class="tags"><span class="tag mono">cwd ~/Developer/infra/**</span><span class="tag mono">title ~ deploy</span><span class="tag plain">to</span><span class="tag act">Action</span><span class="tag urgent">Urgent</span><span class="tag">overrides</span></div></div>
 						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 					</div>
 					<div class="row">
 						<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
-						<div><div class="headline">Quiet the docs bot</div><div class="tags"><span class="tag mono">source docs-bot</span><span class="tag plain">to</span><span class="tag info">Other</span><span class="tag">overrides</span></div></div>
+						<div><div class="headline">Quiet the docs bot</div><div class="tags"><span class="tag mono">source docs-bot</span><span class="tag plain">to</span><span class="tag info">Generic</span><span class="tag">overrides</span></div></div>
 						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 					</div>
 					<div class="row">
 						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
-						<div><div class="headline">Background agent finished</div><div class="tags"><span class="tag mono">event claude-code.notification.agent_completed</span><span class="tag plain">to</span><span class="tag done">Finished</span></div></div>
+						<div><div class="headline">Background agent finished</div><div class="tags"><span class="tag mono">event claude-code.notification.agent_completed</span><span class="tag plain">to</span><span class="tag done">Task completed</span></div></div>
 						<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 					</div>
 					<div class="row">
@@ -73,18 +73,18 @@ body{margin:0}
 						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_down}}"></path></svg>
 					</div>
 					<div class="row" style="border-top: 1px solid var(--line-faint)">
-						<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
-						<div><div class="headline" style="font-weight: 500">Permission request</div><div class="tags"><span class="tag mono">claude-code.permission_request</span><span class="tag plain">to</span><span class="tag block">Blocked</span></div></div>
+						<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+						<div><div class="headline" style="font-weight: 500">Permission request</div><div class="tags"><span class="tag mono">claude-code.permission_request</span><span class="tag plain">to</span><span class="tag dec">Decision</span><span class="tag wait">Agent waiting</span></div></div>
 						<span></span>
 					</div>
 					<div class="row">
-						<svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
-						<div><div class="headline" style="font-weight: 500">Idle for 60 s</div><div class="tags"><span class="tag mono">claude-code.notification.idle_prompt</span><span class="tag plain">to</span><span class="tag ask">Question</span></div></div>
+						<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+						<div><div class="headline" style="font-weight: 500">Idle for 60 s</div><div class="tags"><span class="tag mono">claude-code.notification.idle_prompt</span><span class="tag plain">to</span><span class="tag dec">Decision</span><span class="tag working">Agent working</span></div></div>
 						<span></span>
 					</div>
 					<div class="row">
 						<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
-						<div><div class="headline" style="font-weight: 500">Turn ended, no background work</div><div class="tags"><span class="tag mono">claude-code.stop</span><span class="tag plain">to</span><span class="tag done">Finished</span></div></div>
+						<div><div class="headline" style="font-weight: 500">Turn ended, no background work</div><div class="tags"><span class="tag mono">claude-code.stop</span><span class="tag plain">to</span><span class="tag done">Task completed</span></div></div>
 						<span></span>
 					</div>
 					<div class="row"><span></span><a class="link" href="#more" style="font-size: 12px">Show 10 more</a><span></span></div>
@@ -97,8 +97,8 @@ body{margin:0}
 						<span></span>
 					</div>
 					<div class="card-row">
-						<span class="grow field mono" style="font-size: 12px">{"source":{"agent":"docs-bot"},"class":"action_blocking","title":"Publish?"}</span>
-						<span class="tag info">Other</span><span class="caption">via Quiet the docs bot</span>
+						<span class="grow field mono" style="font-size: 12px">{"source":{"agent":"docs-bot"},"type":"decision_required","blocking":"blocking","title":"Publish?"}</span>
+						<span class="tag info">Generic</span><span class="caption">via Quiet the docs bot</span>
 					</div>
 				</div>
 			</div>
@@ -106,7 +106,7 @@ body{margin:0}
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":940}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1000}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };

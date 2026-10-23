@@ -16,6 +16,7 @@ body{margin:0}
 .d-head{display:grid;grid-template-columns:22px minmax(0,1fr);column-gap:10px;align-items:start}
 .d-acts{position:absolute;left:16px;right:16px;bottom:34px;display:flex;flex-direction:column;gap:10px}
 .row2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ios .tag{height:20px;font-size:12px}
 </style>
 </helmet>
 <div class="ios">
@@ -26,16 +27,16 @@ body{margin:0}
 	</div>
 	<div class="d-body">
 		<div class="d-head">
-			<svg class="i i22 c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+			<svg class="i i22 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
-				<div style="font-size: 15px; font-weight: 600">Claude Code needs approval</div>
-				<div class="tags"><span class="tag" style="height: 20px; font-size: 12px">api · fix flaky test</span><span class="tag plain" style="font-size: 12px">Ghostty · 2 min</span></div>
+				<div style="font-size: 15px; font-weight: 600">Decision required</div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait">Agent waiting</span><span class="tag urgent">Urgent</span></div>
 			</div>
 		</div>
 		<div style="font-size: 22px; line-height: 28px; font-weight: 700">Allow Bash: cargo test -p ingest -- --nocapture?</div>
 		<div class="code" style="font-size: 14px; line-height: 20px; background: #fff; padding: 12px">cargo test -p ingest -- --nocapture</div>
 		<div style="font-size: 17px; color: var(--ink-2)">Run the ingest tests with output</div>
-		<div class="caption" style="font-size: 13px">Waiting on the Mac; re-ping in 3 min · excerpt from the notification</div>
+		<div class="caption" style="font-size: 13px">Claude Code · Ghostty · 2 min · excerpt from the notification</div>
 	</div>
 	<div class="d-acts">
 		<div class="row2">
@@ -46,7 +47,7 @@ body{margin:0}
 			<button class="ibtn"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
 			<button class="ibtn"><svg class="i i20" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg>Snooze</button>
 		</div>
-		<div class="caption" style="text-align: center; font-size: 13px">Snooze lets Claude keep working on what it can</div>
+		<div class="caption" style="text-align: center; font-size: 13px">Snooze only reminds you on this iPhone; the agent keeps waiting</div>
 	</div>
 	<div class="home"></div>
 </div>

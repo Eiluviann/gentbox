@@ -12,7 +12,7 @@
 <helmet>
 <style>
 body{margin:0}
-.pop-board{width:460px;height:800px}
+.pop-board{width:460px;height:900px}
 .pop{position:absolute;top:30px;left:40px;width:380px}
 .pop-head{display:flex;align-items:center;gap:8px;padding:12px 12px 8px 14px}
 .pop-foot{display:flex;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-top:1px solid var(--line);background:#fafafa}
@@ -22,7 +22,7 @@ body{margin:0}
 </helmet>
 <div class="board desk pop-board">
 	<div class="menubar" style="justify-content: flex-end">
-		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">2</span></span>
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">1</span></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
 		<span>Fri 18:44</span>
 	</div>
@@ -31,18 +31,18 @@ body{margin:0}
 		<div class="pop-head">
 			<div style="flex: 1">
 				<div class="title">Inbox</div>
-				<div class="caption">2 blocked · 1 question · 2 finished</div>
+				<div class="caption">1 waiting · 2 paused · 1 working · 2 completed</div>
 			</div>
 			<button class="btn plain icon" aria-label="Filter"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.line_3_horizontal_decrease_circle}}"></path></svg></button>
 			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
 		</div>
 
-		<div class="section"><span class="eyebrow">Blocked · 2</span></div>
+		<div class="section"><span class="eyebrow">Agent waiting · 1</span></div>
 		<div class="row">
-			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_raised_fill}}"></path></svg>
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Allow Bash: cargo test -p ingest -- --nocapture?</div>
-				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code</span><span class="tag plain">2 min</span></div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code</span><span class="tag plain">2 min</span></div>
 				<div class="acts">
 					<button class="btn sm primary"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve</button>
 					<button class="btn sm danger"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
@@ -51,45 +51,59 @@ body{margin:0}
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
+
+		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Paused, can defer · 2</span></div>
 		<div class="row">
-			<svg class="i c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Which cluster gets the new certificates first?</div>
 				<div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>Codex</span><span class="tag plain">6 min</span><span class="tag">+1 earlier</span></div>
 				<div class="acts">
 					<button class="btn sm">staging-eu</button>
 					<button class="btn sm">staging-us</button>
-					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
+				</div>
+			</div>
+			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
+		</div>
+		<div class="row">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
+			<div>
+				<div class="headline clamp2">Sign in to the payments sandbox so the end-to-end tests can run</div>
+				<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag plain">9 min</span></div>
+				<div class="acts">
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Done</button>
+					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
 				</div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 
-		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Questions · 1</span></div>
+		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Agent working · 1</span></div>
 		<div class="row">
-			<svg class="i c-ask" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Which title for the 2.4 release notes?</div>
-				<div class="tags"><span class="tag">docs · release notes</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code</span><span class="tag plain">12 min</span></div>
+				<div class="tags"><span class="tag">docs · release notes</span><span class="tag plain">12 min</span></div>
 				<div class="body" style="margin-top: 4px">I used “Faster inbox” for now and kept going</div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 
-		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Finished · 2</span></div>
+		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Completed · 2</span></div>
 		<div class="row">
 			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
 			<div>
-				<div class="headline clamp2">Cart totals round once at checkout; 31 tests pass</div>
-				<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag plain">18 min</span></div>
+				<div class="headline clamp2">Search filters persist in the URL; 18 tests pass</div>
+				<div class="tags"><span class="tag">web · WEB-139 search filters</span><span class="tag plain">20 min</span></div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 		<div class="row">
 			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
 			<div>
-				<div class="headline clamp2">Search filters persist in the URL; 18 tests pass</div>
-				<div class="tags"><span class="tag">web · WEB-139 search filters</span><span class="tag plain">1 h</span></div>
+				<div class="headline clamp2">Long-poll test waits on a notify; 42 tests pass</div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain">1 h</span></div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
@@ -97,8 +111,8 @@ body{margin:0}
 		<div class="row" style="border-top: 1px solid var(--line-faint)">
 			<svg class="i c-info" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle_fill}}"></path></svg>
 			<div>
-				<div class="headline" style="font-weight: 500">4 silent updates</div>
-				<div class="tags"><span class="tag info">Other</span><span class="tag plain">Subagent finished · paused for a build</span></div>
+				<div class="headline" style="font-weight: 500">4 silent updates, 1 withdrawn</div>
+				<div class="tags"><span class="tag info">Generic</span><span class="tag plain">Subagent finished · paused for a build</span></div>
 			</div>
 			<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_right}}"></path></svg>
 		</div>
@@ -111,7 +125,7 @@ body{margin:0}
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":800}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":900}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };

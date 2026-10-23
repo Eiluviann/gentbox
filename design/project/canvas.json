@@ -14,8 +14,8 @@
 			"x": 0,
 			"y": 0,
 			"w": 760,
-			"h": 1100,
-			"title": "Foundations · classes, colours, symbols"
+			"h": 1240,
+			"title": "Foundations · type, blocking level, urgent"
 		},
 		"mac-menubar-icons.dc.html": {
 			"x": 840,
@@ -28,12 +28,12 @@
 			"x": 1520,
 			"y": 0,
 			"w": 460,
-			"h": 800,
+			"h": 900,
 			"title": "Menu-bar inbox popover"
 		},
 		"mac-popover-empty.dc.html": {
 			"x": 1520,
-			"y": 920,
+			"y": 1020,
 			"w": 460,
 			"h": 440,
 			"title": "Popover · all clear, quiet hours"
@@ -42,43 +42,43 @@
 			"x": 2060,
 			"y": 0,
 			"w": 520,
-			"h": 520,
-			"title": "Blocking popup"
+			"h": 540,
+			"title": "Popup · decision, waiting, urgent"
 		},
 		"mac-blocking-stacked.dc.html": {
 			"x": 2060,
-			"y": 640,
+			"y": 660,
 			"w": 520,
-			"h": 700,
-			"title": "Blocking popup · stacked"
+			"h": 720,
+			"title": "Popup · stacked"
 		},
 		"mac-blocking-reply.dc.html": {
 			"x": 2060,
-			"y": 1460,
+			"y": 1500,
 			"w": 520,
 			"h": 560,
-			"title": "Blocking popup · reply"
+			"title": "Popup · reply"
 		},
 		"mac-blocking-no-waiter.dc.html": {
 			"x": 2060,
-			"y": 2140,
+			"y": 2180,
 			"w": 520,
 			"h": 600,
-			"title": "Blocking popup · agent stopped waiting, answered elsewhere"
+			"title": "Popup · agent waits in the session, answered elsewhere"
 		},
 		"mac-completion-toast.dc.html": {
 			"x": 2660,
 			"y": 0,
 			"w": 520,
 			"h": 320,
-			"title": "Completion toast"
+			"title": "Toast · task completed"
 		},
 		"mac-native-banner.dc.html": {
 			"x": 3260,
 			"y": 0,
 			"w": 520,
 			"h": 320,
-			"title": "Native notification · Your input is needed"
+			"title": "Native notification · decision, agent working"
 		},
 		"mac-native-banner-expanded.dc.html": {
 			"x": 3260,
@@ -98,15 +98,15 @@
 			"x": 4400,
 			"y": 0,
 			"w": 1180,
-			"h": 820,
+			"h": 880,
 			"title": "Conversation detail"
 		},
 		"settings-notifications.dc.html": {
 			"x": 5900,
 			"y": 0,
 			"w": 1100,
-			"h": 820,
-			"title": "Settings · notifications per class"
+			"h": 900,
+			"title": "Settings · policy by type, blocking level, urgent"
 		},
 		"settings-quiet-focus.dc.html": {
 			"x": 7080,
@@ -126,12 +126,12 @@
 			"x": 9440,
 			"y": 0,
 			"w": 1100,
-			"h": 940,
+			"h": 1000,
 			"title": "Settings · rules"
 		},
 		"settings-rules-error.dc.html": {
 			"x": 9440,
-			"y": 1060,
+			"y": 1120,
 			"w": 1100,
 			"h": 520,
 			"title": "Settings · rules with a parse error"
@@ -151,21 +151,21 @@
 			"title": "Settings · pair an iPhone"
 		},
 		"ios-inbox.dc.html": {
-			"x": 14640,
+			"x": 14880,
 			"y": 0,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone app · inbox"
 		},
 		"ios-detail.dc.html": {
-			"x": 15110,
+			"x": 15350,
 			"y": 0,
 			"w": 390,
 			"h": 844,
 			"title": "iPhone app · detail"
 		},
 		"ios-detail-answered.dc.html": {
-			"x": 15110,
+			"x": 15350,
 			"y": 964,
 			"w": 390,
 			"h": 844,
@@ -188,12 +188,12 @@
 		"watch.dc.html": {
 			"x": 13450,
 			"y": 0,
-			"w": 640,
+			"w": 880,
 			"h": 460,
 			"title": "Apple Watch · mirrored notifications"
 		},
 		"ios-history.dc.html": {
-			"x": 15580,
+			"x": 15820,
 			"y": 0,
 			"w": 390,
 			"h": 844,
@@ -221,7 +221,7 @@
 			"title": "iPhone · 3 handled replacement"
 		},
 		"ios-pairing.dc.html": {
-			"x": 14170,
+			"x": 14410,
 			"y": 0,
 			"w": 390,
 			"h": 844,
@@ -239,7 +239,21 @@
 			"y": 2892,
 			"w": 390,
 			"h": 844,
-			"title": "iPhone · long press, one button per choice"
+			"title": "iPhone · long press, choices and Defer"
+		},
+		"mac-popup-deferrable.dc.html": {
+			"x": 2060,
+			"y": 2900,
+			"w": 520,
+			"h": 640,
+			"title": "Popup · action, paused, Defer"
+		},
+		"mac-popup-rescinded.dc.html": {
+			"x": 2060,
+			"y": 3660,
+			"w": 1040,
+			"h": 620,
+			"title": "Withdrawn by agent"
 		}
 	},
 	"order": [
@@ -251,6 +265,8 @@
 		"mac-blocking-stacked.dc.html",
 		"mac-blocking-reply.dc.html",
 		"mac-blocking-no-waiter.dc.html",
+		"mac-popup-deferrable.dc.html",
+		"mac-popup-rescinded.dc.html",
 		"mac-completion-toast.dc.html",
 		"mac-native-banner.dc.html",
 		"mac-native-banner-expanded.dc.html",
@@ -297,7 +313,7 @@
 			"y": -300,
 			"text": "iPhone and Watch",
 			"kind": "title1",
-			"maxW": 3930
+			"maxW": 4170
 		}
 	},
 	"designSystems": []

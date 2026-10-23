@@ -29,11 +29,11 @@ body{margin:0}
 		</div>
 		<div class="xbody">
 			<div style="display: flex; align-items: center; gap: 8px">
-				<svg class="i i18 c-block" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.exclamationmark_bubble_fill}}"></path></svg>
-				<span style="font-weight: 600; flex: 1">URGENT: Your input is needed</span>
+				<svg class="i i18 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
+				<span style="font-weight: 600; flex: 1">Decision required</span>
 				<svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>
 			</div>
-			<div class="tags" style="margin-top: 0"><span class="tag" style="height: 20px; font-size: 12px; background: #fff">infra · rotate staging certs</span><span class="tag plain" style="font-size: 12px">Codex</span></div>
+			<div class="tags" style="margin-top: 0"><span class="tag" style="height: 20px; font-size: 12px; background: #fff">infra · rotate staging certs</span><span class="tag paused" style="height: 20px; font-size: 12px">Paused · can defer</span><span class="tag plain" style="font-size: 12px">Codex</span></div>
 			<div style="font-size: 17px; line-height: 22px; font-weight: 600">Which cluster gets the new certificates first?</div>
 			<div class="md">
 				Both clusters serve staging traffic:
@@ -44,10 +44,11 @@ body{margin:0}
 	<div class="xactions">
 		<div><span>staging-eu</span></div>
 		<div><span>staging-us</span></div>
+		<div><span>Defer</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg></div>
 		<div><span>Reply</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg></div>
 		<div><span>Open</span><svg class="i i18" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg></div>
 	</div>
-	<div class="legend">One button per choice, set by the Content Extension at display time. Without the extension a choice message offers Reply and Open, and the reply is matched against the choices</div>
+	<div class="legend">One button per choice, set by the Content Extension at display time, plus Defer because the agent can carry on. Without the extension a choice message offers Reply and Open, and the reply is matched against the choices</div>
 	<div class="home" style="background: #fff"></div>
 </div>
 </x-dc>

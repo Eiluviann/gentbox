@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Withdrawn by agent</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.rs-board{width:1040px;height:620px}
+.frame{position:absolute;top:24px;width:300px;height:300px;border-radius:12px;overflow:hidden;background:var(--desk);border:1px solid rgba(0,0,0,.06)}
+.frame .bp{position:absolute;top:30px;right:12px;width:270px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.bp-head{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:8px;align-items:start}
+.step{position:absolute;top:334px;width:300px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3)}
+.arrow{position:absolute;top:160px;color:var(--ink-3)}
+.inbox{position:absolute;left:28px;right:28px;top:380px}
+</style>
+</helmet>
+<div class="board rs-board">
+	<div class="frame" style="left: 28px">
+		<div class="panel bp">
+			<div class="bp-head"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg><div><div class="headline">Decision required</div><div class="tags" style="margin-top: 2px"><span class="tag paused">Paused · can defer</span></div></div></div>
+			<div class="headline">Which cluster gets the new certificates first?</div>
+			<div style="display: flex; gap: 6px"><button class="btn sm">staging-eu</button><button class="btn sm">staging-us</button><button class="btn sm">Defer</button></div>
+		</div>
+	</div>
+	<div class="step" style="left: 28px">1 · showing</div>
+	<svg class="i i20 arrow" viewBox="0 0 100 100" aria-hidden="true" style="left: 338px"><path d="{{ic.chevron_right}}"></path></svg>
+
+	<div class="frame" style="left: 370px">
+		<div class="panel bp" style="opacity: 0.45; transform: translateX(24px)">
+			<div class="bp-head"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><div><div class="headline">Withdrawn by agent</div><div class="caption">Resolved elsewhere</div></div></div>
+			<div class="headline" style="color: var(--ink-3)">Which cluster gets the new certificates first?</div>
+		</div>
+	</div>
+	<div class="step" style="left: 370px">2 · withdrawn: the panel says why and slides out</div>
+	<svg class="i i20 arrow" viewBox="0 0 100 100" aria-hidden="true" style="left: 680px"><path d="{{ic.chevron_right}}"></path></svg>
+
+	<div class="frame" style="left: 712px"></div>
+	<div class="step" style="left: 712px">3 · gone after 2 s; on the iPhone the notification is removed</div>
+
+	<div class="inbox popover">
+		<div class="row withdrawn">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>
+			<div><div class="headline">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag gone">Withdrawn by agent · resolved elsewhere</span><span class="tag">infra · rotate staging certs</span><span class="tag plain">18:52</span></div></div>
+			<span></span>
+		</div>
+		<div class="row withdrawn">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>
+			<div><div class="headline">Allow WebFetch: docs.rs?</div><div class="tags"><span class="tag gone">Withdrawn by agent · obsolete</span><span class="tag">api · fix flaky test</span><span class="tag plain">18:40</span></div></div>
+			<span></span>
+		</div>
+		<div class="row withdrawn">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>
+			<div><div class="headline">Which title for the 2.3 release notes?</div><div class="tags"><span class="tag gone">Withdrawn by agent · superseded by a newer question</span><span class="tag">docs · release notes</span><span class="tag plain">17:10</span></div></div>
+			<span></span>
+		</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":620}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {} };
+	}
+}
+</script>
+</body>
+</html>
