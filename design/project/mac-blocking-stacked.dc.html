@@ -41,7 +41,7 @@ body{margin:0}
 				</div>
 				<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 			</div>
-			<div class="title" style="font-size: 15px; line-height: 20px">Allow Edit: src/checkout/cart.ts?</div>
+			<div class="title" style="font-size: 15px; line-height: 20px">Allow editing cart.ts?</div>
 			<div class="code">- const total = lines.reduce(sumRounded, 0);
 + const total = round(lines.reduce(sum, 0));</div>
 			<div class="bp-acts">
@@ -57,7 +57,7 @@ body{margin:0}
 		<div class="panel mini">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
 			<div>
-				<div class="headline">Allow WebFetch: docs.rs?</div>
+				<div class="headline">Allow fetching a page from docs.rs?</div>
 				<div class="tags"><span class="tag wait">Agent waiting</span><span class="tag plain">re-pinged 1 of 3</span></div>
 			</div>
 			<span></span>
