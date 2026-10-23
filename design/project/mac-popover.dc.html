@@ -37,12 +37,11 @@ body{margin:0}
 			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
 		</div>
 
-		<div class="section"><span class="eyebrow">Agent waiting · 1</span></div>
 		<div class="row">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Allow Bash: cargo test -p ingest -- --nocapture?</div>
-				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code</span><span class="tag plain">2 min</span></div>
+				<div class="tags"><span class="tag">api · fix flaky test</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Agent waiting</span><span class="tag urgent"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.clock_badge_exclamationmark}}"></path></svg>Urgent</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code</span><span class="tag plain">2 min</span></div>
 				<div class="acts">
 					<button class="btn sm primary"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve</button>
 					<button class="btn sm danger"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
@@ -52,12 +51,11 @@ body{margin:0}
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 
-		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Paused, can defer · 2</span></div>
 		<div class="row">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Which cluster gets the new certificates first?</div>
-				<div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag plain"><svg class="i mark" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg>Codex</span><span class="tag plain">6 min</span><span class="tag">+1 earlier</span></div>
+				<div class="tags"><span class="tag">infra · rotate staging certs</span><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Paused · can defer</span><span class="tag plain">6 min · +1 earlier</span></div>
 				<div class="acts">
 					<button class="btn sm">staging-eu</button>
 					<button class="btn sm">staging-us</button>
@@ -70,7 +68,7 @@ body{margin:0}
 			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.list_bullet_clipboard_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Sign in to the payments sandbox so the end-to-end tests can run</div>
-				<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag plain">9 min</span></div>
+				<div class="tags"><span class="tag">web · WEB-142 checkout</span><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle_fill}}"></path></svg>Paused · can defer</span><span class="tag plain">9 min</span></div>
 				<div class="acts">
 					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Done</button>
 					<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Defer</button>
@@ -79,18 +77,16 @@ body{margin:0}
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 
-		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Agent working · 1</span></div>
 		<div class="row">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.questionmark_bubble_fill}}"></path></svg>
 			<div>
 				<div class="headline clamp2">Which title for the 2.4 release notes?</div>
-				<div class="tags"><span class="tag">docs · release notes</span><span class="tag plain">12 min</span></div>
+				<div class="tags"><span class="tag">docs · release notes</span><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.play_circle_fill}}"></path></svg>Agent working</span><span class="tag plain">12 min</span></div>
 				<div class="body" style="margin-top: 4px">I used “Faster inbox” for now and kept going</div>
 			</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
 
-		<div class="section" style="border-top: 1px solid var(--line-faint)"><span class="eyebrow">Completed · 2</span></div>
 		<div class="row">
 			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
 			<div>

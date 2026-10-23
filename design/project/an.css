@@ -1010,7 +1010,7 @@ a.side-item { text-decoration: none; }
 .tag.wait { background: var(--wait-soft); color: var(--wait-ink); }
 .tag.paused { background: var(--paused-soft); color: var(--paused-ink); }
 .tag.working { background: var(--track); color: var(--ink-3); }
-.tag.urgent { background: #1d1d1f; color: #fff; }
+.tag.urgent { background: var(--wait); color: #fff; }
 .tag.gone { background: var(--track); color: var(--ink-3); text-decoration: none; }
 .row.withdrawn .headline { color: var(--ink-3); text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, 0.25); }
 
