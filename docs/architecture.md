@@ -4,7 +4,7 @@ Agent Notifier receives messages from LLM agents, decides how loud each one shou
 
 Status tags: **Now** is built in Phase 3, **Planned** comes later, **Spike** must be verified before the PR that depends on it.
 
-**Principle: no hosted infrastructure, bring your own keys.** Agent Notifier runs only on your own machines and talks only to services you choose, with credentials you create (an ntfy topic or account, a Pushover app token, an APNs key from your own Apple team, your own Tailscale network). The project runs no server, relay, account system or asset host for anyone, and no feature may depend on one. Every credential is entered in Settings and kept in the Keychain.
+**Principle: no shared infrastructure, bring your own keys.** The project hosts nothing for its users: no server, relay, account system or asset host that other people would depend on. Each user brings their own credentials (an APNs key from their own Apple team, an ntfy topic or account, optionally a Pushover app token or a Tailscale network), entered in Settings and kept in the Keychain. Users may run infrastructure for themselves (a self-hosted ntfy server, a personal relay, an always-on box), and the design supports that where it helps, but no feature requires it: everything works with your Mac plus public services you pick (Apple's push service, ntfy.sh).
 
 ## 1. Classes
 

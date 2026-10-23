@@ -4,7 +4,7 @@ Status: Accepted, 2026-10-23. Supersedes [0005](0005-ios-transport.md).
 
 ## Context
 
-The user wants notifications on the iPhone and Watch with our own UI and icon, a title, a description and real action buttons. ADR 0005 chose ntfy because the app was signed by a free Personal Team, which cannot push to its own app. Only the paid Apple Developer Program gives all of that, and the user has now chosen it ("Guess I will bite the bullet and buy the apple dev sub"). The project principle still holds: no hosted infrastructure, every user brings their own keys (architecture, top).
+The user wants notifications on the iPhone and Watch with our own UI and icon, a title, a description and real action buttons. ADR 0005 chose ntfy because the app was signed by a free Personal Team, which cannot push to its own app. Only the paid Apple Developer Program gives all of that, and the user has now chosen it ("Guess I will bite the bullet and buy the apple dev sub"). The project principle still holds: no shared infrastructure that other users depend on, every user brings their own keys; running something for yourself is allowed but never required (architecture, top).
 
 Enrolment can take a day or two, and other people may build the app without a membership, so the free path must keep working.
 
@@ -99,7 +99,7 @@ Everything above works without a network path to the Mac. With Tailscale on both
 
 ## Consequences
 
-- **The full feature set on the phone and Watch:** our icon and UI, title, subtitle, summary, approve/deny/choices/reply, Time Sensitive through Focus. Still no hosted infrastructure.
+- **The full feature set on the phone and Watch:** our icon and UI, title, subtitle, summary, approve/deny/choices/reply, Time Sensitive through Focus. Still no server required.
 - **The Mac gains too:**
   - `INFocusStatusCenter` replaces the Full Disk Access workaround, since the Communication Notifications capability is now available.
   - Time Sensitive works for the Mac's own blocking notifications.
@@ -115,7 +115,7 @@ Everything above works without a network path to the Mac. With Tailscale on both
 
 - **Keep ntfy as the only delivery (ADR 0005):** free, but the ntfy app's icon and UI, no text reply, and an app whose development is paused.
 - **Pushover:** a polished app with end-to-end encryption and an emergency priority, but no answer buttons (ADR 0005 › Alternatives).
-- **A push relay server so store builds work for everyone:** violates the no-infrastructure principle.
+- **A push relay server so store builds work for everyone:** would be shared infrastructure that other users depend on, which the principle rules out. A relay for your own devices only is allowed but gains nothing here, since the Mac already pushes directly.
 - **Certificate-based APNs auth (`.p12`):** expires yearly and is per app; token auth with one `.p8` covers all the team's apps and environments [APNs-token].
 
 ## Sources
