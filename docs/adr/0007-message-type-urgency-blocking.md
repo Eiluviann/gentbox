@@ -95,11 +95,11 @@ Effects:
 
 `decide` is keyed on `(type, urgent, blocking)`:
 
-- **`blocking` drives persistence and escalation:** popup or not, re-ping cadence, whether Defer appears.
+- **`blocking` drives persistence and escalation:** popup or not, re-ping cadence, whether Defer appears, and its own **blocking badge**, independent of the title prefix: "Waiting on you" for `blocking`, "Paused · can defer" for `deferrable`, none for `non_blocking`. An urgent blocking item shows both the prefix and the badge; a non-urgent blocking item shows only the badge.
 - **`urgent` drives interruption:**
   - Time Sensitive on the Mac and the phone.
   - Breaking through quiet hours and Focus.
-  - The "URGENT:" title prefix (**to confirm**: the user's earlier rule prefixed blocking items; with urgency now its own field, the prefix follows `urgent`).
+  - The "URGENT:" title prefix, and nothing else sets it (confirmed by the user, 2026-10-23: "The URGENT: prefix follows the urgent flag only; blocking shows its own badge").
 - **`type` picks the surface and the title phrase:**
 
 | `type` | Title phrase |

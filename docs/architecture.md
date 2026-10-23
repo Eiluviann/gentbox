@@ -244,7 +244,7 @@ fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> Delive
 - `Policy`: settings from `config.toml` keyed on `(type, urgent, blocking)`, defaults below.
 - `DeliveryPlan`: `mac` (one of `persistent_popup`, `toast`, `banner`, `inbox_only`), `nativeNotification` (`none`, `active`, `time_sensitive`), `sound` (bool), `phone` (`now(level)`, `silentThenPing { level, after }`, `silent`, `none`), `reping` (`after`, `max`) and `offerDefer` (bool).
 
-The three fields do separate jobs: **`type`** picks the surface and the title phrase, **`blocking`** drives persistence and escalation (popup, re-ping, Defer), **`urgent`** drives interruption (Time Sensitive, quiet hours and Focus breakthrough, the "URGENT:" prefix).
+The three fields do separate jobs: **`type`** picks the surface and the title phrase, **`blocking`** drives persistence and escalation (popup, re-ping, Defer) and the blocking badge, **`urgent`** drives interruption (Time Sensitive, quiet hours and Focus breakthrough, the "URGENT:" prefix).
 
 Timers (re-ping, phone escalation, snooze, expiry) are scheduled by the hub actor; when one fires the actor re-runs `decide` with the current context, so a message answered or rescinded in the meantime sends nothing. Every decision is stored in a `deliveries` table, which is what the inbox's "why did this ping me?" line reads.
 
@@ -266,7 +266,7 @@ By blocking level (for `decision_required` and `action_required`) and type:
 | --- | --- | --- |
 | Native notification (Mac, iPhone) | Active | Time Sensitive |
 | Phone audible level | Active (ntfy fallback: priority 3) | Time Sensitive (ntfy fallback: priority 5) |
-| Title | Type phrase | "URGENT: " + type phrase |
+| Title | Type phrase | "URGENT: " + type phrase (the only thing that sets the prefix) |
 | Quiet hours | Mac silent, toasts and banners inbox-only; phone silent, no escalation | Breaks through: shown, audible, escalates |
 | Focus (Mac popups and toasts) | Popups silent, toasts inbox-only | Shown and audible |
 
@@ -403,10 +403,11 @@ Publish failures retry 3 times with backoff (1 s, 5 s, 30 s); an APNs failure wi
 | `task_completed`, `scope: goal` | Goal complete |
 | `generic` | The message title (inbox only) |
 
-Prefixed with "URGENT: " when `urgent` is true (ADR 0007; the user's earlier rule tied the prefix to blocking items, to be confirmed).
+Prefixed with "URGENT: " when `urgent` is true, and only then (confirmed by the user, 2026-10-23). The blocking level never changes the title; it shows as its own badge (below).
 
 - **Description:** the message `summary`: what is needed, or what was done; falls back to the message `title`.
 - **Subtitle:** project · conversation title (Mac and the own iOS app; left out on the ntfy fallback).
+- **Blocking badge:** "Waiting on you" (`blocking`) or "Paused · can defer" (`deferrable`); `non_blocking` has none. Independent of the "URGENT:" prefix: an urgent blocking item shows both, a non-urgent one only the badge. Popups, toasts, the inbox and the iOS app draw it as a badge; native notifications on the Mac and the iPhone, which have no badge slot, lead the subtitle with it ("Waiting on you · project · conversation"); the ntfy fallback leads the body with it.
 - **Icon:** the project icon by default, else the agent icon. The hub resolves the project icon from `conversation.cwd` (a per-project override in Settings, then `.agent-notifier/icon.png`, then common icon files PR 4 defines) and caches it as a 256-px PNG; agent icons are bundled in the Mac and iOS apps.
   - Mac: popups and toasts show it; native notifications carry it as an attachment thumbnail.
   - iOS app: the Notification Service Extension attaches it from the app's icon cache, fetching a missing project icon once from a short-lived attachment on your ntfy server; optionally the project icon becomes the big avatar through the Communication Notifications style (ADR 0006).
