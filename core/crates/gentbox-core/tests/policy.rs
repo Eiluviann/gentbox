@@ -417,3 +417,91 @@ fn kind_and_topic_hints_never_change_a_decision() {
         decide(&second, &calm_context(), &Policy::default())
     );
 }
+
+#[test]
+fn a_rule_mute_acts_exactly_like_topic_or_thread_mute_for_every_combination() {
+    let policy = Policy::default();
+    for (message_type, urgent, blocking) in valid_combinations() {
+        for state in [
+            PresenceState::Present,
+            PresenceState::Away,
+            PresenceState::Locked,
+        ] {
+            for focus in [false, true] {
+                for quiet in [false, true] {
+                    let mut context = calm_context();
+                    context.presence.state = state;
+                    context.focus_active = focus;
+                    context.quiet_hours_active = quiet;
+                    let label = format!(
+                        "{message_type:?} urgent={urgent} {blocking:?} {state:?} focus={focus} quiet={quiet}"
+                    );
+
+                    let mut rule_muted = awaiting(message_type, urgent, blocking);
+                    rule_muted.muted_by_rule = Some("Mute auth success".to_owned());
+                    let by_rule = decide(&rule_muted, &context, &policy);
+
+                    let topic_muted = awaiting(message_type, urgent, blocking);
+                    let mut muted_context = context.clone();
+                    muted_context.is_muted = true;
+                    let by_topic = decide(&topic_muted, &muted_context, &policy);
+                    assert_eq!(by_rule, by_topic, "{label}: same plan as a muted topic");
+
+                    let unmuted = decide(&topic_muted, &context, &policy);
+                    if urgent {
+                        assert_eq!(by_rule, unmuted, "{label}: urgent is unaffected");
+                    } else {
+                        assert_eq!(by_rule.mac, MacSurface::InboxOnly, "{label}");
+                        assert_eq!(by_rule.native_notification, NativeLevel::None, "{label}");
+                        assert!(!by_rule.sound, "{label}");
+                        assert_eq!(by_rule.reping, None, "{label}");
+                        assert!(!by_rule.should_wait, "{label}: shouldWait is false");
+                        assert!(!by_rule.offer_defer, "{label}");
+                        assert_eq!(by_rule.reasons, vec![PlanReason::Muted], "{label}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_rule_muted_blocking_prompt_keeps_its_type_and_levels_but_does_not_hang_its_sender() {
+    use gentbox_core::classify::{BuiltInRules, RuleSet};
+    use gentbox_core::ids::{MessageId, ThreadId, TopicId};
+    use gentbox_core::prepare::{IngestSettings, prepare_message};
+
+    let rules = RuleSet::parse("[[rule]]\nname = \"Mute prompts\"\nmatch = { event = \"claude-code.permission_request\" }\nmute = true\n").unwrap();
+    let prepared = prepare_message(
+        support::input(
+            json!({ "event": "claude-code.permission_request", "awaitsResponse": true }),
+        ),
+        &rules,
+        BuiltInRules::load(),
+        IngestSettings::default(),
+    )
+    .unwrap();
+    let message = prepared.into_message(
+        MessageId::new("M"),
+        support::NOW,
+        TopicId::new("T"),
+        ThreadId::new("H"),
+    );
+    assert_eq!(message.message_type, MessageType::DecisionRequired);
+    assert_eq!(message.blocking, Blocking::Blocking);
+    assert_eq!(message.muted_by_rule.as_deref(), Some("Mute prompts"));
+    let plan = decide(&message, &calm_context(), &Policy::default());
+    assert_eq!(plan.mac, MacSurface::InboxOnly);
+    assert!(!plan.should_wait);
+    assert_eq!(
+        plan.blocking_badge,
+        BlockingBadge::WaitingOnYou,
+        "it is still a blocking item in the inbox"
+    );
+
+    let mut urgent = message.clone();
+    urgent.urgent = true;
+    let plan = decide(&urgent, &calm_context(), &Policy::default());
+    assert_eq!(plan.mac, MacSurface::PersistentPopup);
+    assert!(plan.should_wait);
+}

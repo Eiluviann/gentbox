@@ -308,8 +308,9 @@ fn persistent_cell(after: Duration, max: u8, offer_defer: bool) -> PolicyCell {
 
 /// Decides how loud a message is and where it appears.
 ///
-/// - **Muted** (topic or thread) and not urgent: inbox only, silent, no
-///   re-ping, `should_wait: false`. Urgent messages are unaffected.
+/// - **Muted** (topic or thread via the context, or a `mute` rule recorded on
+///   the message) and not urgent: inbox only, silent, no re-ping,
+///   `should_wait: false`. Urgent messages are unaffected.
 /// - **Quiet hours**, non-urgent: popups stay but silent; toasts and banners
 ///   become inbox-only. **Focus**, non-urgent: popups and banners silent,
 ///   toasts inbox-only. Urgent messages break through both.
@@ -327,7 +328,7 @@ pub fn decide(message: &Message, context: &PolicyContext, policy: &Policy) -> De
     let mut reping = cell.reping;
     let mut reasons = Vec::new();
     let held_back = !message.urgent;
-    let is_muted = context.is_muted && held_back;
+    let is_muted = (context.is_muted || message.muted_by_rule.is_some()) && held_back;
 
     if is_muted {
         surface = MacSurface::InboxOnly;

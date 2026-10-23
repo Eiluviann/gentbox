@@ -293,27 +293,47 @@ fn steps_make_action_required_the_default_type() {
 }
 
 #[test]
-fn mute_stores_the_message_as_generic_and_names_the_rule() {
+fn a_rules_mute_never_changes_type_urgency_or_blocking() {
     let rules = r#"
         [[rule]]
         name = "Mute auth success"
         match = { event = "claude-code.notification.auth_success" }
         mute = true
     "#;
-    let classification = classify_with(
+    let declared = classify_with(
         rules,
         json!({
             "event": "claude-code.notification.auth_success",
             "type": "decision_required", "urgent": true, "blocking": "blocking"
         }),
     );
-    assert_eq!(
-        classification.muted_by_rule.as_deref(),
-        Some("Mute auth success")
+    assert_eq!(declared.muted_by_rule.as_deref(), Some("Mute auth success"));
+    assert_eq!(declared.message_type.value, MessageType::DecisionRequired);
+    assert_eq!(declared.message_type.source, FieldSource::Declared);
+    assert!(declared.urgent.value);
+    assert_eq!(declared.blocking.value, Blocking::Blocking);
+    assert!(declared.normalizations.is_empty());
+
+    // Classified fields are kept too: the built-in mapping still applies.
+    let classified = classify_with(
+        rules,
+        json!({ "event": "claude-code.notification.elicitation_url_dialog" }),
     );
-    assert_eq!(classification.message_type.value, MessageType::Generic);
-    assert!(!classification.urgent.value);
-    assert_eq!(classification.blocking.value, Blocking::NonBlocking);
+    assert_eq!(
+        classified.muted_by_rule, None,
+        "the rule does not match this event"
+    );
+    let muted_permission = classify_with(
+        "[[rule]]\nname = \"Mute all\"\nmute = true\n",
+        json!({ "event": "claude-code.permission_request" }),
+    );
+    assert_eq!(muted_permission.muted_by_rule.as_deref(), Some("Mute all"));
+    assert_eq!(
+        muted_permission.message_type.value,
+        MessageType::DecisionRequired
+    );
+    assert_eq!(muted_permission.blocking.value, Blocking::Blocking);
+    assert!(!muted_permission.urgent.value);
 }
 
 #[test]

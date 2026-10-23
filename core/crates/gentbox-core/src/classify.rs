@@ -171,8 +171,9 @@ pub struct Classification {
     pub urgent: Resolved<bool>,
     /// Final blocking level.
     pub blocking: Resolved<Blocking>,
-    /// The rule that muted the message: stored as generic, never shown outside
-    /// the inbox history.
+    /// The rule that muted the message. A rule's mute never changes the type,
+    /// urgency or blocking level; the policy routes the message like one in a
+    /// muted topic (non-urgent to the inbox only, urgent still breaks through).
     pub muted_by_rule: Option<String>,
     /// `scope`, kept only on `task_completed`.
     pub scope: Option<MessageScope>,
@@ -561,21 +562,14 @@ impl Slots {
         let muted_by_rule = self
             .muted_by_rule
             .and_then(|(name, mute)| mute.then_some(name));
-        let message_type = match &muted_by_rule {
-            // A muted message is stored as generic, whatever was declared.
-            Some(rule) => Resolved {
-                value: MessageType::Generic,
-                source: FieldSource::UserRule(rule.clone()),
+        let message_type = self.message_type.unwrap_or_else(|| Resolved {
+            value: if message.steps.is_some() {
+                MessageType::ActionRequired
+            } else {
+                MessageType::Generic
             },
-            None => self.message_type.unwrap_or_else(|| Resolved {
-                value: if message.steps.is_some() {
-                    MessageType::ActionRequired
-                } else {
-                    MessageType::Generic
-                },
-                source: FieldSource::Default,
-            }),
-        };
+            source: FieldSource::Default,
+        });
         let mut urgent = self.urgent.unwrap_or(Resolved {
             value: false,
             source: FieldSource::Default,

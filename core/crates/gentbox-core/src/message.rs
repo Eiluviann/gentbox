@@ -398,7 +398,8 @@ pub struct Message {
     pub blocking: Blocking,
     /// Where each of the three fields came from.
     pub field_sources: FieldSources,
-    /// A `mute` rule matched: the message is inbox-only history.
+    /// A `mute` rule matched: the policy routes it like a message in a muted
+    /// topic. Type, urgency and blocking level are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub muted_by_rule: Option<String>,
     /// The sender's event name.

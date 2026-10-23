@@ -134,7 +134,7 @@ fn is_flag(word: &str) -> bool {
 
 fn is_path(word: &str) -> bool {
     if word.starts_with('/')
-        || word.starts_with('~')
+        || word.starts_with("~/")
         || word.starts_with("./")
         || word.starts_with("../")
         || (word.starts_with('@') && word.contains('/'))
