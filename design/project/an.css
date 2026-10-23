@@ -1074,3 +1074,7 @@ a.side-item { text-decoration: none; }
 /* No indents: topic rows, thread rows and messages share one left edge */
 .row.in-thread, .row.in-topic { padding-left: 12px; }
 .thread-row { padding-left: 12px; }
+
+/* Each thread section is ruled top and bottom; neighbouring sections share one line */
+.thread-row { border-top: 1px solid var(--line); padding-top: 8px; }
+.topic-row + .thread-row { border-top: 1px solid var(--line); }
