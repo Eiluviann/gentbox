@@ -18,10 +18,12 @@ mod error;
 mod groups;
 mod migrations;
 mod repository;
+mod retention;
 mod store;
 
 pub use error::{Conflict, EntityKind, StoreError};
 pub use groups::{ThreadReopened, Upserted};
 pub use migrations::latest_version;
 pub use repository::{DeliveryEvent, DeliveryRecord, MessageFilter, Repository};
+pub use retention::{DEFAULT_RETENTION, RetentionPolicy, SweepReport};
 pub use store::Store;
