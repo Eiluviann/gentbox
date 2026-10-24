@@ -166,7 +166,7 @@ Checked against PR #5's `apps/apple/Gentbox/Tokens.swift` (branch `claude/pr3-ff
 | `--strike` | black 25 % | white 30 % | `Tokens.strike` (new) | | Pair (Withdrawn strike-through) |
 | `--accent` | `#007AFF` | `#0A84FF` | `Tokens.accent` (new) | | System: `Color.accentColor` / `controlAccentColor`; primary buttons are `.buttonStyle(.borderedProminent)` with no custom token |
 | `--accent-ink` | `#0062CC` | `#409CFF` | `Tokens.link` (new) | | System: `linkColor` |
-| `--danger-ink` | `#D70015` | `#FF7F77` | none | | System: `hasDestructiveAction`; the Deny label stays plain, as macOS draws it (buttons are all native) |
+| `--danger-ink` | `#D70015` | `#FF7F77` | none (Mac) | | The canvas's red Deny label documents this token for surfaces that aren't native (web docs, the canvas itself). The Mac app renders Deny with the native destructive role (`hasDestructiveAction`) and whatever appearance AppKit gives it, with no manual red tint (buttons are all native) |
 | `--badge`, `--badge-grey` | `#D70015`, `#D1D1D6` | `#E0201A`, `#48484A` | `Tokens.badge`, `Tokens.badgeGrey` (new) | | Pair (white or ink count on it) |
 | `--dec-ink`, `--dec-soft` | `#4644B8`, `#EFEFFD` | `#BDBCFF`, `#2F2E55` | `Tokens.decisionInk`, `Tokens.decisionSoft` (new) | | Pair |
 | `--act-ink`, `--act-soft` | `#076B5C`, `#E3F4F1` | `#7FE3D2`, `#163B35` | `Tokens.actionInk`, `Tokens.actionSoft` (new) | | Pair |
