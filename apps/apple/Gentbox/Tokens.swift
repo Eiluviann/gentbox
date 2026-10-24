@@ -61,7 +61,13 @@ enum Tokens {
 	static let track = Color.primary.opacity(0.05)
 
 	static let popoverWidth: CGFloat = 380
-	static let listMaxHeight: CGFloat = 480
+	/// The one motion of every layout change in a Gentbox window: SwiftUI
+	/// animates the content with `motion`, and the window's height follows
+	/// the same `motionCurve` over `motionDuration`, frame by frame, so the
+	/// bottom edge moves with the content.
+	static let motionDuration: TimeInterval = 0.25
+	static let motionCurve = UnitCurve.easeInOut
+	static let motion = Animation.timingCurve(motionCurve, duration: motionDuration)
 	static let rowHorizontalPadding: CGFloat = 14
 	static let iconColumn: CGFloat = 16
 	static let columnGap: CGFloat = 10

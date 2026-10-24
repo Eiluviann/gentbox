@@ -56,4 +56,14 @@ final class InboxPanelTests: XCTestCase {
 			XCTAssertEqual(frame.maxX, 1724, "\(anchor)")
 		}
 	}
+
+	/// Content taller than this scrolls: the panel reaches down to the
+	/// bottom of the visible frame and no further.
+	func testItStopsAtTheBottomOfTheScreen() {
+		let screen = NSRect(x: 0, y: 40, width: 1512, height: 904)
+		let item = NSRect(x: 1300, y: 944, width: 36, height: 24)
+		XCTAssertEqual(InboxPanel.maxHeight(under: item, in: screen), 940 - 40 - 4)
+		let tall = InboxPanel.frame(size: NSSize(width: 380, height: 5000), under: item, in: screen)
+		XCTAssertEqual(tall.height, InboxPanel.maxHeight(under: item, in: screen))
+	}
 }

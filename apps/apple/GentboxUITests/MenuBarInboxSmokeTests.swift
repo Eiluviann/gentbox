@@ -46,7 +46,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		openInbox()
 		XCTAssertTrue(element("message:Ingest tests pass").waitForExistence(timeout: 10))
 		// A simple conversation lands in General, which the breadcrumb leaves out.
-		let context = text(of: element("context:Ingest tests pass"))
+		// A row is one element: title, breadcrumb and agent in one label.
+		let context = text(of: element("message:Ingest tests pass"))
 		XCTAssertTrue(context.contains("Refactor the store"), context)
 		XCTAssertFalse(context.contains("General"), context)
 		XCTAssertTrue(context.contains("Claude Code"), "the agent mark is labelled: \(context)")
@@ -71,9 +72,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		])
 		openInbox()
 		XCTAssertTrue(element("message:Release notes drafted").waitForExistence(timeout: 10))
-		XCTAssertTrue(text(of: element("context:Store migrations run on start")).contains("Gentbox › Phase 3"))
-		XCTAssertTrue(text(of: element("context:Release notes drafted")).contains("Gentbox › v1.1"))
-		let certificates = text(of: element("context:Staging certificates rotated"))
+		XCTAssertTrue(text(of: element("message:Store migrations run on start")).contains("Gentbox › Phase 3"))
+		XCTAssertTrue(text(of: element("message:Release notes drafted")).contains("Gentbox › v1.1"))
+		let certificates = text(of: element("message:Staging certificates rotated"))
 		XCTAssertTrue(certificates.contains("Infrastructure › Rotate staging certificates"), certificates)
 		XCTAssertTrue(certificates.contains("Codex"), certificates)
 		assertOrder([
@@ -110,9 +111,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(tokio.waitForExistence(timeout: 10))
 		tokio.rightClick()
 		app.menuItems["Mute topic Dependency upgrades"].click()
-		// The foot names what is muted. (The row's own "Muted" value is for
-		// VoiceOver; macOS 15 exposes the row as two groups and only one
-		// carries it, so the test reads the foot.)
+		// The row itself says so, for VoiceOver.
+		assertValue("Muted", of: tokio)
+		// And the foot names what is muted.
 		let summary = element("inbox.muted-summary")
 		XCTAssertTrue(summary.waitForExistence(timeout: 5))
 		XCTAssertEqual(text(of: summary), "Dependency upgrades muted")
@@ -120,6 +121,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let search = element("message:Search filters persist in the URL")
 		search.rightClick()
 		app.menuItems["Mute thread Search filters"].click()
+		assertValue("Muted", of: search)
 		let both = NSPredicate(format: "value == '2 topics and threads muted' OR label == '2 topics and threads muted'")
 		let updated = XCTNSPredicateExpectation(predicate: both, object: summary)
 		XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 5), .completed, text(of: summary))
@@ -230,47 +232,50 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertFalse(element("message:Sign in to the payments sandbox").exists)
 	}
 
-	/// The accordion springs inside a panel that holds its height: a panel
-	/// that jumped to its end size while the content was mid-spring is what
-	/// made it glitch. XCUITest waits for animations to end before it reads
-	/// anything, so the app records its own frames (`AnimationTrace`, debug
-	/// builds) while it expands, collapses, expands another and refreshes
-	/// mid-spring, and this test reads that record.
-	func testThePanelHoldsItsHeightWhileTheAccordionSprings() throws {
-		app.terminate()
-		let trace = stateFolder.appendingPathComponent("trace", isDirectory: true)
-		app.launchEnvironment["GENTBOX_TRACE_DIR"] = trace.path
-		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
-			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
-		}
-		let launchedAt = Date()
-		app.launch()
-		try waitForTheHub(startedAfter: launchedAt)
-		for index in 1...5 {
-			try post([
-				"type": "task_completed", "title": "Completed task number \(index)",
-				"body": "line one\nline two\nline three",
-				"conversation": ["id": "session-\(index)"],
-				"topic": ["key": "web", "title": "Web"],
-				"thread": ["key": "t\(index)", "title": "Thread \(index)"],
-			])
-		}
-		let csv = trace.appendingPathComponent("frames.csv")
-		let deadline = Date().addingTimeInterval(40)
-		while !FileManager.default.fileExists(atPath: csv.path), Date() < deadline {
-			Thread.sleep(forTimeInterval: 0.5)
-		}
-		let rows = try String(contentsOf: csv, encoding: .utf8)
-			.split(separator: "\n").dropFirst()
-			.map { $0.split(separator: ",").map(String.init) }
-		let steps = Dictionary(grouping: rows) { $0[1] }
-		XCTAssertEqual(Set(steps.keys), ["expand-row", "collapse", "expand-another", "expand-then-refresh"])
+	/// The panel's height moves with the content, frame by frame: its bottom
+	/// edge stays on the content's bottom (header at the top, foot at the
+	/// bottom) while the accordion expands and collapses, a refresh lands
+	/// mid-motion, and items leave and arrive. XCUITest waits for animations
+	/// to end before it reads anything, so the app records its own frames
+	/// (`AnimationTrace`, debug builds) and this test reads that record.
+	///
+	/// The trace samples between display frames, every 20 to 40 ms, so
+	/// mid-motion the two may read apart by as much as the panel moves
+	/// between two samples, never more: a panel that lagged or led the
+	/// content would drift further. Settled, they agree.
+	func testThePanelsHeightMovesWithTheContent() throws {
+		let frames = try traceFrames()
+		let steps = Dictionary(grouping: frames) { $0.step }
+		XCTAssertEqual(
+			Set(steps.keys),
+			["expand-row", "collapse", "expand-another", "expand-then-refresh", "removal", "arrival"],
+		)
 		for (step, frames) in steps {
 			XCTAssertGreaterThan(frames.count, 5, step)
-			let duringSpring = frames.filter { (Int($0[2]) ?? 0) < 500 }
-			let heights = Set(duringSpring.map { $0[4] })
-			XCTAssertEqual(heights.count, 1, "the panel changed height mid-spring in \(step): \(heights)")
+			if step != "expand-then-refresh" {
+				// That one swaps two cards of one height.
+				XCTAssertGreaterThan(Set(frames.map(\.panelHeight)).count, 3, "the panel did not move in \(step)")
+			}
+			for (previous, frame) in zip(frames, frames.dropFirst()) {
+				let sampleMotion = Double(abs(frame.panelHeight - previous.panelHeight))
+				XCTAssertLessThanOrEqual(
+					abs(frame.gap), sampleMotion + 1.5,
+					"\(step) at \(frame.ms) ms: the content's bottom is \(frame.gap) pt from the panel's, which moved \(sampleMotion) pt since the last sample",
+				)
+			}
+			for frame in frames.suffix(3) {
+				XCTAssertTrue((0...1).contains(frame.gap), "\(step) settled \(frame.gap) pt from the panel's bottom")
+			}
 		}
+	}
+
+	/// The panel never moves: from opening to closing its top edge and left
+	/// edge stay where they were set, and only the bottom edge moves.
+	func testThePanelsTopEdgeNeverMoves() throws {
+		let frames = try traceFrames()
+		XCTAssertGreaterThan(frames.count, 30)
+		XCTAssertEqual(Set(frames.map(\.panelTop)).count, 1, "the top edge moved: \(Set(frames.map(\.panelTop)))")
+		XCTAssertEqual(Set(frames.map(\.panelX)).count, 1, "the panel slid: \(Set(frames.map(\.panelX)))")
 	}
 
 	/// The card's keys work in the panel, which never activates the app: ↩
@@ -333,6 +338,67 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	}
 
 	// MARK: Helpers
+
+	private struct TraceFrame {
+		let step: String
+		let ms: Int
+		let panelX: Int
+		let panelTop: Int
+		let panelHeight: Int
+		let gap: Double
+	}
+
+	/// Launches the app with `AnimationTrace` over five items, posts one more
+	/// when the trace waits for an arrival, and reads its record.
+	private func traceFrames() throws -> [TraceFrame] {
+		app.terminate()
+		let trace = stateFolder.appendingPathComponent("trace", isDirectory: true)
+		app.launchEnvironment["GENTBOX_TRACE_DIR"] = trace.path
+		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
+			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
+		}
+		let launchedAt = Date()
+		app.launch()
+		try waitForTheHub(startedAfter: launchedAt)
+		for index in 1...6 {
+			if index == 6 {
+				let awaiting = trace.appendingPathComponent("awaiting-arrival")
+				let deadline = Date().addingTimeInterval(40)
+				while !FileManager.default.fileExists(atPath: awaiting.path), Date() < deadline {
+					Thread.sleep(forTimeInterval: 0.2)
+				}
+			}
+			try post([
+				"type": "task_completed", "title": "Completed task number \(index)",
+				"body": "line one\nline two\nline three",
+				"conversation": ["id": "session-\(index)"],
+				"topic": ["key": "web", "title": "Web"],
+				"thread": ["key": "t\(index)", "title": "Thread \(index)"],
+			])
+		}
+		let csv = trace.appendingPathComponent("frames.csv")
+		let deadline = Date().addingTimeInterval(30)
+		while !FileManager.default.fileExists(atPath: csv.path), Date() < deadline {
+			Thread.sleep(forTimeInterval: 0.5)
+		}
+		return try String(contentsOf: csv, encoding: .utf8)
+			.split(separator: "\n").dropFirst()
+			.map { $0.split(separator: ",").map(String.init) }
+			.compactMap { fields in
+				guard fields.count == 8, let ms = Int(fields[2]), let x = Int(fields[3]), let top = Int(fields[4]),
+					let height = Int(fields[5]), let gap = Double(fields[7])
+				else { return nil }
+				return TraceFrame(step: fields[1], ms: ms, panelX: x, panelTop: top, panelHeight: height, gap: gap)
+			}
+	}
+
+	private func assertValue(_ value: String, of element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+		let isSet = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: element)
+		XCTAssertEqual(
+			XCTWaiter.wait(for: [isSet], timeout: 5), .completed,
+			"\(element.identifier) has value \(String(describing: element.value))", file: file, line: line,
+		)
+	}
 
 	/// Waits for `API/port` and `API/token`: the hub is up and serving.
 	/// A `port` left by the previous test's app (killed, so it never removed

@@ -75,20 +75,37 @@ final class InboxPanel: NSPanel {
 	}
 
 	/// Where the panel goes: under `anchor` (the status item, in screen
-	/// coordinates), centred on it, kept inside the screen's visible frame.
-	/// With the menu bar hidden the item sits above the screen; the panel
-	/// then hangs from the top of the visible frame. An anchor that is not at
-	/// the top of the screen (the item's window before the menu bar is laid
-	/// out reports (0, 0) or a y below the screen) counts as none, and the
-	/// panel hangs at the top right.
-	static func frame(size: NSSize, under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat = 4) -> NSRect {
-		let isInMenuBar = anchor.width > 0 && anchor.height > 0 && anchor.minY >= visibleFrame.maxY - 1
-		let anchor = isInMenuBar ? anchor : NSRect(x: visibleFrame.maxX, y: visibleFrame.maxY, width: 0, height: 0)
-		let top = min(anchor.minY - gap, visibleFrame.maxY - gap)
+	/// coordinates), centred on it, kept inside the screen's visible frame,
+	/// and no taller than `maxHeight(under:in:)`. With the menu bar hidden
+	/// the item sits above the screen; the panel then hangs from the top of
+	/// the visible frame. An anchor that is not at the top of the screen (the
+	/// item's window before the menu bar is laid out reports (0, 0) or a y
+	/// below the screen) counts as none, and the panel hangs at the top right,
+	/// where the item would be.
+	static func frame(size: NSSize, under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat = gap) -> NSRect {
+		let anchor = menuBarAnchor(anchor, in: visibleFrame)
+		let top = top(under: anchor, in: visibleFrame, gap: gap)
 		var x = anchor.midX - size.width / 2
 		x = min(max(x, visibleFrame.minX + gap), visibleFrame.maxX - size.width - gap)
 		let height = min(size.height, top - visibleFrame.minY - gap)
 		return NSRect(x: x, y: top - height, width: size.width, height: height)
+	}
+
+	/// The tallest the panel gets: from its top down to the bottom of the
+	/// visible frame. Only content taller than this scrolls.
+	static func maxHeight(under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat = gap) -> CGFloat {
+		top(under: menuBarAnchor(anchor, in: visibleFrame), in: visibleFrame, gap: gap) - visibleFrame.minY - gap
+	}
+
+	static let gap: CGFloat = 4
+
+	private static func menuBarAnchor(_ anchor: NSRect, in visibleFrame: NSRect) -> NSRect {
+		let isInMenuBar = anchor.width > 0 && anchor.height > 0 && anchor.minY >= visibleFrame.maxY - 1
+		return isInMenuBar ? anchor : NSRect(x: visibleFrame.maxX, y: visibleFrame.maxY, width: 0, height: 0)
+	}
+
+	private static func top(under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat) -> CGFloat {
+		min(anchor.minY - gap, visibleFrame.maxY - gap)
 	}
 }
 

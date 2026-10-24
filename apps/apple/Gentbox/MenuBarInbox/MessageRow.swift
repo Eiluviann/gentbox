@@ -114,6 +114,10 @@ struct RowContext: View {
 /// frame: one view throughout, so nothing cross-fades. Only the expanded item
 /// has buttons, so ↩, ⌘⌫ and R act on it alone.
 ///
+/// For VoiceOver a collapsed item is one element: its title, breadcrumb,
+/// agent and waiting mark in one label, "Muted" as its value, and a press
+/// that expands it. The card contains its buttons and field.
+///
 /// A click on a collapsed item expands it (and collapses the open one); a
 /// click on the expanded item's header collapses it; ⌘-click picks a
 /// collapsed item for a bulk Dismiss (never an `action_required` one).
@@ -147,9 +151,10 @@ struct InboxItem: View {
 		.contextMenu {
 			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
 		}
-		.accessibilityElement(children: .contain)
+		.accessibilityElement(children: isExpanded ? .contain : .combine)
 		.accessibilityAddTraits(isPicked ? [.isButton, .isSelected] : .isButton)
 		.accessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
+		.accessibilityAction { inbox.toggleExpansion(of: message.id) }
 		.accessibilityIdentifier(isExpanded ? "card:\(message.title)" : "message:\(message.title)")
 		.onChange(of: isExpanded) {
 			isReplying = false
@@ -161,18 +166,18 @@ struct InboxItem: View {
 		HStack(alignment: .top, spacing: Tokens.columnGap) {
 			TypeIcon(message: message)
 			VStack(alignment: .leading, spacing: isExpanded ? 2 : 1) {
-				Text(message.title)
-					// The same style in both states: any change to the title's font
-					// (a size or weight, animated or morphed) gives the text a
-					// transition of its own, and it drifts from its breadcrumb
-					// while the item springs. The card stands out by its body
-					// and padding instead of the board's 15-point headline.
-					.font(.system(size: 13, weight: .semibold))
-					// One line in both states, as titles are written to fit
-					// (ADR 0010): a title that rewrapped as it grew would
-					// cross-fade between layouts and shift the breadcrumb.
-					.lineLimit(1)
-					.truncationMode(.tail)
+				// The board's 15-point headline on the card, 13 points on a row:
+				// one 15-point text scaled, never a font switch, which would give
+				// the text a transition of its own and let it drift from its
+				// breadcrumb. One line in both states, as titles are written to
+				// fit (ADR 0010): a title that rewrapped as it grew would
+				// cross-fade between layouts.
+				ScaledLine(scale: isExpanded ? 1 : Self.rowTitleScale) {
+					Text(message.title)
+						.font(.system(size: 15, weight: .semibold))
+						.lineLimit(1)
+						.truncationMode(.tail)
+				}
 				RowContext(message: message)
 			}
 			.frame(maxWidth: .infinity, alignment: .leading)
@@ -192,6 +197,8 @@ struct InboxItem: View {
 					.padding(3)
 					.background(Tokens.track, in: RoundedRectangle(cornerRadius: 6))
 					.opacity(isHovered ? 1 : 0)
+					// The row's context menu is the same menu for VoiceOver.
+					.accessibilityHidden(true)
 					.accessibilityLabel("More")
 					.accessibilityIdentifier("message-menu:\(message.title)")
 				}
@@ -235,13 +242,16 @@ struct InboxItem: View {
 	}
 
 	/// An inserted view appears at its final place while its neighbours are
-	/// still moving, so the body fades in only once the spring has mostly
-	/// settled, and fades out at once on collapse, before the rows slide up:
+	/// still moving, so the body fades in over the second half of the
+	/// motion, and fades out at once on collapse, before the rows slide up:
 	/// it never draws over a moving header.
 	private static let detailsTransition = AnyTransition.asymmetric(
-		insertion: .opacity.animation(.easeOut(duration: 0.15).delay(0.3)),
+		insertion: .opacity.animation(.easeOut(duration: Tokens.motionDuration / 2).delay(Tokens.motionDuration / 2)),
 		removal: .opacity.animation(.easeOut(duration: 0.08)),
 	)
+
+	/// A row's 13-point title, as a share of the card's 15.
+	static let rowTitleScale: CGFloat = 13.0 / 15.0
 
 	private var isPicked: Bool {
 		inbox.selection.contains(message.id)
@@ -262,8 +272,9 @@ struct InboxItem: View {
 					.onAppear { isReplyFocused = true }
 					.onSubmit { send(replyAction) }
 					.accessibilityIdentifier("reply-field")
-				Button("Send") { send(replyAction) }
-					.buttonStyle(DesignButtonStyle(kind: .primary, hint: "↩"))
+				Button { send(replyAction) } label: { PrimaryButtonLabel(title: "Send", hint: "↩") }
+					.primaryButton()
+					.accessibilityLabel("Send")
 					.keyboardShortcut(.defaultAction)
 					.disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty)
 				Button("Cancel") { isReplying = false }
@@ -317,9 +328,11 @@ private struct AnswerButtons: View {
 		let button = Button(action.label) { press(action) }
 			.accessibilityIdentifier("action:\(action.label)")
 		if action.id == primaryId {
-			button
-				.buttonStyle(DesignButtonStyle(kind: .primary, hint: "↩"))
+			Button { press(action) } label: { PrimaryButtonLabel(title: action.label, hint: "↩") }
+				.primaryButton()
 				.keyboardShortcut(.defaultAction)
+				.accessibilityLabel(action.label)
+				.accessibilityIdentifier("action:\(action.label)")
 		} else if action.id == denyId {
 			button
 				.buttonStyle(DesignButtonStyle(kind: .danger, hint: "⌘⌫"))
@@ -343,5 +356,40 @@ private struct AnswerButtons: View {
 
 	private var replyId: String? {
 		actions.first { $0.kind == .reply }?.id
+	}
+}
+
+/// Lays out its one line as if `1 / scale` times as wide and takes `scale`
+/// of its height, and draws it scaled from its leading edge: a line that
+/// grows or shrinks with its row, truncating at the same width throughout,
+/// without a change of font.
+struct ScaledLine<Content: View>: View {
+	let scale: CGFloat
+	@ViewBuilder let content: Content
+
+	var body: some View {
+		ScaledLineLayout(scale: scale) {
+			content.scaleEffect(scale, anchor: .topLeading)
+		}
+	}
+}
+
+/// `ScaledLine`'s layout. Its size is not animatable on purpose: the frames
+/// it yields animate with the rest of the change, and the content's height
+/// is reported once, final, rather than frame by frame.
+private struct ScaledLineLayout: Layout {
+	let scale: CGFloat
+
+	func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
+		guard let line = subviews.first else { return .zero }
+		let size = line.sizeThatFits(ProposedViewSize(width: proposal.width.map { $0 / scale }, height: nil))
+		return CGSize(width: size.width * scale, height: size.height * scale)
+	}
+
+	func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
+		subviews.first?.place(
+			at: bounds.origin, anchor: .topLeading,
+			proposal: ProposedViewSize(width: bounds.width / scale, height: nil),
+		)
 	}
 }

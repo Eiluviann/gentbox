@@ -6,15 +6,22 @@ import SwiftUI
 /// of them expanded into the full card. Topic and thread show only in each
 /// row's breadcrumb; no section titles, no counters.
 ///
-/// In the panel the content hangs from the top and the list fills the rest
-/// and scrolls, so a change of the panel's height never moves the header.
-/// Measuring (`isMeasuring`), the list takes its ideal height instead, which
-/// is how the panel learns the size that fits.
+/// Three parts, as every Gentbox window: the header at the top, the content
+/// at its natural height with no scrolling, and the foot at the bottom. The
+/// panel is as tall as the three, so it grows and shrinks with the content:
+/// every change animates with `Tokens.motion`, and the panel's height
+/// follows on the same curve (`StatusItemController`). The one exception is
+/// content taller than the screen: the panel stops at the screen
+/// (`PanelLayout.isCapped`) and only then does the content scroll, between
+/// the header and the foot.
 struct MenuBarInbox: View {
 	let app: AppModel
+	let layout: PanelLayout
+	/// Laid out at its natural height for the panel to learn its size.
 	var isMeasuring = false
 
 	var body: some View {
+		let scrolls = layout.isCapped && !isMeasuring
 		VStack(spacing: 0) {
 			InboxHeader(app: app)
 			Divider()
@@ -24,11 +31,71 @@ struct MenuBarInbox: View {
 			case .failed(let reason):
 				InboxNotice(symbol: "xmark", title: "Gentbox could not start", caption: reason)
 			case .running(let inbox):
-				InboxContent(inbox: inbox, isMeasuring: isMeasuring)
+				InboxContent(inbox: inbox, scrolls: scrolls)
 			}
 		}
 		.frame(width: Tokens.popoverWidth)
+		.fixedSize(horizontal: false, vertical: !scrolls)
+		// The final height, reported in the pass that starts its animation.
+		.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+			if !isMeasuring, !scrolls {
+				layout.naturalHeightChanged(to: height)
+			}
+		}
+		#if DEBUG
+		.overlay(alignment: .bottom) {
+			if AnimationTraceMarker.isShown { AnimationTraceMarker() }
+		}
+		#endif
+		.animation(Tokens.motion, value: LayoutKey(app: app))
 		.frame(maxHeight: isMeasuring ? nil : .infinity, alignment: .top)
+	}
+}
+
+/// How the inbox's content and its panel fit: the content's natural height
+/// as it reports it, and whether the panel stopped at the screen's height,
+/// so the content scrolls.
+@MainActor
+@Observable
+final class PanelLayout {
+	var isCapped = false
+	@ObservationIgnored private(set) var naturalHeight: CGFloat = 0
+	@ObservationIgnored var onNaturalHeightChange: ((CGFloat) -> Void)?
+
+	func naturalHeightChanged(to height: CGFloat) {
+		naturalHeight = height
+		onNaturalHeightChange?(height)
+	}
+}
+
+/// Everything that changes the inbox's height: a change to any of it
+/// animates with `Tokens.motion`, which the panel's height follows.
+private struct LayoutKey: Equatable {
+	let phase: String
+	let isRead: Bool
+	let expanded: InboxModel.Expanded?
+	let items: [String]
+	let filter: String?
+	let filterOpenCount: Int
+	let hasSelection: Bool
+	let failure: String?
+	let muted: String?
+
+	@MainActor init(app: AppModel) {
+		let inbox = app.inbox
+		switch app.phase {
+		case .starting: phase = "starting"
+		case .failed: phase = "failed"
+		case .running: phase = "running"
+		}
+		isRead = inbox?.inbox != nil
+		expanded = inbox?.expanded
+		items = inbox?.visibleItems.map(\.id) ?? []
+		filter = inbox?.filter?.threadId
+		filterOpenCount = inbox?.filterOpenCount ?? 0
+		hasSelection = !(inbox?.selection.isEmpty ?? true)
+		failure = inbox?.failure
+		muted = inbox?.inbox.flatMap { InboxWords.mutedSummary($0.muted) }
 	}
 }
 
@@ -73,60 +140,64 @@ private struct InboxHeader: View {
 
 /// The list as an accordion (design: `mac-popover`): every open message in
 /// order, one of them expanded in place into the full card (by default the
-/// next-up one), the rest as two-line rows; then the foot.
-///
-/// One animation source: the expansion animates through the list's
-/// `.animation(_:value:)` alone. Scrolling the expanded item into view waits
-/// until the spring has settled and the panel has fitted, and moves only when
-/// the item is out of view.
+/// next-up one), the rest as two-line rows; then the foot. It scrolls only
+/// when the panel stopped at the screen's height.
 private struct InboxContent: View {
 	let inbox: InboxModel
-	let isMeasuring: Bool
-	/// The spring's settling time (`.spring` is 0.5 s) plus a margin.
-	static let settle: Duration = .milliseconds(550)
+	let scrolls: Bool
 
 	var body: some View {
 		if let snapshot = inbox.inbox {
 			if inbox.isEmpty {
 				InboxNotice(symbol: "tray", title: "No agent needs you", caption: nil)
-			} else {
+			} else if scrolls {
 				ScrollViewReader { proxy in
 					ScrollView {
-						VStack(alignment: .leading, spacing: 0) {
-							if let filter = inbox.filter {
-								FilterBanner(filter: filter, inbox: inbox)
-								Divider()
-							}
-							ForEach(Array(inbox.visibleItems.enumerated()), id: \.element.id) { index, message in
-								if index > 0 {
-									// `.pp-line + .pp-line` (an.css:1140): a rule between items.
-									Tokens.line.frame(height: 1)
-								}
-								InboxItem(
-									message: message,
-									isExpanded: inbox.isExpanded(message.id),
-									moveTargets: snapshot.moveTargets,
-									inbox: inbox,
-								)
-								.id(message.id)
-							}
-						}
-						.animation(.spring, value: inbox.expanded)
+						InboxList(inbox: inbox, moveTargets: snapshot.moveTargets)
 					}
-					.frame(maxHeight: isMeasuring ? Tokens.listMaxHeight : .infinity)
-					.fixedSize(horizontal: false, vertical: isMeasuring)
+					.frame(maxHeight: .infinity)
 					.task(id: inbox.expanded) {
 						guard let id = inbox.expanded?.messageId,
-							(try? await Task.sleep(for: Self.settle + .milliseconds(250))) != nil
+							(try? await Task.sleep(for: .seconds(Tokens.motionDuration))) != nil
 						else { return }
 						// No anchor: the least scroll that shows it, none if it shows.
 						proxy.scrollTo(id)
 					}
 				}
+			} else {
+				InboxList(inbox: inbox, moveTargets: snapshot.moveTargets)
 			}
 			InboxFooter(snapshot: snapshot, inbox: inbox)
 		} else {
 			InboxNotice(symbol: "tray", title: "Reading the inbox", caption: nil)
+		}
+	}
+}
+
+/// The filter banner and the items, a rule between them.
+private struct InboxList: View {
+	let inbox: InboxModel
+	let moveTargets: [TopicChoice]
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 0) {
+			if let filter = inbox.filter {
+				FilterBanner(filter: filter, inbox: inbox)
+				Divider()
+			}
+			ForEach(Array(inbox.visibleItems.enumerated()), id: \.element.id) { index, message in
+				if index > 0 {
+					// `.pp-line + .pp-line` (an.css:1140): a rule between items.
+					Tokens.line.frame(height: 1)
+				}
+				InboxItem(
+					message: message,
+					isExpanded: inbox.isExpanded(message.id),
+					moveTargets: moveTargets,
+					inbox: inbox,
+				)
+				.id(message.id)
+			}
 		}
 	}
 }
@@ -148,7 +219,7 @@ private struct FilterBanner: View {
 				.accessibilityIdentifier("inbox.filter")
 			if count == 0 {
 				Button("Close thread") { Task { await inbox.closeFilteredThread() } }
-					.buttonStyle(DesignButtonStyle(kind: .primary, size: .small))
+					.primaryButton(size: .small)
 					.accessibilityIdentifier("inbox.close-filtered")
 			}
 			Button("Show all") { inbox.clearFilter() }
@@ -189,7 +260,7 @@ private struct InboxFooter: View {
 						Button("Cancel") { inbox.clearSelection() }
 							.buttonStyle(DesignButtonStyle(size: .small))
 						Button("Dismiss") { Task { await inbox.dismissSelected() } }
-							.buttonStyle(DesignButtonStyle(kind: .primary, size: .small))
+							.primaryButton(size: .small)
 							.accessibilityIdentifier("inbox.dismiss-selected")
 					}
 				}

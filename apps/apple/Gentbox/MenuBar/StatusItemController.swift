@@ -18,16 +18,20 @@ final class StatusItemController: NSObject {
 
 	private let app: AppModel
 	private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+	private let layout = PanelLayout()
 	private let host: NSHostingController<MenuBarInbox>
-	/// The same content laid out at its ideal height, off screen: what the
-	/// panel's height should be.
+	/// The same content laid out at its natural height, off screen: the
+	/// panel's height on opening, and whether content that scrolls fits again.
+	/// While the panel shows, the content reports its own height.
 	private let measuringHost: NSHostingController<MenuBarInbox>
+	/// The inbox's own panel, used for nothing else: popups, toasts and
+	/// Settings get windows of their own.
 	private let panel: InboxPanel
-	/// The expanded item as last seen, and when it last changed: the panel's
-	/// height waits for the spring to settle.
-	private var lastExpanded: InboxModel.Expanded?
-	private var lastExpansionChange = Date.distantPast
-	private var fitting: Task<Void, Never>?
+	/// Where the open panel hangs: its left edge and its top, fixed from
+	/// opening to closing. Only the height changes while it shows.
+	private var placement: (x: CGFloat, top: CGFloat, maxHeight: CGFloat)?
+	private var height = PanelHeightMotion(height: 0)
+	private var heightLink: CADisplayLink?
 	private var outsideClicks: Any?
 	#if DEBUG
 	private var trace: AnimationTrace?
@@ -35,15 +39,16 @@ final class StatusItemController: NSObject {
 
 	init(app: AppModel) {
 		self.app = app
-		host = NSHostingController(rootView: MenuBarInbox(app: app))
+		host = NSHostingController(rootView: MenuBarInbox(app: app, layout: layout))
 		// The panel is sized by hand from the content's ideal size: letting
 		// the content size the window feeds its frame back into SwiftUI's
 		// layout, which AppKit aborts as a loop.
 		host.sizingOptions = []
-		measuringHost = NSHostingController(rootView: MenuBarInbox(app: app, isMeasuring: true))
+		measuringHost = NSHostingController(rootView: MenuBarInbox(app: app, layout: layout, isMeasuring: true))
 		measuringHost.sizingOptions = []
 		panel = InboxPanel(content: host.view)
 		super.init()
+		layout.onNaturalHeightChange = { [weak self] natural in self?.fitPanel(natural: natural) }
 		panel.onClose = { [weak self] in self?.closePanel() }
 		configureButton()
 		updateButton()
@@ -61,10 +66,9 @@ final class StatusItemController: NSObject {
 			showPanel(takingKeyboard: false)
 			#if DEBUG
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_TRACE_DIR"], !path.isEmpty {
-				let measuringHost = measuringHost
 				trace = AnimationTrace(
 					directory: URL(fileURLWithPath: path), panel: panel,
-					measure: { measuringHost.sizeThatFits(in: NSSize(width: Tokens.popoverWidth, height: 2000)).height },
+					measure: { [layout] in layout.naturalHeight },
 					inbox: { [weak app] in app?.inbox },
 				)
 				trace?.run()
@@ -97,6 +101,7 @@ final class StatusItemController: NSObject {
 		app.inbox?.requestRead()
 		app.inbox?.presentationChanged(isPresented: true)
 		placePanel()
+		guard placement != nil else { return }
 		if takingKeyboard {
 			panel.makeKeyAndOrderFront(nil)
 		} else {
@@ -112,6 +117,9 @@ final class StatusItemController: NSObject {
 	private func closePanel() {
 		guard panel.isVisible else { return }
 		panel.orderOut(nil)
+		heightLink?.invalidate()
+		heightLink = nil
+		placement = nil
 		if let outsideClicks {
 			NSEvent.removeMonitor(outsideClicks)
 		}
@@ -120,34 +128,33 @@ final class StatusItemController: NSObject {
 		app.inbox?.presentationChanged(isPresented: false)
 	}
 
-	/// Sizes the panel to its content and hangs it under the status item, at
-	/// once (opening) or eased (while open).
-	private func placePanel(animated: Bool = false) {
+	/// Hangs the panel under the status item at its content's height, before
+	/// it shows: the place is set once, never animated, and holds until the
+	/// panel closes.
+	private func placePanel() {
 		// `NSScreen.main` is the key window's screen, nil while the app runs in
 		// the background with no key window.
 		guard let screen = item.button?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
 		let anchor = item.button?.window?.frame ?? .zero
-		let ideal = measuringHost.sizeThatFits(in: NSSize(width: Tokens.popoverWidth, height: screen.visibleFrame.height))
-		let size = NSSize(width: Tokens.popoverWidth, height: ceil(ideal.height))
-		let target = InboxPanel.frame(size: size, under: anchor, in: screen.visibleFrame)
-		guard target != panel.frame else { return }
-		if animated {
-			NSAnimationContext.runAnimationGroup { context in
-				context.duration = 0.2
-				context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-				panel.animator().setFrame(target, display: false)
-			}
-		} else {
-			panel.setFrame(target, display: false)
-		}
+		let natural = naturalHeight()
+		let frame = InboxPanel.frame(
+			size: NSSize(width: Tokens.popoverWidth, height: natural), under: anchor, in: screen.visibleFrame,
+		)
+		let maxHeight = InboxPanel.maxHeight(under: anchor, in: screen.visibleFrame)
+		placement = (frame.minX, frame.maxY, maxHeight)
+		layout.isCapped = natural > maxHeight
+		height.reset(to: frame.height)
+		panel.setFrame(frame, display: false, animate: false)
 	}
 
-	/// The panel fits its content, but never during an expansion: while the
-	/// card springs open or shut, the panel holds its height (the content
-	/// hangs from the top and the list scrolls inside), and only once the
-	/// spring has settled does the panel ease to the new height. A panel that
-	/// jumped to the end size while the content was mid-spring is what made
-	/// the accordion glitch.
+	/// The content's natural height, header and foot included, measured off
+	/// screen.
+	private func naturalHeight() -> CGFloat {
+		ceil(measuringHost.sizeThatFits(in: NSSize(width: Tokens.popoverWidth, height: 100_000)).height)
+	}
+
+	/// While the content scrolls it reports no natural height of its own, so
+	/// each change is measured off screen to see whether it fits again.
 	private func fitOnChange() {
 		withObservationTracking {
 			_ = app.phase
@@ -163,33 +170,46 @@ final class StatusItemController: NSObject {
 				if self.panel.isVisible {
 					self.app.inbox?.presentationChanged(isPresented: true)
 				}
-				self.scheduleFit()
+				if self.layout.isCapped {
+					self.fitPanel(natural: self.naturalHeight())
+				}
 				self.fitOnChange()
 			}
 		}
 	}
 
-	/// Fits the panel once the last expansion has settled.
-	private func scheduleFit() {
-		let expanded = app.inbox?.expanded
-		if expanded != lastExpanded {
-			lastExpanded = expanded
-			lastExpansionChange = Date()
-		}
-		fitting?.cancel()
-		fitting = Task { @MainActor in
-			let settle = Self.settle - Date().timeIntervalSince(lastExpansionChange)
-			if settle > 0 {
-				guard (try? await Task.sleep(for: .seconds(settle))) != nil else { return }
-			}
-			if panel.isVisible {
-				placePanel(animated: true)
-			}
-		}
+	/// The content's natural height changed, in the layout pass that starts
+	/// its animation: the panel's height starts towards it at once, on the
+	/// same curve, so the two move together. Taller than the screen, the
+	/// panel stops there and the content scrolls.
+	private func fitPanel(natural: CGFloat) {
+		guard panel.isVisible, let placement else { return }
+		let natural = ceil(natural)
+		layout.isCapped = natural > placement.maxHeight
+		height.retarget(to: min(natural, placement.maxHeight), at: CACurrentMediaTime())
+		guard heightLink == nil, height.isMoving(at: CACurrentMediaTime()) else { return }
+		let link = panel.displayLink(target: self, selector: #selector(stepHeight(_:)))
+		link.add(to: .main, forMode: .common)
+		heightLink = link
 	}
 
-	/// The spring's settling time (`.spring` is 0.5 s) plus a margin.
-	static let settle: TimeInterval = 0.55
+	/// One display frame of the height motion: the top edge and the left edge
+	/// stay; only the bottom edge moves.
+	@objc private func stepHeight(_ link: CADisplayLink) {
+		guard let placement else { return }
+		// The frame's own time, the clock SwiftUI animates the content on
+		// (`targetTimestamp`, a frame ahead, measured a frame's lead).
+		let time = link.timestamp
+		let current = height.height(at: time)
+		panel.setFrame(
+			NSRect(x: placement.x, y: placement.top - current, width: Tokens.popoverWidth, height: current),
+			display: true, animate: false,
+		)
+		if !height.isMoving(at: time) {
+			link.invalidate()
+			heightLink = nil
+		}
+	}
 
 	/// A test hook: writes the panel's content to a PNG after every inbox
 	/// change. The app draws its own window, so no Screen Recording
@@ -204,7 +224,7 @@ final class StatusItemController: NSObject {
 			_ = app.inbox?.selection
 		} onChange: { [weak self] in
 			Task { @MainActor in
-				// After the spring animations settle.
+				// After the motion settles.
 				try? await Task.sleep(for: .milliseconds(1200))
 				self?.writeSnapshot(to: url)
 				self?.snapshotOnChange(to: url)
