@@ -272,9 +272,9 @@ ADRs: [0008](adr/0008-topics.md) (topics), [0009](adr/0009-threads.md) (threads,
 - **Takeover:** an explicit thread created with `kind: "conversation"` and `conversation.id` takes over that conversation's implicit thread in its topic (messages and mute move in, the implicit thread goes, later default messages follow). Only the first; the inline `thread` form never takes over. Topics have no takeover.
 - **API:** topics as in ADR 0008; threads with `POST /v1/threads` (upsert by key within the topic), `GET`, `PATCH`, close, reopen, rescind-all, `PUT /v1/threads/{id}/topic` (move a thread), and `PUT /v1/messages/{id}/thread` (move a message, `null` to re-resolve). Implicit topics and threads answer 409 to agent PATCHes.
 - **Grouping only.** A message keeps its own `type`, `urgent` and `blocking`; coalescing and implicit rescinds stay per conversation (§7). The one delivery effect is mute (§6.2).
-- **Close:** closing a topic closes its open threads (and reopening it reopens those); open messages stay unless `rescindOpenMessages: true`. A message to a closed thread reopens it and its topic.
+- **Close:** a topic or thread closes only when nothing in it is open (open, acknowledged, deferred or snoozed); otherwise the hub answers 409 `has_open_messages` with the count, for the Mac and agents alike. An agent's `rescindOpenMessages: true` withdraws only its own messages first, and the close is refused (withdrawing nothing) if anything else stays open. An agent's General topic never closes (409 `general_topic`); its threads do. Closing a topic closes its threads (and reopening it reopens those). A message to a closed thread reopens it and its topic. On the Mac, Close on an item whose thread still has open items shows them ("N items still open") instead of closing; nothing the user does withdraws a message, so items are answered, done or dismissed (several at once with bulk Dismiss) before a close (2026-10-24, the user's decision).
 - **For you:** mute, mark read, close and reopen at both levels (a muted topic mutes its threads); move a thread or a message.
-- **Inbox:** topic → thread → messages; each message row shows its conversation. A simple conversation shows as General → its thread. Closed topics and threads move to a Closed section.
+- **Inbox:** the Mac's menu-bar inbox is one list, urgent first, then waiting (the `mac-popover` design); each row's second line is the breadcrumb "Topic › Thread", General left out, so a simple conversation shows as its thread. One item at a time is expanded into the full card. Topic and thread actions (mute, close, move) sit in each message's menu; closed topics and threads, which hold no open items, appear in History and Settings, not in the inbox. The FFI also returns the inbox grouped topic → thread → messages for the main window.
 
 ### 5.5 Titles are descriptive summaries
 
@@ -381,7 +381,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 **Listeners.**
 
-- A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it.
+- A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it. The Mac app's sandbox refuses it outside the app's own containers (an ad hoc build's `~/Library/Application Support/Gentbox`); the hub then serves TCP only, as for an over-long socket path, and clients fall back after the `hello` proof.
 - The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
 - Remote listener for the own iOS app's full bodies, off by default and only with Tailscale (§10, optional M3).
 
@@ -403,11 +403,11 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `POST /v1/topics` | Create a topic, upsert by `key` (§5.4) |
 | `GET /v1/topics?status=open` | List topics (no messages) |
 | `GET /v1/topics/{id}` · `PATCH /v1/topics/{id}` | Read one; rename or edit it |
-| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close (and its open threads; optionally withdrawing open messages), reopen, or withdraw its open messages |
+| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close it and its threads once nothing in it is open (optionally withdrawing the requester's own open messages first; 409 `has_open_messages` with `openMessages`, 409 `general_topic` for a General topic), reopen, or withdraw its open messages |
 | `POST /v1/threads` | Create a thread, upsert by `key` within its topic (§5.4) |
 | `GET /v1/threads?topic={id}&status=open` | List threads (no messages) |
 | `GET /v1/threads/{id}` · `PATCH /v1/threads/{id}` | Read one; rename or edit it |
-| `POST /v1/threads/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
+| `POST /v1/threads/{id}/close` · `/reopen` · `/rescind` | Close once nothing in it is open (optionally withdrawing the requester's own open messages first; 409 `has_open_messages`), reopen, or withdraw its open messages |
 | `PUT /v1/threads/{id}/topic` | Move a thread with its messages to another topic |
 | `PUT /v1/messages/{id}/thread` | Move a message to another thread, or back to its default resolution with `null` |
 
@@ -419,7 +419,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 **Rate limits.** Token bucket per `source.agent`: burst 30, refill 1/s; per-conversation burst 10. Over the limit → 429 with `Retry-After`. Body limit 128 KiB.
 
-**Error codes.** 422 bodies carry a `code`: `schema_invalid` (with the JSON pointer), `invalid_combination`, `topic_conflict`, `title_looks_like_command` (strict mode, and explicit topic or thread creates).
+**Error codes.** 422 bodies carry a `code`: `schema_invalid` (with the JSON pointer), `invalid_combination`, `topic_conflict`, `title_looks_like_command` (strict mode, and explicit topic or thread creates). 409 bodies carry `implicit_group`, `conflict`, `already_closed` (with `state`), `has_open_messages` (with `openMessages`) or `general_topic`.
 
 **Versioning.** `/v1/` in the path and `"version": 1` in the body. Additive optional fields stay in v1; anything else is v2 on a new path, served alongside v1 for at least one release.
 
@@ -542,7 +542,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 - It needs `NSFocusStatusUsageDescription` and the Communication Notifications entitlement [Apple-forum-685744]. Communication Notifications is not available to free (Personal Team) accounts on macOS or iOS [Apple-caps-macos, Apple-caps-ios]: **not feasible on a Personal Team, available with the paid team.** Claiming it without a profile gets the app killed at launch (restricted entitlement) [Vaultday signing.md › TN3125].
 - Time Sensitive Notifications is also paid-only [Apple-caps-macos].
 - With the paid team (the user's choice, 2026-10-23) both capabilities are available: `INFocusStatusCenter` is the Focus source (Spike S3 confirms it on macOS 26, since the forum threads leave macOS behaviour open [Apple-forum-682143, Apple-forum-706888]), and blocking native notifications are Time Sensitive. Fallbacks for Personal Team builds: the `~/Library/DoNotDisturb/DB/` reader behind Full Disk Access, undocumented [focus-cli], or a Shortcuts automation.
-- Idle seconds (`CGEventSourceSecondsSinceLastEventType`), screen lock (the `com.apple.screenIsLocked`/`screenIsUnlocked` distributed notifications, undocumented but long-standing) and the frontmost app (`NSWorkspace`) need no entitlement (unverified by a source; checked in PR 3).
+- Idle seconds (`CGEventSourceSecondsSinceLastEventType`), screen lock (the `com.apple.screenIsLocked`/`screenIsUnlocked` distributed notifications, undocumented but long-standing) and the frontmost app (`NSWorkspace`) need no entitlement: the sandboxed Personal Team and ad hoc builds of PR 3 read all three (no source documents it).
 
 ### ntfy
 
@@ -574,7 +574,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 - Free accounts can use App Groups and Keychain Sharing on macOS and iOS (plus Background Modes on iOS); not Push Notifications, iCloud/CloudKit, Time Sensitive, Communication Notifications, Associated Domains, Network Extensions [Apple-caps-macos, Apple-caps-ios].
 - iOS: profiles and App IDs expire after 7 days (rebuild and reinstall weekly), at most 10 App IDs, 3 devices and 3 apps per device [Apple-memberships]. Vaultday's iOS app (if any) counts against the same 3.
-- macOS: an app without restricted entitlements needs no provisioning profile, so only the certificate (about a year) expires [Apple-forum-705932]; with a team-prefixed App Group (unrestricted on macOS) the Mac app does not need weekly rebuilds. If it ever claims `keychain-access-groups`, the 7-day profile applies as in Vaultday. Local `UNUserNotificationCenter` notifications with action categories and `SMAppService` login items need no paid capability (unverified by a source; checked in PR 3/4).
+- macOS: an app without restricted entitlements needs no provisioning profile, so only the certificate (about a year) expires [Apple-forum-705932]; with a team-prefixed App Group (unrestricted on macOS) the Mac app does not need weekly rebuilds. If it ever claims `keychain-access-groups`, the 7-day profile applies as in Vaultday. `SMAppService` login items need no paid capability: the Personal Team build of PR 3 registers itself (2026-10-24). Local `UNUserNotificationCenter` notifications with action categories are checked in PR 4.
 - Tailscale traffic runs over a VPN interface, which is not "local network" for iOS Local Network Privacy, so no `NSLocalNetworkUsageDescription` prompt is expected [TN3179].
 
 ## 12. Security model

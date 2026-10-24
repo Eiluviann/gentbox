@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+A free Personal Team build: the full set without Time Sensitive and
+Communication Notifications, which free accounts cannot claim. The App Group is
+team-prefixed (Signing.personal-team.xcconfig), so no entitlement here needs a
+provisioning profile. A subset of Full.entitlements. See docs/signing.md.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(GENTBOX_APP_GROUP)</string>
+	</array>
+</dict>
+</plist>

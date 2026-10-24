@@ -21,8 +21,8 @@ use gentbox_core::rescind::{RescindReason, RescindRequest};
 use gentbox_core::resolve::GroupingError;
 use gentbox_core::response::{ActionResponse, AnsweredVia, IngestResponse, IngestWarning};
 use gentbox_core::topic::{
-    CloseRequest, GroupStatus, ThreadCreate, ThreadRecord, ThreadRef, TopicCreate, TopicRecord,
-    TopicRef, TopicStyle,
+    CloseRequest, GroupStatus, Thread, ThreadCreate, ThreadRecord, ThreadRef, Topic, TopicCreate,
+    TopicRecord, TopicRef, TopicStyle,
 };
 use gentbox_store::{Conflict, EntityKind, MessageFilter, StoreError, SweepReport, Upserted};
 use serde::{Deserialize, Deserializer};
@@ -83,6 +83,20 @@ pub enum HubError {
     /// Agents may not edit an implicit topic or thread (409).
     #[error("implicit topics and threads are managed by the hub")]
     ImplicitGroup,
+    /// A topic or thread closes only when nothing in it is open (409).
+    #[error("{count} item(s) still open; a topic or thread closes only when nothing in it is open")]
+    HasOpenMessages {
+        /// How many messages are open in it (snoozed and deferred included).
+        count: u32,
+    },
+    /// An agent's General topic holds its simple conversations and never
+    /// closes; its threads do (409).
+    #[error("the General topic cannot be closed; close its threads instead")]
+    GeneralTopic,
+    /// A group withdrawal that names no requester would withdraw every
+    /// agent's messages; only an agent withdraws, and only its own.
+    #[error("only the agent that sent a message may withdraw it")]
+    NoRequester,
     /// A key or default-thread uniqueness rule (409).
     #[error(transparent)]
     Conflict(Conflict),
@@ -267,6 +281,33 @@ pub struct MessageGrouping {
     pub topic_id: TopicId,
     /// Its thread.
     pub thread_id: ThreadId,
+}
+
+/// One live message in the inbox, with what the UI may offer for it now.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InboxEntry {
+    /// The stored message.
+    pub message: Message,
+    /// The buttons to show now.
+    pub offered_actions: Vec<Action>,
+    /// Whether a sender is waiting for the answer now.
+    pub has_live_waiter: bool,
+    /// The messages it replaced, nearest first, so a card showing one of them
+    /// can follow it to this one.
+    pub supersedes: Vec<MessageId>,
+}
+
+/// Everything the Mac inbox draws, read in one actor turn so that topics,
+/// threads and messages agree with each other.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct InboxSnapshot {
+    /// Every topic, open and closed, with its mute and read state.
+    pub topics: Vec<Topic>,
+    /// Every thread, open and closed.
+    pub threads: Vec<Thread>,
+    /// The live messages (open and acknowledged) not snoozed past now,
+    /// newest first.
+    pub entries: Vec<InboxEntry>,
 }
 
 /// A JSON field that may be absent (`None`), `null` (`Some(None)`) or set.
@@ -494,13 +535,17 @@ impl HubHandle {
         self.call(move |hub| hub.update_topic(&id, update)).await
     }
 
-    /// `POST /v1/topics/{id}/close`: closes the topic and its open threads;
-    /// with `rescindOpenMessages`, withdraws the open messages in it (only
-    /// the requester's, when there is one; all of them for the UI).
+    /// `POST /v1/topics/{id}/close`: closes the topic and its open threads,
+    /// once nothing in it is open. With `rescindOpenMessages`, the
+    /// requester's own open messages are withdrawn first; a close that names
+    /// no requester (the Mac) withdraws nothing.
     ///
     /// # Errors
     ///
-    /// [`HubError::TopicNotFound`].
+    /// [`HubError::TopicNotFound`], [`HubError::HasOpenMessages`] while
+    /// anything stays open (nothing is withdrawn then),
+    /// [`HubError::GeneralTopic`] for an agent's General topic,
+    /// [`HubError::NoRequester`] for a withdrawal that names no requester.
     pub async fn close_topic(
         &self,
         id: TopicId,
@@ -521,12 +566,13 @@ impl HubHandle {
         self.call(move |hub| hub.reopen_topic(&id)).await
     }
 
-    /// `POST /v1/topics/{id}/rescind`: withdraws the open messages in the
-    /// topic (only the requester's, when there is one) without closing it.
+    /// `POST /v1/topics/{id}/rescind`: withdraws the requester's own open
+    /// messages in the topic without closing it.
     ///
     /// # Errors
     ///
-    /// [`HubError::TopicNotFound`].
+    /// [`HubError::TopicNotFound`], [`HubError::NoRequester`] when no
+    /// requester is named.
     pub async fn rescind_topic(
         &self,
         id: TopicId,
@@ -589,11 +635,14 @@ impl HubHandle {
         self.call(move |hub| hub.update_thread(&id, update)).await
     }
 
-    /// `POST /v1/threads/{id}/close`.
+    /// `POST /v1/threads/{id}/close`: closes the thread once nothing in it is
+    /// open, withdrawing the requester's own open messages first when asked.
     ///
     /// # Errors
     ///
-    /// [`HubError::ThreadNotFound`].
+    /// [`HubError::ThreadNotFound`], [`HubError::HasOpenMessages`] while
+    /// anything stays open, [`HubError::NoRequester`] for a withdrawal that
+    /// names no requester.
     pub async fn close_thread(
         &self,
         id: ThreadId,
@@ -613,11 +662,13 @@ impl HubHandle {
         self.call(move |hub| hub.reopen_thread(&id)).await
     }
 
-    /// `POST /v1/threads/{id}/rescind`.
+    /// `POST /v1/threads/{id}/rescind`: withdraws the requester's own open
+    /// messages in the thread without closing it.
     ///
     /// # Errors
     ///
-    /// [`HubError::ThreadNotFound`].
+    /// [`HubError::ThreadNotFound`], [`HubError::NoRequester`] when no
+    /// requester is named.
     pub async fn rescind_thread(
         &self,
         id: ThreadId,
@@ -640,7 +691,7 @@ impl HubHandle {
         request: ThreadMove,
         requester: Requester,
     ) -> Result<ThreadRecord, HubError> {
-        self.call(move |hub| hub.move_thread(&id, &request, &requester))
+        self.call(move |hub| hub.move_thread(&id, &request, Some(&requester)))
             .await
     }
 
@@ -655,7 +706,7 @@ impl HubHandle {
         request: MessageThreadMove,
         requester: Requester,
     ) -> Result<MessageGrouping, HubError> {
-        self.call(move |hub| hub.move_message(&id, &request, &requester))
+        self.call(move |hub| hub.move_message(&id, &request, Some(&requester)))
             .await
     }
 
@@ -789,6 +840,49 @@ impl HubHandle {
     /// Only [`HubError::Stopped`].
     pub async fn tracked_waiters(&self) -> Result<usize, HubError> {
         self.call(|hub| Ok(hub.tracked_waiters())).await
+    }
+
+    /// The inbox in one read: every topic and thread, and the live messages
+    /// with their buttons (architecture §5.4, "Inbox").
+    ///
+    /// # Errors
+    ///
+    /// Only the hub's own failures.
+    pub async fn inbox_snapshot(&self) -> Result<InboxSnapshot, HubError> {
+        self.call(|hub| hub.inbox_snapshot()).await
+    }
+
+    /// You move a thread, with its messages, to another topic from the inbox.
+    /// Unlike [`HubHandle::move_thread`] there is no owner check: the person
+    /// at the Mac may regroup any agent's work.
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::ThreadNotFound`], [`HubError::Conflict`] when the key
+    /// exists in the target (409), [`HubError::Grouping`] for an unknown
+    /// target topic.
+    pub async fn move_thread_for_user(
+        &self,
+        id: ThreadId,
+        request: ThreadMove,
+    ) -> Result<ThreadRecord, HubError> {
+        self.call(move |hub| hub.move_thread(&id, &request, None))
+            .await
+    }
+
+    /// You move a message to another thread from the inbox, or back to its
+    /// default resolution with `thread: None`; no owner check.
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::MessageNotFound`], [`HubError::Grouping`].
+    pub async fn move_message_for_user(
+        &self,
+        id: MessageId,
+        request: MessageThreadMove,
+    ) -> Result<MessageGrouping, HubError> {
+        self.call(move |hub| hub.move_message(&id, &request, None))
+            .await
     }
 
     /// Mutes or unmutes a topic (and so its threads).

@@ -98,7 +98,59 @@ async fn a_conversation_thread_takes_over_the_implicit_one_once() {
 }
 
 #[tokio::test]
-async fn closing_withdraws_open_messages_only_when_asked_and_only_the_requesters() {
+async fn a_group_with_open_messages_cannot_be_closed() {
+    let hub = TestHub::start();
+    let mine = hub
+        .create(json!({ "type": "decision_required", "title": "Ship 1.4?", "topic": { "key": "release-1.4" }, "thread": { "key": "rc" } }))
+        .await;
+    let theirs = hub
+        .create(json!({
+            "type": "decision_required", "title": "Tag 1.4?", "topic": { "key": "release-1.4" },
+            "thread": { "key": "rc" }, "source": { "agent": "codex" }
+        }))
+        .await;
+    for refused in [
+        hub.handle
+            .close_topic(mine.topic_id.clone(), CloseRequest::default(), None)
+            .await
+            .map(|_| ()),
+        hub.handle
+            .close_thread(mine.thread_id.clone(), CloseRequest::default(), None)
+            .await
+            .map(|_| ()),
+    ] {
+        assert!(matches!(
+            refused,
+            Err(HubError::HasOpenMessages { count: 2 })
+        ));
+    }
+    assert_eq!(
+        hub.handle
+            .topic(mine.topic_id.clone())
+            .await
+            .unwrap()
+            .status,
+        GroupStatus::Open
+    );
+    // Snoozed and acknowledged messages are still open.
+    hub.handle
+        .snooze(theirs.id.clone(), Some(30))
+        .await
+        .unwrap();
+    hub.handle.acknowledge(mine.id.clone()).await.unwrap();
+    let refused = hub
+        .handle
+        .close_thread(mine.thread_id.clone(), CloseRequest::default(), None)
+        .await;
+    assert!(matches!(
+        refused,
+        Err(HubError::HasOpenMessages { count: 2 })
+    ));
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn an_agent_close_withdraws_only_its_own_and_is_refused_when_others_stay_open() {
     let hub = TestHub::start();
     let mine = hub
         .create(json!({ "type": "decision_required", "title": "Ship 1.4?", "topic": { "key": "release-1.4" } }))
@@ -109,51 +161,65 @@ async fn closing_withdraws_open_messages_only_when_asked_and_only_the_requesters
             "source": { "agent": "codex" }
         }))
         .await;
+    let withdraw_mine = CloseRequest {
+        rescind_open_messages: true,
+        reason: None,
+    };
+    // Codex's question would stay open: nothing is withdrawn, nothing closes.
+    let refused = hub
+        .handle
+        .close_topic(
+            mine.topic_id.clone(),
+            withdraw_mine.clone(),
+            Some(Requester::agent("claude-code")),
+        )
+        .await;
+    assert!(matches!(
+        refused,
+        Err(HubError::HasOpenMessages { count: 1 })
+    ));
+    assert_eq!(hub.status_of(&mine.id).await, ResponseStatus::Pending);
+
+    hub.handle.dismiss(theirs.id.clone()).await.unwrap();
     let closed = hub
         .handle
         .close_topic(
             mine.topic_id.clone(),
-            CloseRequest::default(),
+            withdraw_mine,
             Some(Requester::agent("claude-code")),
         )
         .await
         .unwrap();
     assert_eq!(closed.status, GroupStatus::Closed);
-    assert_eq!(hub.status_of(&mine.id).await, ResponseStatus::Pending);
-
-    hub.handle
-        .reopen_topic(mine.topic_id.clone())
-        .await
-        .unwrap();
-    hub.handle
-        .close_topic(
-            mine.topic_id.clone(),
-            CloseRequest {
-                rescind_open_messages: true,
-                reason: None,
-            },
-            Some(Requester::agent("claude-code")),
-        )
-        .await
-        .unwrap();
     let response = hub.poll(&mine.id, std::time::Duration::ZERO).await;
     assert_eq!(response.status, ResponseStatus::Rescinded);
     assert_eq!(
         response.rescind_reason,
         Some(gentbox_core::rescind::RescindReason::Obsolete)
     );
-    assert_eq!(hub.status_of(&theirs.id).await, ResponseStatus::Pending);
+    hub.stop().await;
+}
 
-    // The UI (no requester) withdraws everything.
-    hub.handle
-        .rescind_topic(
-            mine.topic_id.clone(),
-            gentbox_core::rescind::RescindReason::Obsolete,
-            None,
-        )
+#[tokio::test]
+async fn the_general_topic_cannot_be_closed_but_its_threads_can() {
+    let hub = TestHub::start();
+    let note = hub
+        .create(json!({ "type": "generic", "title": "Nightly build log is ready" }))
+        .await;
+    let general = hub.handle.topic(note.topic_id.clone()).await.unwrap();
+    assert!(general.implicit);
+    hub.handle.dismiss(note.id.clone()).await.unwrap();
+    let refused = hub
+        .handle
+        .close_topic(note.topic_id.clone(), CloseRequest::default(), None)
+        .await;
+    assert!(matches!(refused, Err(HubError::GeneralTopic)));
+    let thread = hub
+        .handle
+        .close_thread(note.thread_id.clone(), CloseRequest::default(), None)
         .await
         .unwrap();
-    assert_eq!(hub.status_of(&theirs.id).await, ResponseStatus::Rescinded);
+    assert_eq!(thread.status, GroupStatus::Closed);
     hub.stop().await;
 }
 
@@ -163,6 +229,8 @@ async fn a_message_to_a_closed_thread_reopens_it_and_its_topic() {
     let first = hub
         .create(json!({ "type": "generic", "title": "Started phase 3", "topic": { "key": "gentbox" }, "thread": { "key": "phase-3" } }))
         .await;
+    // Only a group with nothing open closes.
+    hub.handle.dismiss(first.id.clone()).await.unwrap();
     hub.handle
         .close_topic(first.topic_id.clone(), CloseRequest::default(), None)
         .await
@@ -276,5 +344,60 @@ async fn moving_a_thread_into_a_topic_with_its_key_is_a_conflict() {
     assert_ne!(moved.topic_id, a.topic_id);
     let message = hub.handle.message(a.id).await.unwrap();
     assert_eq!(message.topic_id, moved.topic_id);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn moving_a_thread_with_open_items_into_a_closed_topic_reopens_it() {
+    let hub = TestHub::start();
+    let parked = hub
+        .create(json!({ "type": "generic", "title": "Release notes drafted", "topic": { "key": "archive", "title": "Archive" } }))
+        .await;
+    hub.handle.dismiss(parked.id.clone()).await.unwrap();
+    hub.handle
+        .close_topic(parked.topic_id.clone(), CloseRequest::default(), None)
+        .await
+        .unwrap();
+    let prompt = hub.create(blocking_prompt()).await;
+    let into_archive = ThreadMove {
+        topic: gentbox_core::topic::TopicRef::Id(gentbox_core::topic::TopicIdRef {
+            id: parked.topic_id.clone(),
+        }),
+    };
+    hub.handle
+        .move_thread_for_user(prompt.thread_id.clone(), into_archive)
+        .await
+        .unwrap();
+    // An open item never sits in a closed group, where the inbox would hide it.
+    let topic = hub.handle.topic(parked.topic_id.clone()).await.unwrap();
+    assert_eq!(topic.status, GroupStatus::Open);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn nobody_withdraws_every_agents_messages_without_naming_who_asks() {
+    let hub = TestHub::start();
+    let prompt = hub
+        .create(json!({ "type": "decision_required", "title": "Ship 1.4?", "topic": { "key": "release-1.4" } }))
+        .await;
+    let withdraw = CloseRequest {
+        rescind_open_messages: true,
+        reason: None,
+    };
+    let refused = hub
+        .handle
+        .close_topic(prompt.topic_id.clone(), withdraw, None)
+        .await;
+    assert!(matches!(refused, Err(HubError::NoRequester)));
+    let refused = hub
+        .handle
+        .rescind_topic(
+            prompt.topic_id.clone(),
+            gentbox_core::rescind::RescindReason::Obsolete,
+            None,
+        )
+        .await;
+    assert!(matches!(refused, Err(HubError::NoRequester)));
+    assert_eq!(hub.status_of(&prompt.id).await, ResponseStatus::Pending);
     hub.stop().await;
 }

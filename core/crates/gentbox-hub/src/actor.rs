@@ -49,8 +49,9 @@ use tokio::sync::{mpsc, watch};
 
 use crate::clock::Clock;
 use crate::commands::{
-    ActionRequest, ConversationUpdate, HubError, IngestOutcome, IngestStatus, Job, MessageGrouping,
-    MessageThreadMove, Requester, ThreadMove, ThreadUpdate, TopicUpdate,
+    ActionRequest, ConversationUpdate, HubError, InboxEntry, InboxSnapshot, IngestOutcome,
+    IngestStatus, Job, MessageGrouping, MessageThreadMove, Requester, ThreadMove, ThreadUpdate,
+    TopicUpdate,
 };
 use crate::config::source_settings;
 use crate::dispatch::{Dispatcher, HubEvent};
@@ -367,6 +368,8 @@ impl HubState {
         }
         self.dispatcher.send(HubEvent::Delivered {
             offered_actions: cloned(offered_actions(&message, plan.should_wait)),
+            // A waiting sender counts as live from delivery on (§5.2).
+            has_live_waiter: plan.should_wait,
             replaces: supersede
                 .as_ref()
                 .map(|supersede| supersede.replaces.clone()),
@@ -647,7 +650,9 @@ impl HubState {
     }
 
     /// The rescissions that withdraw a topic's or thread's live messages: the
-    /// requester's only, or all of them for the UI.
+    /// requester's own only. Withdrawing is the agent's word ("Withdrawn"),
+    /// so a withdrawal that names no requester is refused, never widened to
+    /// everyone's messages.
     fn group_rescissions(
         &self,
         filter: &MessageFilter,
@@ -655,15 +660,43 @@ impl HubState {
         requester: Option<&Requester>,
         now: OffsetDateTime,
     ) -> Result<Vec<Rescission>, HubError> {
+        let requester = requester.ok_or(HubError::NoRequester)?;
         let messages = self.store.repository().list_messages(filter)?;
         Ok(messages
             .iter()
-            .filter(|message| requester.is_none_or(|requester| requester.owns(message)))
+            .filter(|message| requester.owns(message))
             .filter_map(|message| {
                 let item = self.item_of(message, now);
                 rescind_by_id(&item, reason, self.dispatcher.has_phone_channel()).ok()
             })
             .collect())
+    }
+
+    /// A group closes only when nothing in it stays open: every live message
+    /// (snoozed and deferred included) must be among those the close
+    /// withdraws. Checked before anything is written, so a refused close
+    /// withdraws nothing.
+    fn check_nothing_left_open(
+        &self,
+        filter: &MessageFilter,
+        rescissions: &[Rescission],
+    ) -> Result<(), HubError> {
+        let open = self.store.repository().list_messages(filter)?;
+        let left_open = open
+            .iter()
+            .filter(|message| {
+                !rescissions
+                    .iter()
+                    .any(|rescission| rescission.message_id == message.id)
+            })
+            .count();
+        if left_open == 0 {
+            Ok(())
+        } else {
+            Err(HubError::HasOpenMessages {
+                count: u32::try_from(left_open).unwrap_or(u32::MAX),
+            })
+        }
     }
 
     /// The withdrawals a close asks for, if any.
@@ -787,11 +820,15 @@ impl HubState {
         requester: Option<&Requester>,
     ) -> Result<TopicRecord, HubError> {
         let now = self.now();
+        if self.store.repository().topic(id)?.implicit {
+            return Err(HubError::GeneralTopic);
+        }
         let filter = MessageFilter {
             topic_id: Some(id.clone()),
             ..MessageFilter::default()
         };
-        let rescissions = self.close_rescissions(filter, request, requester, now)?;
+        let rescissions = self.close_rescissions(filter.clone(), request, requester, now)?;
+        self.check_nothing_left_open(&filter, &rescissions)?;
         // The close and its withdrawals commit together or not at all.
         let (closed_threads, withdrawn) = self.store.transaction(|repo| {
             let closed_threads = repo.close_topic(id, now)?;
@@ -951,7 +988,8 @@ impl HubState {
             thread_id: Some(id.clone()),
             ..MessageFilter::default()
         };
-        let rescissions = self.close_rescissions(filter, request, requester, now)?;
+        let rescissions = self.close_rescissions(filter.clone(), request, requester, now)?;
+        self.check_nothing_left_open(&filter, &rescissions)?;
         let withdrawn = self.store.transaction(|repo| {
             repo.close_thread(id, now)?;
             close_withdrawn(repo, &rescissions, now)
@@ -989,20 +1027,27 @@ impl HubState {
         )
     }
 
+    /// `requester` is the agent asking; `None` is you in the Mac UI, who may
+    /// move any thread.
     pub(crate) fn move_thread(
         &mut self,
         id: &ThreadId,
         request: &ThreadMove,
-        requester: &Requester,
+        requester: Option<&Requester>,
     ) -> Result<ThreadRecord, HubError> {
         let now = self.now();
         let thread = self.store.repository().thread(id)?;
-        self.check_owns_thread(&thread, requester)?;
-        let snapshot = self.store.repository().grouping_snapshot()?;
-        let created_by = CreatedBy {
-            agent: requester.agent.clone(),
-            conversation_id: requester.conversation_id.clone(),
+        let created_by = match requester {
+            Some(requester) => {
+                self.check_owns_thread(&thread, requester)?;
+                CreatedBy {
+                    agent: requester.agent.clone(),
+                    conversation_id: requester.conversation_id.clone(),
+                }
+            }
+            None => thread.created_by.clone(),
         };
+        let snapshot = self.store.repository().grouping_snapshot()?;
         let (target, new_topic) = match &request.topic {
             TopicRef::Id(by_id) => {
                 let topic = snapshot
@@ -1027,13 +1072,29 @@ impl HubState {
                 }
             },
         };
-        self.store.transaction(|repo| {
+        // Open items never sit in a closed group, where the inbox hides them:
+        // a thread with live messages reopens a closed target topic, as a
+        // message sent into a closed thread does.
+        let has_live_messages = !self
+            .store
+            .repository()
+            .list_messages(&MessageFilter {
+                thread_id: Some(id.clone()),
+                ..MessageFilter::default()
+            })?
+            .is_empty();
+        let reopened = self.store.transaction(|repo| {
             if let Some(topic) = &new_topic {
                 repo.insert_topic(topic)?;
             }
-            repo.move_thread(id, &target, now)
+            repo.move_thread(id, &target, now)?;
+            if has_live_messages {
+                Ok(repo.reopen_thread(id, now)?.topic)
+            } else {
+                Ok(false)
+            }
         })?;
-        if new_topic.is_some() {
+        if new_topic.is_some() || reopened {
             self.dispatcher.send(HubEvent::TopicChanged(target.clone()));
         }
         self.dispatcher.send(HubEvent::ThreadChanged(id.clone()));
@@ -1092,15 +1153,17 @@ impl HubState {
     // Messages: move
     // -----------------------------------------------------------------
 
+    /// `requester` is the agent asking; `None` is you in the Mac UI, who may
+    /// move any message.
     pub(crate) fn move_message(
         &mut self,
         id: &MessageId,
         request: &MessageThreadMove,
-        requester: &Requester,
+        requester: Option<&Requester>,
     ) -> Result<MessageGrouping, HubError> {
         let now = self.now();
         let message = self.store.repository().message(id)?;
-        if !requester.owns(&message) {
+        if requester.is_some_and(|requester| !requester.owns(&message)) {
             return Err(HubError::NotOwner);
         }
         let topic = request.topic.as_ref().map(redacted_topic_ref);
@@ -1311,6 +1374,33 @@ impl HubState {
         Ok(message)
     }
 
+    pub(crate) fn inbox_snapshot(&self) -> Result<InboxSnapshot, HubError> {
+        let now = self.now();
+        let repository = self.store.repository();
+        let groups = repository.grouping_snapshot()?;
+        let messages = repository.list_messages(&MessageFilter {
+            hide_snoozed_at: Some(now),
+            ..MessageFilter::default()
+        })?;
+        let entries = messages
+            .into_iter()
+            .map(|message| {
+                let has_live_waiter = self.waiters.is_live(&message.id, now);
+                Ok(InboxEntry {
+                    offered_actions: cloned(offered_actions(&message, has_live_waiter)),
+                    has_live_waiter,
+                    supersedes: repository.superseded_messages(&message.id)?,
+                    message,
+                })
+            })
+            .collect::<Result<_, HubError>>()?;
+        Ok(InboxSnapshot {
+            topics: groups.topics,
+            threads: groups.threads,
+            entries,
+        })
+    }
+
     pub(crate) fn offered_actions_of(&self, id: &MessageId) -> Result<Vec<Action>, HubError> {
         let message = self.store.repository().message(id)?;
         Ok(cloned(offered_actions(
@@ -1320,11 +1410,10 @@ impl HubState {
     }
 
     fn send_updated(&self, message: &Message, take_down: DeliveredSurfaces, now: OffsetDateTime) {
+        let has_live_waiter = self.waiters.is_live(&message.id, now);
         self.dispatcher.send(HubEvent::Updated {
-            offered_actions: cloned(offered_actions(
-                message,
-                self.waiters.is_live(&message.id, now),
-            )),
+            offered_actions: cloned(offered_actions(message, has_live_waiter)),
+            has_live_waiter,
             message: message.clone(),
             take_down,
         });

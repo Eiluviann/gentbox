@@ -313,7 +313,7 @@
 			}
 		},
 		"closeRequest": {
-			"description": "Body of POST /v1/topics/{id}/close and POST /v1/threads/{id}/close. Closing never touches open messages unless `rescindOpenMessages` is true; then every open message in the topic or thread is rescinded with `reason` (default `obsolete`). Closing a topic also closes its open threads.",
+			"description": "Body of POST /v1/topics/{id}/close and POST /v1/threads/{id}/close. A topic or thread closes only when nothing in it is open (open, acknowledged, deferred or snoozed); otherwise the hub answers 409 `has_open_messages` with `openMessages`, the count. With `rescindOpenMessages` true, the requester's own open messages are withdrawn with `reason` (default `obsolete`) first, and the close is refused, withdrawing nothing, if another sender's message stays open. An agent's General topic never closes (409 `general_topic`). Closing a topic also closes its open threads.",
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {

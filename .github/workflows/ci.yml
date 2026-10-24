@@ -63,3 +63,53 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+
+  apple:
+    name: Apple (macOS)
+    # Apple silicon; the debug XCFramework the script builds outside release
+    # is arm64 only, and CI builds the release one (both slices).
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick the newest installed Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+      - name: Read the pinned toolchain
+        id: toolchain
+        run: echo "channel=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+      # Pinned by commit: the action only publishes a moving `master` branch.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
+        with:
+          toolchain: ${{ steps.toolchain.outputs.channel }}
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+          key: xcframework
+      - run: brew install xcodegen
+      # Signed ad hoc, with no team, certificate or profile (the script says
+      # why not CODE_SIGNING_ALLOWED=NO): the app's unit tests, the XCUITest
+      # smoke and the GentboxCore package tests in one step.
+      # `-quiet` keeps warnings, errors and every test failure in the log;
+      # the result bundle (screenshots, the full log) is kept when it fails.
+      - run: apps/apple/scripts/test.sh -quiet -resultBundlePath build/results/ci.xcresult
+        timeout-minutes: 30
+      # `-quiet` hides which test failed: name the failures in the log.
+      - name: Name the failing tests
+        if: failure()
+        working-directory: apps/apple
+        run: >
+          xcrun xcresulttool get test-results summary --path build/results/ci.xcresult
+          | python3 -c 'import json, sys;
+          d = json.load(sys.stdin);
+          print(d.get("result"), d.get("passedTests"), "passed,", d.get("failedTests"), "failed");
+          [print("FAILED", f.get("testIdentifierString") or f.get("testName"), "--", f.get("failureText")) for f in d.get("testFailures", [])]'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: apple-test-results
+          # The result bundle, and the frames AnimationTrace recorded.
+          path: |
+            apps/apple/build/results/ci.xcresult
+            ~/Library/Application Support/Gentbox/UITraces
+          retention-days: 7

@@ -14,7 +14,8 @@ use gentbox_core::policy::PolicyKey;
 use gentbox_core::rescind::RescindReason;
 use gentbox_core::response::AnsweredVia;
 use gentbox_store::{
-    Conflict, DeliveryEvent, DeliveryRecord, EntityKind, MessageFilter, Store, StoreError,
+    Conflict, DeliveryEvent, DeliveryRecord, EntityKind, MessageFilter, SUPERSEDED_MESSAGES_LIMIT,
+    Store, StoreError,
 };
 use serde_json::json;
 use support::{
@@ -835,6 +836,37 @@ fn the_supersede_chain_is_recorded_and_followed() {
         [message_id("v2"), message_id("v3")]
     );
     assert_eq!(repository.supersede_chain(&message_id("v3")).unwrap(), []);
+    assert_eq!(
+        repository.superseded_messages(&message_id("v3")).unwrap(),
+        [message_id("v2"), message_id("v1")]
+    );
+    assert_eq!(
+        repository.superseded_messages(&message_id("v1")).unwrap(),
+        []
+    );
+}
+
+#[test]
+fn a_long_supersede_chain_is_read_back_only_so_far() {
+    let store = store_with_group();
+    let repository = store.repository();
+    let names: Vec<String> = (0..=SUPERSEDED_MESSAGES_LIMIT + 5)
+        .map(|index| format!("m{index}"))
+        .collect();
+    for name in &names {
+        repository
+            .insert_message(&plain(name, "one", "one"), NOW)
+            .unwrap();
+    }
+    for pair in names.windows(2) {
+        repository
+            .record_supersession(&message_id(&pair[0]), &message_id(&pair[1]))
+            .unwrap();
+    }
+    let newest = names.last().unwrap();
+    let chain = repository.superseded_messages(&message_id(newest)).unwrap();
+    assert_eq!(chain.len(), SUPERSEDED_MESSAGES_LIMIT);
+    assert_eq!(chain[0], message_id(&names[names.len() - 2]));
 }
 
 #[test]
