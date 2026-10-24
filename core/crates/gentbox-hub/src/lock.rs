@@ -53,14 +53,12 @@ impl HubLock {
             path: path.clone(),
             source,
         };
-        std::fs::create_dir_all(state_dir).map_err(io_error)?;
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&path)
-            .map_err(io_error)?;
+        create_private_dir(state_dir).map_err(io_error)?;
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create(true).truncate(false);
+        set_create_mode(&mut options);
+        let mut file = options.open(&path).map_err(io_error)?;
+        make_private(&path).map_err(io_error)?;
         match file.try_lock() {
             Ok(()) => {}
             Err(TryLockError::WouldBlock) => {
@@ -100,4 +98,52 @@ fn write_pid(file: &mut File) -> std::io::Result<()> {
     file.seek(SeekFrom::Start(0))?;
     writeln!(file, "{}", std::process::id())?;
     file.sync_all()
+}
+
+/// Creates a folder (and missing parents) readable only by its owner. An
+/// existing folder keeps its mode: it may be one the user chose.
+fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(path)
+}
+
+/// New files are created readable only by their owner.
+fn set_create_mode(options: &mut OpenOptions) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    #[cfg(not(unix))]
+    let _ = options;
+}
+
+/// Makes a file readable only by its owner (a no-op off Unix).
+pub(crate) fn make_private(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
+/// Creates the database file 0600 before SQLite opens it (SQLite gives its
+/// `-wal` and `-shm` files the database's mode), and tightens one left wider.
+pub(crate) fn prepare_private_file(path: &Path) -> std::io::Result<()> {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(false);
+    set_create_mode(&mut options);
+    options.open(path)?;
+    make_private(path)
 }

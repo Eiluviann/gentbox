@@ -415,7 +415,9 @@ impl HubState {
             ResponseStatus::Pending => WaitStart::Waiting(self.waiters.begin(response)),
             ResponseStatus::Deferred => {
                 self.waiters.deferral_reported(id);
-                self.waiters.expect(id, now);
+                let lapse_at = self.waiters.polled(id, now);
+                self.timers
+                    .schedule(lapse_at, TimerKind::WaiterLapse(id.clone()));
                 WaitStart::Ready(response)
             }
             _ => return Ok(WaitStart::Ready(response)),
@@ -437,6 +439,10 @@ impl HubState {
                 }
             }
         }
+    }
+
+    pub(crate) fn tracked_waiters(&self) -> usize {
+        self.waiters.len()
     }
 
     pub(crate) fn has_live_waiter(&self, id: &MessageId) -> bool {
@@ -887,7 +893,8 @@ impl HubState {
         requester: &Requester,
     ) -> Result<ThreadRecord, HubError> {
         let now = self.now();
-        self.store.repository().thread(id)?;
+        let thread = self.store.repository().thread(id)?;
+        self.check_owns_thread(&thread, requester)?;
         let snapshot = self.store.repository().grouping_snapshot()?;
         let created_by = CreatedBy {
             agent: requester.agent.clone(),
@@ -928,6 +935,24 @@ impl HubState {
         }
         self.dispatcher.send(HubEvent::ThreadChanged(id.clone()));
         Ok(self.store.repository().thread_record(id)?)
+    }
+
+    /// Moving a thread moves its messages, so an agent may move only a thread
+    /// it created and whose every message is its own.
+    fn check_owns_thread(&self, thread: &Thread, requester: &Requester) -> Result<(), HubError> {
+        if thread.created_by.agent != requester.agent {
+            return Err(HubError::NotOwner);
+        }
+        let messages = self.store.repository().list_messages(&MessageFilter {
+            states: Some(LifecycleState::ALL.to_vec()),
+            thread_id: Some(thread.id.clone()),
+            ..MessageFilter::default()
+        })?;
+        if messages.iter().all(|message| requester.owns(message)) {
+            Ok(())
+        } else {
+            Err(HubError::NotOwner)
+        }
     }
 
     pub(crate) fn mute_thread(

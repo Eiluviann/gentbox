@@ -58,14 +58,12 @@ impl Timers {
         due
     }
 
-    /// Drops every timer of a message that closed.
+    /// Drops the timers of a message that closed. Its waiter-lapse timers
+    /// stay: when they fire, the actor forgets the message's waiter state.
     pub(crate) fn cancel_message(&mut self, id: &MessageId) {
         self.deadlines.retain(|(_, kind)| match kind {
-            TimerKind::Reping(of)
-            | TimerKind::SnoozeEnd(of)
-            | TimerKind::Expiry(of)
-            | TimerKind::WaiterLapse(of) => of != id,
-            TimerKind::Sweep => true,
+            TimerKind::Reping(of) | TimerKind::SnoozeEnd(of) | TimerKind::Expiry(of) => of != id,
+            TimerKind::WaiterLapse(_) | TimerKind::Sweep => true,
         });
     }
 
@@ -110,7 +108,11 @@ mod tests {
         timers.cancel_message(&one);
         assert_eq!(
             timers.take_due(now),
-            [TimerKind::Expiry(two), TimerKind::Sweep]
+            [
+                TimerKind::Expiry(two),
+                TimerKind::WaiterLapse(one),
+                TimerKind::Sweep
+            ]
         );
     }
 }

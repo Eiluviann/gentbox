@@ -747,6 +747,16 @@ impl HubHandle {
         self.call(move |hub| Ok(hub.has_live_waiter(&id))).await
     }
 
+    /// How many messages the hub keeps waiter state for: a diagnostic, and
+    /// how tests check that closed messages are forgotten.
+    ///
+    /// # Errors
+    ///
+    /// Only [`HubError::Stopped`].
+    pub async fn tracked_waiters(&self) -> Result<usize, HubError> {
+        self.call(|hub| Ok(hub.tracked_waiters())).await
+    }
+
     /// Mutes or unmutes a topic (and so its threads).
     ///
     /// # Errors

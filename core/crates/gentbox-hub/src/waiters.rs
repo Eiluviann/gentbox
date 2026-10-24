@@ -9,11 +9,14 @@
 //! and reports back through a guard that fires even when the HTTP client
 //! hangs up.
 //!
-//! **Deferred once.** Defer sets `deferral_unreported` and publishes
-//! `deferred`. The first poll that hands `deferred` to a sender reports it,
-//! and the actor then clears the flag and publishes `pending` again, so later
-//! polls wait for the real answer. The watch carries `deferred` exactly while
-//! the flag is set.
+//! **Deferred once.** Each Defer bumps the message's deferral count, which
+//! the watch carries next to the response. A poll remembers the count it
+//! started with, so **every poll in flight when you defer** answers
+//! `deferred`, whatever is published after. Defer also sets
+//! `deferral_unreported`; it is cleared only when a poll actually hands
+//! `deferred` over (one dropped by a vanished client does not count), and
+//! while it is set the next poll to start answers `deferred` at once. After
+//! that, polls wait for the real answer.
 
 use std::collections::HashMap;
 use std::time::Duration as StdDuration;
@@ -62,12 +65,20 @@ impl WaitStart {
     }
 }
 
+/// What the watch carries: the response and how many times Defer was chosen.
+#[derive(Debug, Clone)]
+struct Published {
+    response: ActionResponse,
+    deferrals: u64,
+}
+
 /// A long-poll in flight. While it exists the message has a live waiter;
 /// dropping it ends the poll.
 #[derive(Debug)]
 pub struct PendingWait {
     message_id: MessageId,
-    receiver: watch::Receiver<ActionResponse>,
+    receiver: watch::Receiver<Published>,
+    deferrals_at_start: u64,
     guard: WaitGuard,
 }
 
@@ -94,14 +105,24 @@ impl PendingWait {
         }
     }
 
-    /// The current value when it is anything but `pending`.
+    /// A terminal response, else `deferred` when Defer was chosen since the
+    /// poll started, else nothing yet.
     fn settled(&mut self) -> Option<ActionResponse> {
-        let response = self.receiver.borrow_and_update().clone();
-        if response.status == ResponseStatus::Pending {
-            return None;
+        let published = self.receiver.borrow_and_update().clone();
+        let is_terminal = !matches!(
+            published.response.status,
+            ResponseStatus::Pending | ResponseStatus::Deferred
+        );
+        if is_terminal {
+            return Some(published.response);
         }
-        self.guard.reported_deferral = response.status == ResponseStatus::Deferred;
-        Some(response)
+        if published.deferrals > self.deferrals_at_start {
+            self.guard.reported_deferral = true;
+            let mut deferred = pending_response(&self.message_id);
+            deferred.status = ResponseStatus::Deferred;
+            return Some(deferred);
+        }
+        None
     }
 }
 
@@ -139,9 +160,10 @@ pub(crate) fn pending_response(message_id: &MessageId) -> ActionResponse {
 
 #[derive(Debug)]
 struct WaiterState {
-    sender: watch::Sender<ActionResponse>,
+    sender: watch::Sender<Published>,
     in_flight: u32,
     last_poll_end: Option<OffsetDateTime>,
+    deferrals: u64,
     deferral_unreported: bool,
     announced_live: bool,
 }
@@ -149,12 +171,23 @@ struct WaiterState {
 impl WaiterState {
     fn new(message_id: &MessageId) -> Self {
         Self {
-            sender: watch::Sender::new(pending_response(message_id)),
+            sender: watch::Sender::new(Published {
+                response: pending_response(message_id),
+                deferrals: 0,
+            }),
             in_flight: 0,
             last_poll_end: None,
+            deferrals: 0,
             deferral_unreported: false,
             announced_live: false,
         }
+    }
+
+    fn publish(&self, response: ActionResponse) {
+        self.sender.send_replace(Published {
+            response,
+            deferrals: self.deferrals,
+        });
     }
 
     fn is_live(&self, now: OffsetDateTime) -> bool {
@@ -178,6 +211,11 @@ impl Waiters {
             by_message: HashMap::new(),
             signals,
         }
+    }
+
+    /// How many messages have waiter state.
+    pub(crate) fn len(&self) -> usize {
+        self.by_message.len()
     }
 
     /// Whether the message has a live waiter at `now`.
@@ -207,6 +245,17 @@ impl Waiters {
         now + LIVE_WAITER_WINDOW
     }
 
+    /// A poll that was answered at once (with `deferred`) still counts as a
+    /// poll that just ended. Returns when the waiter lapses.
+    pub(crate) fn polled(&mut self, id: &MessageId, now: OffsetDateTime) -> OffsetDateTime {
+        let state = self
+            .by_message
+            .entry(id.clone())
+            .or_insert_with(|| WaiterState::new(id));
+        state.last_poll_end = Some(now);
+        now + LIVE_WAITER_WINDOW
+    }
+
     /// Starts a long-poll on a pending message.
     pub(crate) fn begin(&mut self, current: ActionResponse) -> PendingWait {
         let id = current.message_id.clone();
@@ -215,9 +264,10 @@ impl Waiters {
             .entry(id.clone())
             .or_insert_with(|| WaiterState::new(&id));
         state.in_flight += 1;
-        state.sender.send_replace(current);
+        state.publish(current);
         PendingWait {
             receiver: state.sender.subscribe(),
+            deferrals_at_start: state.deferrals,
             guard: WaitGuard {
                 message_id: id.clone(),
                 signals: self.signals.clone(),
@@ -228,7 +278,7 @@ impl Waiters {
     }
 
     /// A long-poll ended. Returns when the waiter lapses if no other poll
-    /// starts; clears the deferral when the poll reported it.
+    /// starts; a poll that handed `deferred` over clears the deferral.
     pub(crate) fn end(
         &mut self,
         id: &MessageId,
@@ -238,36 +288,37 @@ impl Waiters {
         let state = self.by_message.get_mut(id)?;
         state.in_flight = state.in_flight.saturating_sub(1);
         state.last_poll_end = Some(now);
-        if reported_deferral && state.deferral_unreported {
+        if reported_deferral {
             state.deferral_unreported = false;
-            state.sender.send_replace(pending_response(id));
         }
         Some(now + LIVE_WAITER_WINDOW)
     }
 
     /// Publishes a change the sender hears about.
     pub(crate) fn publish(&mut self, response: ActionResponse) {
-        if let Some(state) = self.by_message.get_mut(&response.message_id) {
-            state.sender.send_replace(response);
+        if let Some(state) = self.by_message.get(&response.message_id) {
+            state.publish(response);
         }
     }
 
-    /// Defer was chosen: `deferred` until a poll reports it.
+    /// Defer was chosen: every poll in flight answers `deferred`, and so does
+    /// the next one to start until one has handed it over.
     pub(crate) fn defer(&mut self, response: ActionResponse) {
         let id = response.message_id.clone();
         let state = self
             .by_message
             .entry(id.clone())
             .or_insert_with(|| WaiterState::new(&id));
+        state.deferrals += 1;
         state.deferral_unreported = true;
-        state.sender.send_replace(response);
+        state.publish(response);
     }
 
     /// A poll that started was handed `deferred` at once: reported.
     pub(crate) fn deferral_reported(&mut self, id: &MessageId) {
         if let Some(state) = self.by_message.get_mut(id) {
             state.deferral_unreported = false;
-            state.sender.send_replace(pending_response(id));
+            state.publish(pending_response(id));
         }
     }
 

@@ -306,3 +306,106 @@ async fn an_action_required_message_is_closed_with_done_never_cleared() {
     ));
     hub.stop().await;
 }
+
+#[tokio::test]
+async fn another_agent_cannot_move_a_thread_holding_messages_it_does_not_own() {
+    let hub = TestHub::start();
+    let posted = hub.create(blocking_prompt()).await;
+    let request = || -> gentbox_hub::ThreadMove {
+        serde_json::from_value(json!({ "topic": { "key": "elsewhere" } })).unwrap()
+    };
+    let refused = hub
+        .handle
+        .move_thread(
+            posted.thread_id.clone(),
+            request(),
+            Requester::agent("codex"),
+        )
+        .await;
+    assert!(matches!(refused, Err(HubError::NotOwner)), "{refused:?}");
+    let message = hub.handle.message(posted.id.clone()).await.unwrap();
+    assert_eq!(message.topic_id, posted.topic_id);
+    hub.handle
+        .move_thread(posted.thread_id, request(), Requester::agent("claude-code"))
+        .await
+        .unwrap();
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn a_poll_answered_deferred_at_once_still_lapses_and_the_ui_hears_it() {
+    let hub = TestHub::start();
+    let id = id_of(&hub.create(deferrable_question()).await);
+    hub.poll(&id, StdDuration::ZERO).await;
+    hub.advance(Duration::seconds(5)).await;
+    hub.press(&id, "defer").await.unwrap();
+    hub.advance(Duration::milliseconds(4500)).await;
+    assert_eq!(hub.status_of(&id).await, ResponseStatus::Deferred);
+    // The lapse timer of the first poll fires while the second still counts.
+    hub.advance(Duration::seconds(1)).await;
+    assert!(hub.handle.has_live_waiter(id.clone()).await.unwrap());
+    hub.recorder.clear();
+    hub.advance(Duration::seconds(10)).await;
+    assert!(!hub.handle.has_live_waiter(id.clone()).await.unwrap());
+    let lapses = count(
+        &hub.recorder.events(),
+        |event| matches!(event, HubEvent::WaiterChanged { message_id, has_live_waiter: false, .. } if message_id == &id),
+    );
+    assert_eq!(lapses, 1);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn every_poll_in_flight_when_you_defer_hears_deferred() {
+    let hub = TestHub::start();
+    let id = id_of(&hub.create(deferrable_question()).await);
+    let start = |hub: &TestHub| {
+        let handle = hub.handle.clone();
+        let id = id.clone();
+        async move {
+            match handle.begin_wait(id).await.unwrap() {
+                gentbox_hub::WaitStart::Waiting(pending) => pending,
+                gentbox_hub::WaitStart::Ready(response) => panic!("{response:?}"),
+            }
+        }
+    };
+    let first = start(&hub).await;
+    let second = start(&hub).await;
+    hub.press(&id, "defer").await.unwrap();
+    // The first poll reports and ends before the second reads its value.
+    let first = first.wait(StdDuration::from_secs(5)).await;
+    assert_eq!(first.status, ResponseStatus::Deferred);
+    hub.handle.run_due_timers().await.unwrap();
+    let second = second.wait(StdDuration::from_secs(5)).await;
+    assert_eq!(second.status, ResponseStatus::Deferred);
+    // Once reported, the next poll waits for the real answer.
+    assert_eq!(hub.status_of(&id).await, ResponseStatus::Pending);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn a_poll_dropped_before_it_delivers_deferred_leaves_it_for_the_next_poll() {
+    let hub = TestHub::start();
+    let id = id_of(&hub.create(deferrable_question()).await);
+    let pending = match hub.handle.begin_wait(id.clone()).await.unwrap() {
+        gentbox_hub::WaitStart::Waiting(pending) => pending,
+        gentbox_hub::WaitStart::Ready(response) => panic!("{response:?}"),
+    };
+    hub.press(&id, "defer").await.unwrap();
+    // The client hung up: the poll ends without handing anything over.
+    drop(pending);
+    hub.handle.run_due_timers().await.unwrap();
+    assert_eq!(hub.status_of(&id).await, ResponseStatus::Deferred);
+    assert_eq!(hub.status_of(&id).await, ResponseStatus::Pending);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn waiter_state_of_a_message_closed_inside_its_live_window_is_forgotten() {
+    let hub = TestHub::start();
+    let id = id_of(&hub.create(blocking_prompt()).await);
+    hub.press(&id, "allow").await.unwrap();
+    hub.advance(Duration::seconds(10)).await;
+    assert_eq!(hub.handle.tracked_waiters().await.unwrap(), 0);
+    hub.stop().await;
+}

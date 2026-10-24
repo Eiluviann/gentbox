@@ -86,7 +86,22 @@ impl Hub {
     ) -> Result<Self, StartError> {
         let runtime = tokio::runtime::Handle::try_current().map_err(|_| StartError::NoRuntime)?;
         let lock = HubLock::acquire(&config.state_dir)?;
-        let store = Store::open(config.database_path())?;
+        // Message bodies and answers live here: only the user may read them.
+        let database = config.database_path();
+        lock::prepare_private_file(&database).map_err(|source| LockError::Io {
+            path: database.clone(),
+            source,
+        })?;
+        let store = Store::open(&database)?;
+        for suffix in ["-wal", "-shm"] {
+            let companion = std::path::PathBuf::from(format!("{}{suffix}", database.display()));
+            if companion.exists() {
+                lock::make_private(&companion).map_err(|source| LockError::Io {
+                    path: companion.clone(),
+                    source,
+                })?;
+            }
+        }
         let (jobs, job_receiver) = mpsc::channel(COMMAND_QUEUE);
         let (signals, signal_receiver) = mpsc::unbounded_channel();
         let state = actor::HubState::new(actor::StateParts {

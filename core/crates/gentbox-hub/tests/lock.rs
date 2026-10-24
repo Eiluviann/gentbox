@@ -47,3 +47,40 @@ fn starting_outside_a_runtime_is_an_error_not_a_panic() {
     let outside = Hub::start(HubConfig::new(directory.path()), Arc::new(NoDelegate), None);
     assert!(matches!(outside, Err(StartError::NoRuntime)));
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_state_folder_and_the_database_are_private() {
+    use std::os::unix::fs::PermissionsExt;
+    let mode =
+        |path: &std::path::Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    let parent = tempfile::tempdir().unwrap();
+    let state = parent.path().join("state");
+    let hub = Hub::start(HubConfig::new(&state), Arc::new(NoDelegate), None).unwrap();
+    hub.handle().sweep().await.unwrap();
+    assert_eq!(mode(&state), 0o700);
+    for file in ["hub.lock", DATABASE_FILE_NAME, "hub.db-wal", "hub.db-shm"] {
+        let path = state.join(file);
+        if path.exists() {
+            assert_eq!(mode(&path), 0o600, "{file}");
+        }
+    }
+    assert!(state.join(DATABASE_FILE_NAME).exists());
+    hub.shutdown().await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_database_left_readable_by_others_is_tightened() {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = tempfile::tempdir().unwrap();
+    let database = directory.path().join(DATABASE_FILE_NAME);
+    std::fs::write(&database, b"").unwrap();
+    std::fs::set_permissions(&database, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let hub = Hub::start(HubConfig::new(directory.path()), Arc::new(NoDelegate), None).unwrap();
+    assert_eq!(
+        std::fs::metadata(&database).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    hub.shutdown().await;
+}
