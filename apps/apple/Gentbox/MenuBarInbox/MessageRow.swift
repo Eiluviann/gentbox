@@ -102,22 +102,23 @@ struct RowContext: View {
 	}
 }
 
-/// A two-line row on the list: type icon, title, breadcrumb, and the
-/// waiting mark, which the ellipsis menu replaces on hover. Clicking the row
-/// moves it into the card; right-click opens the same menu.
+/// A collapsed item: type icon, title, breadcrumb, and the waiting mark,
+/// which the ellipsis menu replaces on hover. A click expands it in place
+/// into the full card and collapses the one that was open; ⌘-click picks it
+/// for a bulk Dismiss (never an `action_required` one). Right-click opens the
+/// item menu.
 struct MessageRow: View {
 	let message: InboxMessage
 	let moveTargets: [TopicChoice]
 	let inbox: InboxModel
 	@State private var isHovered = false
-	@State private var closing: ItemMenu.Closing?
 
 	var body: some View {
 		HStack(alignment: .top, spacing: Tokens.columnGap) {
 			TypeIcon(message: message)
 			VStack(alignment: .leading, spacing: 1) {
 				Text(message.title)
-					.font(.system(size: 13, weight: message.state == .open ? .semibold : .medium))
+					.font(.system(size: 13, weight: .medium))
 					.lineLimit(1)
 					.truncationMode(.tail)
 				RowContext(message: message)
@@ -127,7 +128,7 @@ struct MessageRow: View {
 				WaitingMark(blocking: message.blocking)
 					.opacity(isHovered ? 0 : 1)
 				Menu {
-					ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox, closing: $closing)
+					ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
 				} label: {
 					Image(systemName: "ellipsis")
 						.foregroundStyle(.secondary)
@@ -145,26 +146,42 @@ struct MessageRow: View {
 		}
 		.padding(.horizontal, Tokens.rowHorizontalPadding)
 		.padding(.vertical, 9)
-		.background(isHovered ? Tokens.track : .clear)
+		.background(background)
 		.contentShape(Rectangle())
 		.onHover { isHovered = $0 }
-		.onTapGesture { inbox.selectedMessageId = message.id }
-		.contextMenu {
-			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox, closing: $closing)
+		.onTapGesture {
+			if NSEvent.modifierFlags.contains(.command) {
+				inbox.toggleSelection(of: message)
+			} else {
+				withAnimation(.spring) { inbox.toggleExpansion(of: message.id) }
+			}
 		}
-		.closeConfirmation($closing, inbox: inbox)
+		.contextMenu {
+			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
+		}
 		.accessibilityElement(children: .contain)
-		.accessibilityAddTraits(.isButton)
+		.accessibilityAddTraits(isPicked ? [.isButton, .isSelected] : .isButton)
 		.accessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
 		.accessibilityIdentifier("message:\(message.title)")
 	}
+
+	private var isPicked: Bool {
+		inbox.selection.contains(message.id)
+	}
+
+	private var background: some View {
+		Tokens.row
+			.overlay(isPicked ? Tokens.picked : (isHovered ? Tokens.hover : .clear))
+	}
 }
 
-/// The full card (design: "Next up"): the message an agent is blocked on, or
-/// the row you picked, in a row's order (type icon, title, breadcrumb, state)
-/// with its body and buttons below.
+/// The expanded item (design: "Next up"): a row's order (type icon, title,
+/// breadcrumb, state) with its body and buttons below. Only the expanded item
+/// has buttons, so ↩, ⌘⌫ and R act on it alone. A click on its header
+/// collapses it.
 struct MessageCard: View {
 	let message: InboxMessage
+	let moveTargets: [TopicChoice]
 	let inbox: InboxModel
 	@State private var reply = ""
 	@State private var isReplying = false
@@ -182,6 +199,10 @@ struct MessageCard: View {
 				.frame(maxWidth: .infinity, alignment: .leading)
 				WaitingMark(blocking: message.blocking)
 			}
+			.contentShape(Rectangle())
+			.onTapGesture { withAnimation(.spring) { inbox.toggleExpansion(of: message.id) } }
+			.accessibilityAddTraits(.isButton)
+			.accessibilityIdentifier("card-header:\(message.title)")
 			VStack(alignment: .leading, spacing: 0) {
 				if let summary = message.summary {
 					Text(summary)
@@ -194,20 +215,26 @@ struct MessageCard: View {
 					// (ADR 0010); the card shows its start.
 					Text(body)
 						.font(.system(size: 12, design: .monospaced))
-						.foregroundStyle(.secondary)
 						.lineLimit(4)
 						.textSelection(.enabled)
-						.padding(.top, 6)
+						.frame(maxWidth: .infinity, alignment: .leading)
+						.padding(.horizontal, 9)
+						.padding(.vertical, 6)
+						.background(Tokens.codeBox, in: RoundedRectangle(cornerRadius: 6))
+						.padding(.top, 8)
 				}
 				actionBar
 					.padding(.top, 12)
 			}
 			.padding(.leading, Tokens.iconColumn + Tokens.columnGap)
 		}
-		.padding(EdgeInsets(top: 14, leading: Tokens.rowHorizontalPadding, bottom: 18, trailing: Tokens.rowHorizontalPadding))
-		.background(Color(nsColor: .textBackgroundColor))
+		.padding(EdgeInsets(top: 14, leading: Tokens.rowHorizontalPadding, bottom: 16, trailing: Tokens.rowHorizontalPadding))
+		.background(Tokens.card)
+		.contextMenu {
+			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
+		}
 		.accessibilityElement(children: .contain)
-		.accessibilityIdentifier("next-up:\(message.title)")
+		.accessibilityIdentifier("card:\(message.title)")
 		.onChange(of: message.id) {
 			isReplying = false
 			reply = ""

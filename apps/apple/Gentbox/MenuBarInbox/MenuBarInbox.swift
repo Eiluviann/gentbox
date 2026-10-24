@@ -65,7 +65,9 @@ private struct InboxHeader: View {
 	}
 }
 
-/// The card, the list and the foot.
+/// The list as an accordion (design: `mac-popover`): every open message in
+/// order, one of them expanded in place into the full card (by default the
+/// next-up one), the rest as two-line rows; then the foot.
 private struct InboxContent: View {
 	let inbox: InboxModel
 
@@ -74,25 +76,37 @@ private struct InboxContent: View {
 			if inbox.isEmpty {
 				InboxNotice(symbol: "tray", title: "No agent needs you", caption: nil)
 			} else {
-				ScrollView {
-					VStack(alignment: .leading, spacing: 0) {
-						if let card = inbox.card {
-							MessageCard(message: card, inbox: inbox)
-							Divider()
-						}
-						LazyVStack(alignment: .leading, spacing: 0) {
-							ForEach(Array(inbox.list.enumerated()), id: \.element.id) { index, message in
+				ScrollViewReader { proxy in
+					ScrollView {
+						VStack(alignment: .leading, spacing: 0) {
+							if let filter = inbox.filter {
+								FilterBanner(filter: filter, inbox: inbox)
+								Divider()
+							}
+							ForEach(Array(inbox.visibleItems.enumerated()), id: \.element.id) { index, message in
 								if index > 0 {
-									Divider().padding(.leading, Tokens.rowHorizontalPadding)
+									// `.pp-line + .pp-line` (an.css:1140): a rule between items.
+									Tokens.line.frame(height: 1)
 								}
-								MessageRow(message: message, moveTargets: snapshot.moveTargets, inbox: inbox)
+								Group {
+									if inbox.isExpanded(message.id) {
+										MessageCard(message: message, moveTargets: snapshot.moveTargets, inbox: inbox)
+									} else {
+										MessageRow(message: message, moveTargets: snapshot.moveTargets, inbox: inbox)
+									}
+								}
+								.id(message.id)
 							}
 						}
-						.background(Tokens.listBackground)
+						.animation(.spring, value: inbox.expanded)
+					}
+					.frame(maxHeight: Tokens.listMaxHeight)
+					.fixedSize(horizontal: false, vertical: true)
+					.onChange(of: inbox.expanded) { _, expanded in
+						guard let id = expanded?.messageId else { return }
+						withAnimation(.spring) { proxy.scrollTo(id) }
 					}
 				}
-				.frame(maxHeight: Tokens.listMaxHeight)
-				.fixedSize(horizontal: false, vertical: true)
 			}
 			InboxFooter(snapshot: snapshot, inbox: inbox)
 		} else {
@@ -101,17 +115,53 @@ private struct InboxContent: View {
 	}
 }
 
-/// The foot (design: `mac-popover-item-menu`): what is muted, with Unmute,
-/// and the last failure.
+/// After Close found open items: "2 items still open in Phase 3", and Show
+/// all to leave the filter.
+private struct FilterBanner: View {
+	let filter: InboxModel.GroupFilter
+	let inbox: InboxModel
+
+	var body: some View {
+		HStack(spacing: 8) {
+			Text(filter.openCount == 1 ? "1 item still open in \(filter.title)" : "\(filter.openCount) items still open in \(filter.title)")
+				.font(.system(size: 11))
+				.foregroundStyle(.secondary)
+				.frame(maxWidth: .infinity, alignment: .leading)
+				.accessibilityIdentifier("inbox.filter")
+			Button("Show all") { withAnimation(.spring) { inbox.clearFilter() } }
+				.buttonStyle(.plain)
+				.font(.system(size: 12))
+				.foregroundStyle(Color.accentColor)
+				.accessibilityIdentifier("inbox.show-all")
+		}
+		.padding(EdgeInsets(top: 8, leading: Tokens.rowHorizontalPadding, bottom: 8, trailing: 12))
+	}
+}
+
+/// The foot: the picked rows' Dismiss, what is muted (with Unmute), and the
+/// last failure.
 private struct InboxFooter: View {
 	let snapshot: Inbox
 	let inbox: InboxModel
 
 	var body: some View {
 		let muted = InboxWords.mutedSummary(snapshot.muted)
-		if muted != nil || inbox.failure != nil {
+		if muted != nil || inbox.failure != nil || !inbox.selection.isEmpty {
 			Divider()
 			VStack(alignment: .leading, spacing: 6) {
+				if !inbox.selection.isEmpty {
+					HStack(spacing: 8) {
+						Text("\(inbox.selection.count) selected")
+							.font(.system(size: 11))
+							.foregroundStyle(.secondary)
+							.frame(maxWidth: .infinity, alignment: .leading)
+						Button("Cancel") { inbox.clearSelection() }
+							.buttonStyle(DesignButtonStyle(size: .small))
+						Button("Dismiss") { Task { await inbox.dismissSelected() } }
+							.buttonStyle(DesignButtonStyle(kind: .primary, size: .small))
+							.accessibilityIdentifier("inbox.dismiss-selected")
+					}
+				}
 				if let failure = inbox.failure {
 					Label(failure, systemImage: "xmark")
 						.font(.system(size: 11))
@@ -150,7 +200,6 @@ private struct InboxFooter: View {
 				}
 			}
 			.padding(EdgeInsets(top: 9, leading: 14, bottom: 9, trailing: 12))
-			.background(Tokens.listBackground)
 		}
 	}
 }

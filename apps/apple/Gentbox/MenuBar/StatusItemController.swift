@@ -36,8 +36,10 @@ final class StatusItemController: NSObject {
 		resizeOnChange()
 		if UserDefaults.standard.bool(forKey: Self.openAtLaunchKey) {
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_SNAPSHOT_PATH"], !path.isEmpty {
-				// Snapshots are for comparing with the design boards, which are light.
-				panel.appearance = NSAppearance(named: .aqua)
+				// Snapshots are for comparing with the design boards, which are
+				// light; `GENTBOX_SNAPSHOT_APPEARANCE=dark` checks dark mode.
+				let isDark = ProcessInfo.processInfo.environment["GENTBOX_SNAPSHOT_APPEARANCE"] == "dark"
+				panel.appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
 				snapshotOnChange(to: URL(fileURLWithPath: path))
 			}
 			// Shown without taking the keyboard: launching it must not steal
@@ -87,8 +89,8 @@ final class StatusItemController: NSObject {
 			NSEvent.removeMonitor(outsideClicks)
 		}
 		outsideClicks = nil
-		// The next opening starts again from the message an agent is blocked on.
-		app.inbox?.selectedMessageId = nil
+		// The next opening starts again from the next-up item, unfiltered.
+		app.inbox?.resetExpansion()
 	}
 
 	/// Sizes the panel to its content and hangs it under the status item.
@@ -108,7 +110,9 @@ final class StatusItemController: NSObject {
 			_ = app.phase
 			_ = app.inbox?.inbox
 			_ = app.inbox?.failure
-			_ = app.inbox?.selectedMessageId
+			_ = app.inbox?.expanded
+			_ = app.inbox?.filter
+			_ = app.inbox?.selection
 		} onChange: { [weak self] in
 			Task { @MainActor in
 				guard let self else { return }
@@ -128,10 +132,13 @@ final class StatusItemController: NSObject {
 		withObservationTracking {
 			_ = app.inbox?.inbox
 			_ = app.inbox?.failure
-			_ = app.inbox?.selectedMessageId
+			_ = app.inbox?.expanded
+			_ = app.inbox?.filter
+			_ = app.inbox?.selection
 		} onChange: { [weak self] in
 			Task { @MainActor in
-				try? await Task.sleep(for: .milliseconds(400))
+				// After the spring animations settle.
+				try? await Task.sleep(for: .milliseconds(1200))
 				self?.writeSnapshot(to: url)
 				self?.snapshotOnChange(to: url)
 			}
@@ -142,20 +149,27 @@ final class StatusItemController: NSObject {
 		let view = host.view
 		guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
 		view.cacheDisplay(in: view.bounds, to: bitmap)
-		// The cache leaves the panel's material out: lay a plain background under.
+		// The cache leaves the panel's own surface out: lay it under.
 		let size = NSSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
 		guard let opaque = NSBitmapImageRep(
 			bitmapDataPlanes: nil, pixelsWide: bitmap.pixelsWide, pixelsHigh: bitmap.pixelsHigh,
 			bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
 			colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0,
 		) else { return }
+		// Resolved under the panel's appearance before drawing into the bitmap.
+		var surface = NSColor.white
+		panel.effectiveAppearance.performAsCurrentDrawingAppearance {
+			surface = Tokens.surface.usingColorSpace(.sRGB) ?? .white
+		}
 		NSGraphicsContext.saveGraphicsState()
 		NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: opaque)
-		view.effectiveAppearance.performAsCurrentDrawingAppearance {
-			NSColor.windowBackgroundColor.setFill()
-			NSRect(origin: .zero, size: size).fill()
-		}
-		bitmap.draw(in: NSRect(origin: .zero, size: size))
+		surface.setFill()
+		NSRect(origin: .zero, size: size).fill()
+		// `draw(in:)` copies, which would wipe the surface: lay it over instead.
+		bitmap.draw(
+			in: NSRect(origin: .zero, size: size), from: .zero, operation: .sourceOver,
+			fraction: 1, respectFlipped: false, hints: nil,
+		)
 		NSGraphicsContext.restoreGraphicsState()
 		try? opaque.representation(using: .png, properties: [:])?.write(to: url, options: .atomic)
 	}

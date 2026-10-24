@@ -81,6 +81,16 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"message:Staging certificates rotated",
 			"message:Store migrations run on start",
 		])
+
+		// Close leads to the thread's open items instead of closing it.
+		element("message:Store migrations run on start").rightClick()
+		app.menuItems["Close thread"].click()
+		let banner = element("inbox.filter")
+		XCTAssertTrue(banner.waitForExistence(timeout: 5))
+		XCTAssertEqual(text(of: banner), "1 item still open in Phase 3")
+		XCTAssertTrue(element("message:Release notes drafted").waitForNonExistence(timeout: 5))
+		element("inbox.show-all").click()
+		XCTAssertTrue(element("message:Release notes drafted").waitForExistence(timeout: 5))
 	}
 
 	func testMutingATopicAndAThreadFromTheItemMenu() throws {
@@ -149,19 +159,28 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		defer { waiter.terminate() }
 
 		openInbox()
-		let card = element("next-up:Allow Bash to run the ingest tests?")
+		let card = element("card:Allow Bash to run the ingest tests?")
 		XCTAssertTrue(card.waitForExistence(timeout: 10))
 		XCTAssertTrue(element("action:Approve").waitForExistence(timeout: 5))
 		XCTAssertTrue(element("action:Deny").exists)
 		attachSnapshot(named: "Menu-bar inbox")
 
-		// Picking a row moves it into the card; the prompt goes back to the list.
+		// The accordion: clicking a collapsed row expands it in place and
+		// collapses the card that was open; its buttons are the live ones.
 		element("message:Search filters persist in the URL; 18 tests pass").click()
-		XCTAssertTrue(element("next-up:Search filters persist in the URL; 18 tests pass").waitForExistence(timeout: 5))
+		let picked = element("card:Search filters persist in the URL; 18 tests pass")
+		XCTAssertTrue(picked.waitForExistence(timeout: 5))
+		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
 		XCTAssertTrue(element("message:Allow Bash to run the ingest tests?").exists)
-		attachSnapshot(named: "Picked row")
+		XCTAssertTrue(element("action:Dismiss").isHittable)
+		attachSnapshot(named: "Expanded row")
+		// Its header collapses it, leaving nothing expanded.
+		element("card-header:Search filters persist in the URL; 18 tests pass").click()
+		XCTAssertTrue(picked.waitForNonExistence(timeout: 5))
+		attachSnapshot(named: "All collapsed")
 		element("message:Allow Bash to run the ingest tests?").click()
 		XCTAssertTrue(card.waitForExistence(timeout: 5))
+		XCTAssertTrue(element("action:Approve").isHittable)
 
 		element("action:Approve").click()
 		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
@@ -181,7 +200,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let waiter = try longPoll(action)
 		defer { waiter.terminate() }
 		openInbox()
-		let card = element("next-up:Sign in to the payments sandbox")
+		let card = element("card:Sign in to the payments sandbox")
 		XCTAssertTrue(card.waitForExistence(timeout: 10))
 		element("action:Defer").click()
 		waiter.waitUntilExit()

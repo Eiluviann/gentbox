@@ -90,6 +90,13 @@ jobs:
       # Signed ad hoc, with no team, certificate or profile (the script says
       # why not CODE_SIGNING_ALLOWED=NO): the app's unit tests, the XCUITest
       # smoke and the GentboxCore package tests in one step.
-      - run: apps/apple/scripts/test.sh | tail -n 80
-        shell: bash -o pipefail {0}
+      # `-quiet` keeps warnings, errors and every test failure in the log;
+      # the result bundle (screenshots, the full log) is kept when it fails.
+      - run: apps/apple/scripts/test.sh -quiet -resultBundlePath build/results/ci.xcresult
         timeout-minutes: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: apple-test-results
+          path: apps/apple/build/results/ci.xcresult
+          retention-days: 7

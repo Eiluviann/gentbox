@@ -12,8 +12,15 @@ struct DesignButtonStyle: ButtonStyle {
 		case danger
 	}
 
+	/// `.btn` (28 points) or `.btn.sm` (22 points, 12-point labels).
+	enum Size {
+		case regular
+		case small
+	}
+
 	var kind: Kind = .normal
 	var hint: String?
+	var size: Size = .regular
 
 	func makeBody(configuration: Configuration) -> some View {
 		HStack(spacing: 6) {
@@ -25,14 +32,18 @@ struct DesignButtonStyle: ButtonStyle {
 					.foregroundStyle(kind == .primary ? AnyShapeStyle(Color.white.opacity(0.6)) : AnyShapeStyle(.tertiary))
 			}
 		}
-		.font(.system(size: 13, weight: .medium))
+		.font(.system(size: size == .regular ? 13 : 12, weight: .medium))
 		.lineLimit(1)
-		.padding(.horizontal, 12)
-		.frame(height: 28)
-		.background(background, in: RoundedRectangle(cornerRadius: 7))
-		.overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(border, lineWidth: 1))
+		.padding(.horizontal, size == .regular ? 12 : 9)
+		.frame(height: size == .regular ? 28 : 22)
+		.background(background, in: RoundedRectangle(cornerRadius: radius))
+		.overlay(RoundedRectangle(cornerRadius: radius).strokeBorder(border, lineWidth: 1))
 		.opacity(configuration.isPressed ? 0.75 : 1)
-		.contentShape(RoundedRectangle(cornerRadius: 7))
+		.contentShape(RoundedRectangle(cornerRadius: radius))
+	}
+
+	private var radius: CGFloat {
+		size == .regular ? 7 : 6
 	}
 
 	private var labelColor: Color {

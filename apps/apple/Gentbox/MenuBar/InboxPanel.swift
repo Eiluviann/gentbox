@@ -34,13 +34,14 @@ final class InboxPanel: NSPanel {
 		setAccessibilityIdentifier("gentbox.inbox")
 		setAccessibilityTitle("Gentbox Inbox")
 
-		let background = NSVisualEffectView()
-		background.material = .popover
-		background.blendingMode = .behindWindow
-		background.state = .active
+		// The design's white surface, not the system's vibrant material, which
+		// tints it grey (an.css:193); rounded, with the window shadow's ring.
+		let background = SurfaceView()
 		background.wantsLayer = true
 		background.layer?.cornerRadius = Self.cornerRadius
+		background.layer?.cornerCurve = .continuous
 		background.layer?.masksToBounds = true
+		background.layer?.borderWidth = 0.5
 		content.translatesAutoresizingMaskIntoConstraints = false
 		background.addSubview(content)
 		NSLayoutConstraint.activate([
@@ -77,5 +78,15 @@ final class InboxPanel: NSPanel {
 		x = min(max(x, visibleFrame.minX + gap), visibleFrame.maxX - size.width - gap)
 		let height = min(size.height, top - visibleFrame.minY - gap)
 		return NSRect(x: x, y: top - height, width: size.width, height: height)
+	}
+}
+
+/// Paints the inbox's surface and ring in the current appearance.
+private final class SurfaceView: NSView {
+	override var wantsUpdateLayer: Bool { true }
+
+	override func updateLayer() {
+		layer?.backgroundColor = Tokens.surface.cgColor
+		layer?.borderColor = Tokens.surfaceOutline.cgColor
 	}
 }

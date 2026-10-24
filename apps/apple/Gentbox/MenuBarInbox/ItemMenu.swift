@@ -6,16 +6,9 @@ import SwiftUI
 /// thread and topic. Topic and thread rows are gone from the popover, so
 /// their actions live here.
 struct ItemMenu: View {
-	/// The thread Close asks about.
-	struct Closing: Equatable {
-		let threadId: String
-		let title: String
-	}
-
 	let message: InboxMessage
 	let moveTargets: [TopicChoice]
 	let inbox: InboxModel
-	@Binding var closing: Closing?
 
 	var body: some View {
 		if let open = message.offeredActions.first(where: { $0.kind == .open }) {
@@ -48,8 +41,10 @@ struct ItemMenu: View {
 					systemImage: group.topicIsMuted ? "bell" : "bell.slash",
 				)
 			}
+			// A thread closes only when nothing in it is open; while items are,
+			// Close shows them instead ("N items still open").
 			Button {
-				closing = Closing(threadId: message.threadId, title: group.threadTitle)
+				Task { _ = await inbox.closeThread(of: message) }
 			} label: {
 				Label("Close thread", systemImage: "archivebox")
 			}
@@ -65,28 +60,6 @@ struct ItemMenu: View {
 					Label("Move to topic", systemImage: "folder")
 				}
 			}
-		}
-	}
-}
-
-extension View {
-	/// Close asks whether to dismiss the thread's open messages too; a
-	/// closed thread leaves the popover.
-	func closeConfirmation(_ closing: Binding<ItemMenu.Closing?>, inbox: InboxModel) -> some View {
-		alert(
-			"Close \(closing.wrappedValue?.title ?? "thread")?",
-			isPresented: Binding(get: { closing.wrappedValue != nil }, set: { if !$0 { closing.wrappedValue = nil } }),
-			presenting: closing.wrappedValue,
-		) { thread in
-			Button("Close") {
-				Task { await inbox.closeThread(thread.threadId, dismissingOpenMessages: false) }
-			}
-			Button("Close and dismiss its messages", role: .destructive) {
-				Task { await inbox.closeThread(thread.threadId, dismissingOpenMessages: true) }
-			}
-			Button("Cancel", role: .cancel) {}
-		} message: { _ in
-			Text("Agents still waiting on its open messages keep waiting unless you dismiss them")
 		}
 	}
 }
