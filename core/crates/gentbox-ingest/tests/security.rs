@@ -7,7 +7,7 @@ mod support;
 
 use std::os::unix::fs::PermissionsExt;
 
-use gentbox_ingest::{Limits, hello_proof};
+use gentbox_ingest::{Limits, hello_proof, verify_hello_proof};
 use serde_json::json;
 use support::{Server, blocking_prompt, message, reply, socket_request};
 
@@ -125,8 +125,33 @@ async fn hello_proves_the_token_and_never_needs_it() {
     )
     .await;
     assert_eq!(answer.status, 200);
-    assert_eq!(answer.body["proof"], hello_proof(&server.token, nonce));
-    assert_ne!(answer.body["proof"], hello_proof("another-token", nonce));
+    let proof = answer.body["proof"].as_str().unwrap();
+    assert_eq!(proof, hello_proof(&server.token, server.port, nonce));
+    assert!(verify_hello_proof(&server.token, server.port, nonce, proof));
+    // A proof made for another port, another token or another nonce fails:
+    // a squatter on a stale port cannot relay the real hub's answer.
+    assert!(!verify_hello_proof(
+        &server.token,
+        server.port.wrapping_add(1),
+        nonce,
+        proof
+    ));
+    assert!(!verify_hello_proof(
+        "another-token",
+        server.port,
+        nonce,
+        proof
+    ));
+    assert!(!verify_hello_proof(
+        &server.token,
+        server.port,
+        "another-nonce-of-22-chars",
+        proof
+    ));
+    assert_ne!(
+        proof,
+        hello_proof(&server.token, server.port.wrapping_add(1), nonce)
+    );
     assert_eq!(answer.body["hub"], "gentbox");
     assert_eq!(answer.body["schemaVersions"], json!([1]));
     assert!(

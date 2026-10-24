@@ -47,10 +47,11 @@ socket="$state/API/hub.sock"
 base="http://127.0.0.1:$port"
 auth=(-H "Authorization: Bearer $token" -H "Content-Type: application/json")
 
-# hello: the proof is HMAC-SHA256(token, nonce), base64url without padding.
+# hello: the proof is HMAC-SHA256(token, "gentbox-hello-v1\0" + port + "\0" +
+# nonce), base64url without padding.
 nonce="$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')"
 proof="$(curl -sS -X POST "$base/v1/hello" -H 'Content-Type: application/json' -d "{\"nonce\":\"$nonce\"}" | jq -r .proof)"
-expected="$(printf '%s' "$nonce" | openssl dgst -sha256 -hmac "$token" -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+expected="$(printf 'gentbox-hello-v1\0%s\0%s' "$port" "$nonce" | openssl dgst -sha256 -hmac "$token" -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
 check "hello proof" "$proof" "$expected"
 
 check "no token is 401" "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$base/v1/messages" -H 'Content-Type: application/json' -d '{}')" "401"

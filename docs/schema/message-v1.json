@@ -887,8 +887,16 @@
 					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
 				},
 				"state": {
+					"description": "The message's lifecycle state. A new message is `open` or `acknowledged`; an idempotent retry of a message that has since closed returns its real state (`answered`, `dismissed`, `rescinded`, `expired`) with `shouldWait: false`, and the sender polls /response for the outcome.",
 					"type": "string",
-					"enum": ["open", "acknowledged"]
+					"enum": [
+						"open",
+						"acknowledged",
+						"answered",
+						"dismissed",
+						"rescinded",
+						"expired"
+					]
 				},
 				"shouldWait": {
 					"type": "boolean"

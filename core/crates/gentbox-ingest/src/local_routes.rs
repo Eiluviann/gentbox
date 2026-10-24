@@ -51,22 +51,26 @@ pub const CONVERSATION_HEADER: &str = "gentbox-conversation";
 pub struct ApiState {
     pub(crate) hub: HubHandle,
     pub(crate) token: Arc<str>,
+    pub(crate) tcp_port: u16,
     pub(crate) limits: Arc<RateLimiter>,
     pub(crate) shutdown: watch::Receiver<bool>,
 }
 
 impl ApiState {
-    /// The state of a server: the hub, the sender token, the limiter and a
-    /// shutdown signal (long-polls answer `pending` when it turns true).
+    /// The state of a server: the hub, the sender token, the TCP port the
+    /// `hello` proof is bound to, the limiter and a shutdown signal
+    /// (long-polls answer `pending` when it turns true).
     pub fn new(
         hub: HubHandle,
         token: &str,
+        tcp_port: u16,
         limits: Arc<RateLimiter>,
         shutdown: watch::Receiver<bool>,
     ) -> Self {
         Self {
             hub,
             token: Arc::from(token),
+            tcp_port,
             limits,
             shutdown,
         }

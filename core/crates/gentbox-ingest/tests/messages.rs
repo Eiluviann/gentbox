@@ -623,3 +623,50 @@ async fn presence_focus_is_accepted() {
     assert_eq!(wrong.status, 422);
     server.stop().await;
 }
+
+#[tokio::test]
+async fn an_idempotent_retry_of_a_closed_message_reports_its_real_state() {
+    use gentbox_ingest::schema::{BodyShape, Definition, validate};
+    let server = Server::start().await;
+    let retry = |key: &str, extra: Value| {
+        let mut fields = blocking_prompt();
+        fields["idempotencyKey"] = json!(key);
+        fields["conversation"] = json!({ "id": key });
+        if let (Some(target), Value::Object(extra)) = (fields.as_object_mut(), extra) {
+            target.extend(extra);
+        }
+        fields
+    };
+
+    let rescinded = retry("rescind-me", json!({}));
+    let id = id_of(&server.post_message(rescinded.clone()).await);
+    server
+        .send_for("DELETE", &format!("/v1/messages/{id}"), None)
+        .await;
+
+    let answered = retry("answer-me", json!({}));
+    let answered_id = id_of(&server.post_message(answered.clone()).await);
+    answer(&server, &answered_id, "allow").await.unwrap();
+
+    let expired = retry("expire-me", json!({ "expiresAt": "2026-10-24T12:01:00Z" }));
+    server.post_message(expired.clone()).await;
+    server.clock.advance(time::Duration::minutes(1));
+    server.handle.run_due_timers().await.unwrap();
+
+    for (body, state) in [
+        (rescinded, "rescinded"),
+        (answered, "answered"),
+        (expired, "expired"),
+    ] {
+        let reply = server.post_message(body).await;
+        assert_eq!(reply.status, 200, "{state}: {reply:?}");
+        assert_eq!(reply.body["state"], state);
+        assert_eq!(reply.body["shouldWait"], false, "{state}");
+        validate(
+            BodyShape::Definition(Definition::IngestResponse),
+            &reply.body,
+        )
+        .unwrap_or_else(|error| panic!("{state}: {:?}", error.body()));
+    }
+    server.stop().await;
+}

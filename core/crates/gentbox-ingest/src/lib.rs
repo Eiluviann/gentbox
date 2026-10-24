@@ -35,7 +35,7 @@ use tokio::task::JoinHandle;
 pub use auth::is_token;
 pub use discovery::{ApiDir, DiscoveryError, SenderToken};
 pub use error::{ApiError, ErrorBody};
-pub use hello::{HelloResponse, hello_proof};
+pub use hello::{HelloResponse, hello_proof, verify_hello_proof};
 pub use limits::{Limits, RateLimiter};
 pub use local_routes::{AGENT_HEADER, ApiState, CONVERSATION_HEADER, Transport, local_router};
 
@@ -89,9 +89,18 @@ impl IngestServer {
     ) -> Result<Self, IngestStartError> {
         let api_dir = ApiDir::prepare(state_dir)?;
         let (shutdown, shutdown_signal) = watch::channel(false);
+        // The TCP port comes first: the hello proof is bound to it.
+        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
+        let bind_error = |source| IngestStartError::Bind {
+            what: address.to_string(),
+            source,
+        };
+        let tcp_listener = TcpListener::bind(address).await.map_err(bind_error)?;
+        let port = tcp_listener.local_addr().map_err(bind_error)?.port();
         let state = ApiState::new(
             hub,
             api_dir.token(),
+            port,
             Arc::new(RateLimiter::new(limits)),
             shutdown_signal.clone(),
         );
@@ -120,15 +129,8 @@ impl IngestServer {
             )));
         }
 
-        let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
-        let bind_error = |source| IngestStartError::Bind {
-            what: address.to_string(),
-            source,
-        };
-        let listener = TcpListener::bind(address).await.map_err(bind_error)?;
-        let port = listener.local_addr().map_err(bind_error)?.port();
         let router = local_router(state, Transport::Tcp { port });
-        tasks.push(tokio::spawn(serve(listener, router, shutdown_signal)));
+        tasks.push(tokio::spawn(serve(tcp_listener, router, shutdown_signal)));
         api_dir.write_port(port)?;
         tracing::info!(port, api_dir = %api_dir.path().display(), "ingest listening");
         Ok(Self {

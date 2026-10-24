@@ -207,7 +207,8 @@ pub struct IngestResponse {
     pub topic_id: TopicId,
     /// The thread the message landed in.
     pub thread_id: ThreadId,
-    /// `open` or `acknowledged`.
+    /// `open` or `acknowledged` for a new message; an idempotent retry of a
+    /// closed one reports its real state (with `should_wait` false).
     pub state: LifecycleState,
     /// Whether long-polling is worthwhile.
     pub should_wait: bool,

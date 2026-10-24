@@ -21,7 +21,8 @@ pub enum BodyShape {
     Definition(Definition),
 }
 
-/// The `$defs` entries request bodies use.
+/// The `$defs` entries request bodies use, and the ingest response (which
+/// tests check the hub's answers against).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Definition {
     /// `DELETE /v1/messages/{id}`, the conversation and group rescinds.
@@ -42,11 +43,13 @@ pub enum Definition {
     MessageThreadMove,
     /// `PUT /v1/conversations/{agent}/{id}`.
     Conversation,
+    /// The answer to `POST /v1/messages`.
+    IngestResponse,
 }
 
 impl Definition {
     /// Every definition, in the order the validators are compiled.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::RescindRequest,
         Self::TopicCreate,
         Self::TopicUpdate,
@@ -56,6 +59,7 @@ impl Definition {
         Self::ThreadMove,
         Self::MessageThreadMove,
         Self::Conversation,
+        Self::IngestResponse,
     ];
 
     /// The entry's name under `$defs`.
@@ -70,6 +74,7 @@ impl Definition {
             Self::ThreadMove => "threadMove",
             Self::MessageThreadMove => "messageThreadMove",
             Self::Conversation => "conversation",
+            Self::IngestResponse => "ingestResponse",
         }
     }
 }
