@@ -9,6 +9,8 @@ gentbox ask --title "Allow Bash to run the ingest tests?" --timeout 120   # exit
 claude mcp add gentbox -- node /path/to/cli/dist/bin/gentbox-mcp.js
 ```
 
-Identity is self-asserted: `GENTBOX_AGENT` (default `cli`; `claude-code` for the MCP server), `GENTBOX_CONVERSATION` (default one per folder; the MCP server makes one per process). The sender token cannot answer or list messages, so there is no `answer` or `list` command.
+Identity is self-asserted: `GENTBOX_AGENT` (default `cli`; `claude-code` for the MCP server), `GENTBOX_CONVERSATION` (default one per folder; the MCP server makes one per process). `GENTBOX_FOCUS_BUNDLE_ID` (for example `com.anthropic.claudefordesktop` for the Claude desktop app) and `GENTBOX_FOCUS_URL` tell Gentbox what "Open session" should bring forward. MCP tools: `notify`, `ask`, `wait` (collect the answer after a deferral), `rescind`, `create_topic`, `close_topic`, `create_thread`, `close_thread`.
+
+The sender token cannot answer or list messages, so there is no `answer` or `list` command.
 
 The integration test (`src/integration.test.ts`) runs against a real `gentboxd` when `core/target/debug/gentboxd` (or `GENTBOXD_BIN`) exists: `cd core && cargo build -p gentboxd`.

@@ -436,6 +436,58 @@ describe('ask', () => {
 	});
 });
 
+describe('wait', () => {
+	it('collects the answer to a deferred question', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>(async () =>
+			succeed(actionResponse('answered', { actionKind: 'approve' })),
+		);
+		const result = await runTool(
+			'wait',
+			{ messageId: MESSAGE_ID, timeoutSeconds: 30 },
+			depsFor(stubHubClient({ getResponse })),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'answered',
+			messageId: MESSAGE_ID,
+			actionKind: 'approve',
+		});
+		expect(getResponse.mock.calls[0]?.[1]).toBe(30);
+	});
+
+	it('leaves the message open when nothing arrives in time', async () => {
+		const clock = fakeClock();
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const getResponse: HubClient['getResponse'] = async (_id, seconds) => {
+			clock.advance(seconds);
+			return succeed(actionResponse('pending'));
+		};
+		const result = await runTool(
+			'wait',
+			{ messageId: MESSAGE_ID, timeoutSeconds: 60 },
+			depsFor(stubHubClient({ getResponse, rescindMessage }), { wait: clock }),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'no_answer',
+			reason: 'timed_out',
+			messageWithdrawn: false,
+		});
+		expect(textOf(result)).toContain('still open');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('rejects an id that is not a message id', async () => {
+		const result = await runTool(
+			'wait',
+			{ messageId: '../topics' },
+			depsFor(stubHubClient()),
+			undefined,
+		);
+		expect(result.isError).toBe(true);
+	});
+});
+
 describe('rescind', () => {
 	it('withdraws by message id, defaulting to resolved_elsewhere', async () => {
 		const rescindMessage = vi.fn<HubClient['rescindMessage']>(async () =>

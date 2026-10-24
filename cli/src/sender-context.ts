@@ -42,8 +42,18 @@ export function readSenderContext(
 		conversationId,
 		conversationTitle: environment.GENTBOX_CONVERSATION_TITLE || undefined,
 		workingDirectory,
+		focus: readFocus(environment),
 		now,
 	};
+}
+
+/** `GENTBOX_FOCUS_BUNDLE_ID` (e.g. `com.anthropic.claudefordesktop`) and `GENTBOX_FOCUS_URL`: what "Open session" brings forward. */
+function readFocus(environment: NodeJS.ProcessEnv): SenderContext['focus'] {
+	const bundleId = environment.GENTBOX_FOCUS_BUNDLE_ID || undefined;
+	const url = environment.GENTBOX_FOCUS_URL || undefined;
+	return bundleId === undefined && url === undefined
+		? undefined
+		: { bundleId, url };
 }
 
 /** The same id for every CLI call from one folder, so its messages share a conversation. */

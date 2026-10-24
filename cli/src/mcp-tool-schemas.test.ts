@@ -17,6 +17,7 @@ describe('the tool list', () => {
 		expect(TOOL_SPECS.map((spec) => spec.name)).toEqual([
 			'notify',
 			'ask',
+			'wait',
 			'rescind',
 			'create_topic',
 			'close_topic',

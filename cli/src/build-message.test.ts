@@ -18,6 +18,7 @@ const CONTEXT: SenderContext = {
 	conversationId: 'session-1',
 	conversationTitle: 'Fix flaky ingest test',
 	workingDirectory: '/Users/me/Developer/gentbox',
+	focus: { bundleId: 'com.anthropic.claudefordesktop' },
 	now: () => new Date('2026-10-24T12:00:00Z'),
 };
 

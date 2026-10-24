@@ -20,6 +20,10 @@ export type SenderContext = {
 	conversationId: string;
 	conversationTitle: string | undefined;
 	workingDirectory: string;
+	/** How "Open session" brings this conversation forward (the app hosting the session). */
+	focus:
+		| { bundleId?: string | undefined; url?: string | undefined }
+		| undefined;
 	now: () => Date;
 };
 
@@ -84,6 +88,7 @@ export function buildMessage(
 			id: context.conversationId,
 			title: context.conversationTitle,
 			cwd: context.workingDirectory,
+			focus: context.focus,
 		},
 		topic,
 		thread,

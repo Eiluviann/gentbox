@@ -22,12 +22,13 @@ async function connectClient(hubClient: HubClient): Promise<Client> {
 }
 
 describe('the MCP server over a real protocol session', () => {
-	it('answers tools/list with the seven tools and object schemas', async () => {
+	it('answers tools/list with the eight tools and object schemas', async () => {
 		const client = await connectClient(stubHubClient());
 		const { tools } = await client.listTools();
 		expect(tools.map((tool) => tool.name)).toEqual([
 			'notify',
 			'ask',
+			'wait',
 			'rescind',
 			'create_topic',
 			'close_topic',

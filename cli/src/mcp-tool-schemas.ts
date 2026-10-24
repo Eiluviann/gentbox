@@ -187,6 +187,22 @@ export const askInputSchema = z
 	);
 export type AskInput = z.infer<typeof askInputSchema>;
 
+export const waitInputSchema = z.strictObject({
+	messageId: ulidSchema.describe(
+		'The messageId `ask` returned when the user deferred (or `notify` returned).',
+	),
+	timeoutSeconds: z
+		.number()
+		.int()
+		.min(1)
+		.max(3600)
+		.optional()
+		.describe(
+			'How long to wait (default 300). The message stays open if nothing arrives.',
+		),
+});
+export type WaitInput = z.infer<typeof waitInputSchema>;
+
 export const rescindInputSchema = z
 	.strictObject({
 		messageId: ulidSchema.optional().describe('The id notify or ask returned.'),
@@ -310,6 +326,7 @@ export type CloseThreadInput = z.infer<typeof closeThreadInputSchema>;
 export type ToolName =
 	| 'notify'
 	| 'ask'
+	| 'wait'
 	| 'rescind'
 	| 'create_topic'
 	| 'close_topic'
@@ -368,7 +385,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'ask',
 		description: [
-			'Ask the user something in Gentbox and wait for the answer: an approval, a choice between options, or free text. It returns the answer, `deferred` (the user chose Defer: carry on with work that needs no input), or "no answer" (nothing arrived in time: the message is withdrawn, so ask in the conversation instead).',
+			'Ask the user something in Gentbox and wait for the answer: an approval, a choice between options, or free text. It returns the answer, `deferred` (the user chose Defer: carry on with work that needs no input, then collect the answer with `wait`), or "no answer" (nothing arrived in time: the message is withdrawn, so ask in the conversation instead).',
 			'Use `blocking` when you cannot continue and `deferrable` when you can do other work if the user defers. Offer `choices` for options, `allowReply` for free text; with neither the user sees Approve and Deny.',
 			TITLE_RULE,
 			STEPS_RULE,
@@ -379,6 +396,13 @@ export const TOOL_SPECS: ToolSpec[] = [
 		inputSchema: toInputSchema(askInputSchema, {
 			allOf: [STEPS_CONDITION, NO_STEPS_UNLESS_ACTION],
 		}),
+	},
+	{
+		name: 'wait',
+		description:
+			'Wait for the answer to a message you sent earlier, typically after `ask` returned `deferred` and you finished the work that needed no input. Returns the answer, `deferred` again, a closed status (dismissed, withdrawn, expired), or "no answer yet": the message is not withdrawn, so you can call `wait` again or ask in the conversation.',
+		schema: waitInputSchema,
+		inputSchema: toInputSchema(waitInputSchema),
 	},
 	{
 		name: 'rescind',

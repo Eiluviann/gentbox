@@ -1,6 +1,11 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { z } from 'zod';
-import { type AskOutcome, askAndWait, type WaitOptions } from './ask-flow.ts';
+import {
+	type AskOutcome,
+	askAndWait,
+	type WaitOptions,
+	waitForAnswer,
+} from './ask-flow.ts';
 import {
 	buildAnswerActions,
 	buildMessage,
@@ -30,6 +35,8 @@ import {
 	notifyInputSchema,
 	type RescindInput,
 	rescindInputSchema,
+	type WaitInput,
+	waitInputSchema,
 } from './mcp-tool-schemas.ts';
 import type { ActionResponse, IngestWarning } from './message-types.ts';
 import type { Result } from './result.ts';
@@ -73,6 +80,10 @@ function dispatch(
 		case 'ask':
 			return withInput(askInputSchema, input, deps, (arguments_, client) =>
 				ask(arguments_, client, deps, signal),
+			);
+		case 'wait':
+			return withInput(waitInputSchema, input, deps, (arguments_, client) =>
+				wait(arguments_, client, deps, signal),
 			);
 		case 'rescind':
 			return withInput(rescindInputSchema, input, deps, (arguments_, client) =>
@@ -177,6 +188,21 @@ async function ask(
 	return describeAskOutcome(ingest.id, outcome, didRescind, ingest.warnings);
 }
 
+/** Collects the answer to a message sent earlier; unlike `ask` it never withdraws the message. */
+async function wait(
+	input: WaitInput,
+	client: HubClient,
+	deps: ToolDeps,
+	signal: AbortSignal | undefined,
+): Promise<CallToolResult> {
+	const outcome = await waitForAnswer(client, input.messageId, {
+		timeoutSeconds: input.timeoutSeconds ?? deps.defaultTimeoutSeconds,
+		signal,
+		...deps.wait,
+	});
+	return describeAskOutcome(input.messageId, outcome, false, undefined);
+}
+
 function describeAskOutcome(
 	messageId: string,
 	outcome: AskOutcome,
@@ -204,7 +230,7 @@ function describeAskOutcome(
 					status: 'deferred',
 					messageId,
 					instruction:
-						'The user chose Defer: carry on with the work that needs no input. The question stays open in their inbox; ask again later (same correlationKey replaces it) if you still need the answer.',
+						'The user chose Defer: carry on with the work that needs no input. The question stays open in their inbox; call `wait` with this messageId when you are ready to collect the answer.',
 				},
 				warnings,
 			);
@@ -217,8 +243,9 @@ function describeAskOutcome(
 					messageId,
 					reason: 'timed_out',
 					messageWithdrawn: didRescind,
-					instruction:
-						'No answer arrived in time and the message was withdrawn. Ask the user in the conversation instead.',
+					instruction: didRescind
+						? 'No answer arrived in time and the message was withdrawn. Ask the user in the conversation instead.'
+						: 'No answer yet; the message is still open. Call `wait` again later, or ask the user in the conversation.',
 				},
 				warnings,
 			);

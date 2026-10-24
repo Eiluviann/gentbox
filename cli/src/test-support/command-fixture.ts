@@ -9,6 +9,7 @@ export const TEST_SENDER: SenderContext = {
 	conversationId: 'session-1',
 	conversationTitle: undefined,
 	workingDirectory: '/work/gentbox',
+	focus: undefined,
 	now: () => new Date('2026-10-24T12:00:00Z'),
 };
 
