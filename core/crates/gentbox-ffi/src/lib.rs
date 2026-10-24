@@ -10,7 +10,7 @@
 //! | --- | --- |
 //! | `hub` | [`GentboxHub`]: start, stop, the inbox query, answers, groups, presence |
 //! | `events` | [`HubDelegate`], the callback interface, and [`HubEvent`] |
-//! | `inbox` | the inbox grouped topic → thread → messages, with a Closed section |
+//! | `inbox` | the inbox as the popover's list and grouped topic → thread → messages |
 //! | `records` | the value types Swift sees, converted from the core's |
 //! | `error` | [`GentboxError`] |
 //!
@@ -34,9 +34,9 @@ pub use events::{HubDelegate, HubEvent};
 pub use hub::{GentboxHub, HubOptions};
 pub use inbox::{ClosedGroup, GroupKind, Inbox, InboxThread, InboxTopic, MutedGroup, TopicChoice};
 pub use records::{
-    ActionKind, Blocking, BlockingBadge, DeliveryPlan, InboxAction, InboxMessage, LifecycleState,
-    MacSurface, MessageType, NativeLevel, PlanReason, PresenceState, PresenceUpdate, RescindReason,
-    Surfaces,
+    ActionKind, Blocking, BlockingBadge, DeliveryPlan, GroupContext, InboxAction, InboxMessage,
+    LifecycleState, MacSurface, MessageType, NativeLevel, PlanReason, PresenceState,
+    PresenceUpdate, RescindReason, Surfaces,
 };
 
 uniffi::setup_scaffolding!();

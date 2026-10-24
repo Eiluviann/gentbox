@@ -142,6 +142,9 @@ fn a_simple_conversation_shows_as_general_then_its_thread() {
     assert_eq!(thread.title, "Refactor the store");
     assert_eq!(thread.messages[0].title, "Ingest tests pass");
     assert_eq!(thread.messages[0].agent_name, "Claude Code");
+    let context = inbox.items[0].group.as_ref().unwrap();
+    assert!(context.topic_is_general);
+    assert_eq!(context.thread_title, "Refactor the store");
     assert!(inbox.next_up.is_none());
     assert!(inbox.has_unread);
 
@@ -152,7 +155,7 @@ fn a_simple_conversation_shows_as_general_then_its_thread() {
 }
 
 #[test]
-fn groups_follow_topic_then_thread_with_the_blocked_on_message_lifted_out() {
+fn the_list_puts_urgent_then_blocked_first_and_groups_follow_it() {
     let fixture = Fixture::start();
     let phase = json!({ "key": "phase-3", "title": "Phase 3" });
     fixture.post(json!({
@@ -192,16 +195,33 @@ fn groups_follow_topic_then_thread_with_the_blocked_on_message_lifted_out() {
             .iter()
             .any(|action| action.id == "allow")
     );
-    // Urgent first, so Infrastructure leads although it is older.
+    assert!(next_up.asks_permission);
+    // The popover's list: urgent first, then blocked, then paused, then the
+    // rest, newest first; the next-up message is in it too.
+    let titles: Vec<_> = inbox.items.iter().map(|item| item.title.as_str()).collect();
+    assert_eq!(
+        titles,
+        vec![
+            "Staging certificates rotated",
+            "Allow Bash to run the ingest tests?",
+            "Which title for the 1.1 release notes?",
+            "Store migrations run on start",
+        ]
+    );
+    let context = inbox.items[1].group.as_ref().unwrap();
+    assert_eq!(
+        (context.topic_title.as_str(), context.thread_title.as_str()),
+        ("Gentbox", "Phase 3")
+    );
+    assert!(!context.topic_is_general);
+    // Grouped, a topic and a thread follow their most pressing message.
     assert_eq!(topic_titles(&inbox), vec!["Infrastructure", "Gentbox"]);
-    let gentbox = &inbox.topics[1];
-    let threads: Vec<_> = gentbox
+    let threads: Vec<_> = inbox.topics[1]
         .threads
         .iter()
         .map(|thread| thread.title.as_str())
         .collect();
-    // v1.1 waits on you (deferrable); Phase 3 has only a completion left.
-    assert_eq!(threads, vec!["v1.1", "Phase 3"]);
+    assert_eq!(threads, vec!["Phase 3", "v1.1"]);
     assert_eq!(inbox.waiting_count, 2);
     let targets: Vec<_> = inbox
         .move_targets
@@ -248,6 +268,15 @@ fn muting_a_topic_or_a_thread_keeps_it_listed_and_names_it_in_the_footer() {
     let inbox = fixture.inbox();
     assert_eq!(inbox.topics.len(), 2);
     assert!(inbox.topics.iter().any(|topic| topic.is_muted));
+    let mutes: Vec<_> = inbox
+        .items
+        .iter()
+        .map(|item| {
+            let group = item.group.as_ref().unwrap();
+            (group.topic_is_muted, group.thread_is_muted)
+        })
+        .collect();
+    assert!(mutes.contains(&(true, false)) && mutes.contains(&(false, true)));
     let muted: Vec<_> = inbox
         .muted
         .iter()

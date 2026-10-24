@@ -243,6 +243,25 @@ pub struct InboxMessage {
     pub repeat_count: u32,
     /// The steps of an action plan.
     pub step_count: u32,
+    /// Its topic and thread, for the breadcrumb and the item menu; set in
+    /// [`crate::GentboxHub::inbox`], `None` in events.
+    pub group: Option<GroupContext>,
+}
+
+/// A message's topic and thread as a row shows them.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct GroupContext {
+    /// The topic's title.
+    pub topic_title: String,
+    /// An agent's implicit General topic, which the breadcrumb leaves out.
+    pub topic_is_general: bool,
+    /// The topic is muted (and so its threads).
+    pub topic_is_muted: bool,
+    /// The thread's title; a conversation's default thread carries the
+    /// conversation's.
+    pub thread_title: String,
+    /// The thread itself is muted.
+    pub thread_is_muted: bool,
 }
 
 impl InboxMessage {
@@ -292,6 +311,7 @@ impl InboxMessage {
                 .any(|action| action.kind == core_message::ActionKind::Approve),
             repeat_count: message.repeat_count,
             step_count: u32::try_from(message.steps.len()).unwrap_or(u32::MAX),
+            group: None,
         }
     }
 

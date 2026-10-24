@@ -1,16 +1,18 @@
-//! The menu-bar inbox, grouped topic → thread → messages (architecture §5.4,
-//! ADRs 0008 and 0009), built from one [`InboxSnapshot`].
+//! The inbox (architecture §5.4, ADRs 0008 and 0009), built from one
+//! [`InboxSnapshot`] in two shapes: the flat list the menu-bar popover draws
+//! (design: `mac-popover`), each row carrying its topic and thread for the
+//! breadcrumb, and the same messages grouped topic → thread → messages for the
+//! main window's topic and thread views.
 //!
 //! - **Order.** Urgent first, then what an agent is blocked on, then what it
-//!   paused for, then newest. A
-//!   thread sorts by its most pressing message and a topic by its most
-//!   pressing thread, so the order never needs a counter to explain it.
-//! - **Next up.** The most pressing message an agent waits on is lifted out
-//!   of the groups into the popover's full card.
-//! - **Closed.** Closed topics and threads leave the groups for the Closed
-//!   section, with their open messages; reopening brings them back.
-//! - **Mute** only changes delivery: muted groups stay listed and are named in
-//!   the footer.
+//!   paused for, then newest. In the groups a thread sorts by its most
+//!   pressing message and a topic by its most pressing thread.
+//! - **Next up.** The most pressing message an agent is blocked on, for the
+//!   popover's full card.
+//! - **Closed.** Closed topics and threads, and their open messages, leave the
+//!   list; they are listed apart for History and Settings.
+//! - **Mute** only changes delivery: muted messages stay listed and the muted
+//!   groups are named in the footer.
 
 use std::cmp::Reverse;
 use std::collections::HashMap;
@@ -19,7 +21,7 @@ use std::time::SystemTime;
 use gentbox_core::topic::{GroupStatus, Thread, Topic};
 use gentbox_hub::InboxSnapshot;
 
-use crate::records::{Blocking, InboxMessage, LifecycleState, MessageType};
+use crate::records::{Blocking, GroupContext, InboxMessage, LifecycleState, MessageType};
 
 /// At most this many closed topics and threads, most recently closed first.
 const CLOSED_LIMIT: usize = 8;
@@ -100,12 +102,14 @@ pub struct TopicChoice {
     pub title: String,
 }
 
-/// Everything the menu-bar inbox draws.
+/// Everything the inbox draws.
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct Inbox {
-    /// The message an agent is blocked on, for the full card.
+    /// The message an agent is blocked on, for the full card; also in `items`.
     pub next_up: Option<InboxMessage>,
-    /// The other open messages, grouped.
+    /// The open messages, most pressing first: the popover's list.
+    pub items: Vec<InboxMessage>,
+    /// The same messages, grouped topic → thread.
     pub topics: Vec<InboxTopic>,
     /// Closed topics and threads, most recently closed first.
     pub closed: Vec<ClosedGroup>,
@@ -146,6 +150,10 @@ pub(crate) fn build_inbox(snapshot: &InboxSnapshot) -> Inbox {
         .iter()
         .map(InboxMessage::from_entry)
         .filter(is_listed)
+        .map(|mut message| {
+            message.group = group_context(&message, &topics, &threads);
+            message
+        })
         .collect();
     messages.sort_by_key(pressing_order);
     let waiting_count = u32::try_from(
@@ -160,17 +168,34 @@ pub(crate) fn build_inbox(snapshot: &InboxSnapshot) -> Inbox {
         .any(|message| message.state == LifecycleState::Open);
     let next_up = messages
         .iter()
-        .position(is_blocked_on)
-        .map(|index| messages.remove(index));
+        .find(|message| is_blocked_on(message))
+        .cloned();
     Inbox {
         next_up,
-        topics: group_by_topic_and_thread(messages, &topics, &threads),
+        topics: group_by_topic_and_thread(messages.clone(), &topics, &threads),
+        items: messages,
         closed: closed_groups(snapshot, &topics),
         muted: muted_groups(snapshot, &topics),
         move_targets: move_targets(snapshot),
         waiting_count,
         has_unread,
     }
+}
+
+fn group_context(
+    message: &InboxMessage,
+    topics: &HashMap<&str, &Topic>,
+    threads: &HashMap<&str, &Thread>,
+) -> Option<GroupContext> {
+    let topic = topics.get(message.topic_id.as_str())?;
+    let thread = threads.get(message.thread_id.as_str())?;
+    Some(GroupContext {
+        topic_title: topic.title.clone(),
+        topic_is_general: topic.implicit,
+        topic_is_muted: topic.muted,
+        thread_title: thread.title.clone(),
+        thread_is_muted: thread.muted,
+    })
 }
 
 /// Keeps the order of `messages`: a topic appears where its first message
