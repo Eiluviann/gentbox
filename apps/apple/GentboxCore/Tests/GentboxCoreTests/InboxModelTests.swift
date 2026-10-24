@@ -28,12 +28,12 @@ final class FakeService: InboxService, @unchecked Sendable {
 	func muteThread(threadId: String, isMuted: Bool) async throws { try record("mute thread \(threadId) \(isMuted)") }
 	func markTopicRead(topicId: String) async throws { try record("read topic \(topicId)") }
 	func markThreadRead(threadId: String) async throws { try record("read thread \(threadId)") }
-	func closeTopic(topicId: String, withdrawOpenMessages: Bool) async throws {
-		try record("close topic \(topicId) \(withdrawOpenMessages)")
+	func closeTopic(topicId: String, dismissOpenMessages: Bool) async throws {
+		try record("close topic \(topicId) \(dismissOpenMessages)")
 	}
 	func reopenTopic(topicId: String) async throws { try record("reopen topic \(topicId)") }
-	func closeThread(threadId: String, withdrawOpenMessages: Bool) async throws {
-		try record("close thread \(threadId) \(withdrawOpenMessages)")
+	func closeThread(threadId: String, dismissOpenMessages: Bool) async throws {
+		try record("close thread \(threadId) \(dismissOpenMessages)")
 	}
 	func reopenThread(threadId: String) async throws { try record("reopen thread \(threadId)") }
 	func moveThread(threadId: String, topicId: String) async throws { try record("move \(threadId) \(topicId)") }
@@ -69,13 +69,21 @@ struct InboxModelTests {
 		let prompt = message(id: "m7", type: .decisionRequired, blocking: .blocking)
 		await model.press(action("allow", .approve), on: prompt)
 		await model.setThreadMuted("th1", true)
-		await model.closeThread("th1", withdrawingOpenMessages: true)
+		await model.closeThread("th1", dismissingOpenMessages: true)
 		#expect(service.commands == ["action m7 allow -", "mute thread th1 true", "close thread th1 true"])
 		#expect(model.failure == nil)
 
 		service.failure = .AlreadyClosed(state: .answered)
 		await model.press(action("deny", .deny), on: prompt)
+		// The read that follows every command must not wipe it.
+		await model.readUntilCurrent()
 		#expect(model.failure == "Already answered")
+
+		// The next command that works clears it.
+		service.failure = nil
+		await model.snooze(prompt)
+		await model.readUntilCurrent()
+		#expect(model.failure == nil)
 	}
 
 	@Test func aPickedRowTakesTheCardUntilItLeavesTheList() async {

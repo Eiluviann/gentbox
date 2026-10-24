@@ -12,9 +12,9 @@ public protocol InboxService: AnyObject, Sendable {
 	func muteThread(threadId: String, isMuted: Bool) async throws
 	func markTopicRead(topicId: String) async throws
 	func markThreadRead(threadId: String) async throws
-	func closeTopic(topicId: String, withdrawOpenMessages: Bool) async throws
+	func closeTopic(topicId: String, dismissOpenMessages: Bool) async throws
 	func reopenTopic(topicId: String) async throws
-	func closeThread(threadId: String, withdrawOpenMessages: Bool) async throws
+	func closeThread(threadId: String, dismissOpenMessages: Bool) async throws
 	func reopenThread(threadId: String) async throws
 	func moveThread(threadId: String, topicId: String) async throws
 }
@@ -30,8 +30,17 @@ extension GentboxHub: InboxService {}
 public final class InboxModel {
 	/// The inbox as last read; `nil` until the first read finishes.
 	public private(set) var inbox: Inbox?
-	/// The last command or read that failed, in words, until the next success.
-	public private(set) var failure: String?
+	/// What went wrong, in words, for the popover's foot: the last command
+	/// that failed ("Already answered"), else the last read that failed.
+	public var failure: String? {
+		commandFailure ?? readFailure
+	}
+
+	/// A command's failure stays until the next command works: the read that
+	/// follows every command must not wipe it.
+	private var commandFailure: String?
+	/// A read's failure clears with the next read that works.
+	private var readFailure: String?
 	/// The row you picked; it takes the full card until it leaves the list.
 	public var selectedMessageId: String?
 
@@ -97,9 +106,9 @@ public final class InboxModel {
 			isReadAgainNeeded = false
 			do {
 				inbox = try await service.inbox()
-				failure = nil
+				readFailure = nil
 			} catch {
-				failure = Self.words(for: error)
+				readFailure = Self.words(for: error)
 			}
 		} while isReadAgainNeeded
 		isReading = false
@@ -138,12 +147,15 @@ public final class InboxModel {
 		await run { try await $0.markThreadRead(threadId: threadId) }
 	}
 
-	public func closeTopic(_ topicId: String, withdrawingOpenMessages: Bool) async {
-		await run { try await $0.closeTopic(topicId: topicId, withdrawOpenMessages: withdrawingOpenMessages) }
+	/// Closes a topic; with `dismissingOpenMessages` its open messages are
+	/// dismissed (never withdrawn: that is the agent's word).
+	public func closeTopic(_ topicId: String, dismissingOpenMessages: Bool) async {
+		await run { try await $0.closeTopic(topicId: topicId, dismissOpenMessages: dismissingOpenMessages) }
 	}
 
-	public func closeThread(_ threadId: String, withdrawingOpenMessages: Bool) async {
-		await run { try await $0.closeThread(threadId: threadId, withdrawOpenMessages: withdrawingOpenMessages) }
+	/// Closes a thread; see `closeTopic`.
+	public func closeThread(_ threadId: String, dismissingOpenMessages: Bool) async {
+		await run { try await $0.closeThread(threadId: threadId, dismissOpenMessages: dismissingOpenMessages) }
 	}
 
 	public func reopen(_ group: ClosedGroup) async {
@@ -162,9 +174,9 @@ public final class InboxModel {
 	private func run(_ command: @Sendable (any InboxService) async throws -> Void) async {
 		do {
 			try await command(service)
-			failure = nil
+			commandFailure = nil
 		} catch {
-			failure = Self.words(for: error)
+			commandFailure = Self.words(for: error)
 		}
 		requestRead()
 	}
