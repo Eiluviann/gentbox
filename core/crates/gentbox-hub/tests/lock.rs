@@ -119,3 +119,54 @@ async fn commands_caught_by_a_shutdown_answer_stopped_not_internal() {
         Err(gentbox_hub::HubError::Stopped)
     ));
 }
+
+#[tokio::test]
+async fn a_relay_passed_in_v1_adds_no_phone_effects() {
+    use gentbox_core::rescind::ChannelEffect;
+    use gentbox_hub::{HubDelegate, HubEvent};
+    use std::sync::Mutex;
+
+    #[derive(Debug, Default)]
+    struct Effects(Mutex<Vec<ChannelEffect>>);
+    impl HubDelegate for Effects {
+        fn on_event(&self, event: HubEvent) {
+            if let HubEvent::Withdrawn(rescission) = event {
+                self.0.lock().unwrap().extend(rescission.effects);
+            }
+        }
+    }
+
+    let directory = tempfile::tempdir().unwrap();
+    let effects = Arc::new(Effects::default());
+    let hub = Hub::start(
+        HubConfig::new(directory.path()),
+        effects.clone(),
+        Some(Arc::new(gentbox_relay::NoopRelay)),
+    )
+    .unwrap();
+    let handle = hub.handle();
+    let message = serde_json::json!({
+        "version": 1, "source": { "agent": "a" }, "conversation": { "id": "c" },
+        "type": "decision_required", "blocking": "blocking", "title": "Allow the build?",
+        "correlationKey": "k"
+    });
+    handle
+        .ingest(serde_json::from_value(message).unwrap())
+        .await
+        .unwrap();
+    let request = serde_json::json!({ "reason": "obsolete", "correlationKeys": ["k"] });
+    let ids = handle
+        .rescind_by_correlation_keys(
+            gentbox_core::ids::ConversationKey::new("a", "c"),
+            serde_json::from_value(request).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ids.len(), 1);
+    let effects = effects.0.lock().unwrap().clone();
+    assert!(effects.contains(&ChannelEffect::MarkWithdrawn(
+        gentbox_core::rescind::RescindReason::Obsolete
+    )));
+    assert!(!effects.contains(&ChannelEffect::RetractPhoneNotification));
+    hub.shutdown().await;
+}

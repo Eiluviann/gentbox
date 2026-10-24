@@ -221,6 +221,25 @@ pub async fn socket_request(
     (status, value)
 }
 
+/// Waits until a long-poll for the message is in flight, so what the test
+/// does next wakes a waiting poll rather than answering a later one at once.
+pub async fn wait_until_polling(server: &Server, id: &str) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while server
+        .handle
+        .polls_in_flight(gentbox_core::ids::MessageId::new(id))
+        .await
+        .unwrap()
+        == 0
+    {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the poll never started"
+        );
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+}
+
 pub fn id_of(reply: &Reply) -> String {
     reply.body["id"].as_str().unwrap().to_owned()
 }

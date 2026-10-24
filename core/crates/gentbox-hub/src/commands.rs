@@ -754,6 +754,16 @@ impl HubHandle {
         self.call(move |hub| Ok(hub.has_live_waiter(&id))).await
     }
 
+    /// How many long-polls for a message are in flight now: a diagnostic,
+    /// and how tests know a poll is waiting before they act.
+    ///
+    /// # Errors
+    ///
+    /// Only [`HubError::Stopped`].
+    pub async fn polls_in_flight(&self, id: MessageId) -> Result<u32, HubError> {
+        self.call(move |hub| Ok(hub.polls_in_flight(&id))).await
+    }
+
     /// How many messages the hub keeps waiter state for: a diagnostic, and
     /// how tests check that closed messages are forgotten.
     ///

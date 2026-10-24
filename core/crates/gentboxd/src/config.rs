@@ -38,7 +38,7 @@ pub struct Environment {
 #[derive(Debug, Error)]
 pub enum ConfigError {
     /// No home folder and no folder given.
-    #[error("cannot find the home folder; pass --state-dir")]
+    #[error("cannot find the home folder; pass --state-dir and --config-dir")]
     NoHome,
     /// `config.toml` could not be read.
     #[error("cannot read {path}: {source}")]

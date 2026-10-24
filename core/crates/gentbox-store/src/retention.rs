@@ -90,14 +90,12 @@ impl Repository<'_> {
         self.atomically(|| {
             let closed_states = closed_state_list();
             self.connection
-                .prepare_cached(
-                    "DELETE FROM swept_messages WHERE swept_at < ?1",
-                )?
+                .prepare_cached("DELETE FROM swept_messages WHERE swept_at < ?1")?
                 .execute(params![swept_id_cutoff])?;
             self.connection
                 .prepare_cached(&format!(
-                    "INSERT OR IGNORE INTO swept_messages (id, source_agent, closed_at, swept_at) \
-                 SELECT id, source_agent, closed_at, ?2 FROM messages WHERE state IN ({closed_states}) \
+                    "INSERT OR IGNORE INTO swept_messages (id, swept_at) \
+                 SELECT id, ?2 FROM messages WHERE state IN ({closed_states}) \
                  AND closed_at IS NOT NULL AND closed_at < ?1"
                 ))?
                 .execute(params![message_cutoff, instant])?;

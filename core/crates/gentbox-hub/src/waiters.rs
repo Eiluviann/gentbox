@@ -213,6 +213,11 @@ impl Waiters {
         }
     }
 
+    /// How many long-polls for the message are in flight.
+    pub(crate) fn in_flight(&self, id: &MessageId) -> u32 {
+        self.by_message.get(id).map_or(0, |state| state.in_flight)
+    }
+
     /// How many messages have waiter state.
     pub(crate) fn len(&self) -> usize {
         self.by_message.len()

@@ -156,3 +156,18 @@ fn a_version_1_file_migrates_to_version_2_and_keeps_its_data() {
             .unwrap()
     );
 }
+
+#[test]
+fn swept_messages_remember_only_the_id_and_when() {
+    let (directory, _store) = file_store();
+    let connection = Connection::open(directory.path().join("gentbox.db")).unwrap();
+    let mut statement = connection
+        .prepare("PRAGMA table_info(swept_messages)")
+        .unwrap();
+    let columns: Vec<String> = statement
+        .query_map([], |row| row.get(1))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(columns, ["id", "swept_at"]);
+}

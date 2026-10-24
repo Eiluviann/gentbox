@@ -3,8 +3,6 @@
 
 mod support;
 
-use std::time::Duration;
-
 use serde_json::{Value, json};
 use support::{Server, blocking_prompt, example, id_of};
 
@@ -133,7 +131,7 @@ async fn closing_withdraws_open_messages_only_when_asked() {
                 .unwrap()
         })
     };
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    support::wait_until_polling(&server, &id).await;
     let closed = server
         .send_for(
             "POST",

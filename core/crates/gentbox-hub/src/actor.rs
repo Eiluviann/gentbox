@@ -469,6 +469,10 @@ impl HubState {
         }
     }
 
+    pub(crate) fn polls_in_flight(&self, id: &MessageId) -> u32 {
+        self.waiters.in_flight(id)
+    }
+
     pub(crate) fn tracked_waiters(&self) -> usize {
         self.waiters.len()
     }

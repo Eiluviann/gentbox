@@ -39,7 +39,7 @@ use crate::error::ApiError;
 use crate::hello::hello;
 use crate::limits::RateLimiter;
 use crate::long_poll;
-use crate::schema::{BodyShape, validate};
+use crate::schema::{BodyShape, Definition, validate};
 
 /// The header naming the agent a request acts for.
 pub const AGENT_HEADER: &str = "gentbox-agent";
@@ -474,7 +474,7 @@ async fn delete_message(
     let id = message_id_from_path(&id)?;
     let requester = requester(&headers)?;
     let request: Option<RescindRequest> =
-        body.parse_optional(BodyShape::Definition("rescindRequest"))?;
+        body.parse_optional(BodyShape::Definition(Definition::RescindRequest))?;
     if request
         .as_ref()
         .is_some_and(|request| request.correlation_keys.is_some())
@@ -506,7 +506,8 @@ async fn move_message(
 ) -> Result<Response, ApiError> {
     let id = message_id_from_path(&id)?;
     let requester = requester(&headers)?;
-    let request: MessageThreadMove = body.parse(BodyShape::Definition("messageThreadMove"))?;
+    let request: MessageThreadMove =
+        body.parse(BodyShape::Definition(Definition::MessageThreadMove))?;
     let place = state.hub.move_message(id, request, requester).await?;
     Ok(Json(MessagePlace {
         message_id: place.message_id,
@@ -536,7 +537,7 @@ async fn put_conversation(
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let key = conversation_from_path(&agent, &id)?;
-    let conversation: Conversation = body.parse(BodyShape::Definition("conversation"))?;
+    let conversation: Conversation = body.parse(BodyShape::Definition(Definition::Conversation))?;
     if conversation.id != key.conversation_id {
         return Err(ApiError::schema_invalid(
             "/id",
@@ -561,7 +562,7 @@ async fn rescind_conversation(
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let key = conversation_from_path(&agent, &id)?;
-    let request: RescindRequest = body.parse(BodyShape::Definition("rescindRequest"))?;
+    let request: RescindRequest = body.parse(BodyShape::Definition(Definition::RescindRequest))?;
     let ids = state.hub.rescind_by_correlation_keys(key, request).await?;
     Ok(rescinded(ids))
 }
@@ -630,7 +631,7 @@ async fn create_topic(
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let requester = requester(&headers)?;
-    let request: TopicCreate = body.parse(BodyShape::Definition("topicCreate"))?;
+    let request: TopicCreate = body.parse(BodyShape::Definition(Definition::TopicCreate))?;
     Ok(upserted(
         state.hub.create_topic(requester.agent, request).await?,
     ))
@@ -665,7 +666,7 @@ async fn patch_topic(
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let id = topic_id_from_path(&id)?;
-    let update: TopicUpdate = body.parse(BodyShape::Definition("topicUpdate"))?;
+    let update: TopicUpdate = body.parse(BodyShape::Definition(Definition::TopicUpdate))?;
     Ok(Json(state.hub.update_topic(id, update).await?).into_response())
 }
 
@@ -678,7 +679,7 @@ async fn close_topic(
     let id = topic_id_from_path(&id)?;
     let requester = requester(&headers)?;
     let request: CloseRequest = body
-        .parse_optional(BodyShape::Definition("closeRequest"))?
+        .parse_optional(BodyShape::Definition(Definition::CloseRequest))?
         .unwrap_or_default();
     Ok(Json(state.hub.close_topic(id, request, Some(requester)).await?).into_response())
 }
@@ -709,7 +710,7 @@ async fn rescind_topic(
 /// `obsolete` as for closing.
 fn group_rescind_reason(body: JsonBody) -> Result<RescindReason, ApiError> {
     let request: Option<RescindRequest> =
-        body.parse_optional(BodyShape::Definition("rescindRequest"))?;
+        body.parse_optional(BodyShape::Definition(Definition::RescindRequest))?;
     Ok(request.map_or(RescindReason::Obsolete, |request| request.reason))
 }
 
@@ -723,7 +724,7 @@ async fn create_thread(
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let requester = requester(&headers)?;
-    let request: ThreadCreate = body.parse(BodyShape::Definition("threadCreate"))?;
+    let request: ThreadCreate = body.parse(BodyShape::Definition(Definition::ThreadCreate))?;
     Ok(upserted(
         state.hub.create_thread(requester.agent, request).await?,
     ))
@@ -753,7 +754,7 @@ async fn patch_thread(
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let id = thread_id_from_path(&id)?;
-    let update: ThreadUpdate = body.parse(BodyShape::Definition("threadUpdate"))?;
+    let update: ThreadUpdate = body.parse(BodyShape::Definition(Definition::ThreadUpdate))?;
     Ok(Json(state.hub.update_thread(id, update).await?).into_response())
 }
 
@@ -766,7 +767,7 @@ async fn close_thread(
     let id = thread_id_from_path(&id)?;
     let requester = requester(&headers)?;
     let request: CloseRequest = body
-        .parse_optional(BodyShape::Definition("closeRequest"))?
+        .parse_optional(BodyShape::Definition(Definition::CloseRequest))?
         .unwrap_or_default();
     Ok(Json(state.hub.close_thread(id, request, Some(requester)).await?).into_response())
 }
@@ -804,6 +805,6 @@ async fn move_thread(
 ) -> Result<Response, ApiError> {
     let id = thread_id_from_path(&id)?;
     let requester = requester(&headers)?;
-    let request: ThreadMove = body.parse(BodyShape::Definition("threadMove"))?;
+    let request: ThreadMove = body.parse(BodyShape::Definition(Definition::ThreadMove))?;
     Ok(Json(state.hub.move_thread(id, request, requester).await?).into_response())
 }

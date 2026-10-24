@@ -103,6 +103,7 @@ impl HubDelegate for NoDelegate {
 #[derive(Clone)]
 pub(crate) struct Dispatcher {
     delegate: Arc<dyn HubDelegate>,
+    /// Held for M1; v1 never calls it (see `has_phone_channel`).
     relay: Option<Arc<dyn Relay>>,
 }
 
@@ -121,10 +122,12 @@ impl Dispatcher {
         Self { delegate, relay }
     }
 
-    /// Whether a phone channel exists; v1 never registers one, so rescinds
-    /// list no phone effects and every plan's phone part is `none`.
+    /// Whether a phone channel exists. Always false in v1: the policy has no
+    /// phone columns and nothing publishes to a relay yet, so a relay passed
+    /// to `Hub::start` is held for the mobile release (M1) and never used,
+    /// and rescinds list no phone effects.
     pub(crate) fn has_phone_channel(&self) -> bool {
-        self.relay.is_some()
+        false
     }
 
     pub(crate) fn send(&self, event: HubEvent) {

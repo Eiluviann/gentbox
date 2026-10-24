@@ -17,26 +17,67 @@ pub const MESSAGE_SCHEMA: &str = include_str!("../../../../docs/schema/message-v
 pub enum BodyShape {
     /// The message itself (the schema root).
     Message,
-    /// A `$defs` entry, by name.
-    Definition(&'static str),
+    /// A `$defs` entry.
+    Definition(Definition),
 }
 
-/// The definitions request bodies use.
-const DEFINITIONS: [&str; 9] = [
-    "rescindRequest",
-    "topicCreate",
-    "topicUpdate",
-    "closeRequest",
-    "threadCreate",
-    "threadUpdate",
-    "threadMove",
-    "messageThreadMove",
-    "conversation",
-];
+/// The `$defs` entries request bodies use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Definition {
+    /// `DELETE /v1/messages/{id}`, the conversation and group rescinds.
+    RescindRequest,
+    /// `POST /v1/topics`.
+    TopicCreate,
+    /// `PATCH /v1/topics/{id}`.
+    TopicUpdate,
+    /// The topic and thread `close` routes.
+    CloseRequest,
+    /// `POST /v1/threads`.
+    ThreadCreate,
+    /// `PATCH /v1/threads/{id}`.
+    ThreadUpdate,
+    /// `PUT /v1/threads/{id}/topic`.
+    ThreadMove,
+    /// `PUT /v1/messages/{id}/thread`.
+    MessageThreadMove,
+    /// `PUT /v1/conversations/{agent}/{id}`.
+    Conversation,
+}
+
+impl Definition {
+    /// Every definition, in the order the validators are compiled.
+    pub const ALL: [Self; 9] = [
+        Self::RescindRequest,
+        Self::TopicCreate,
+        Self::TopicUpdate,
+        Self::CloseRequest,
+        Self::ThreadCreate,
+        Self::ThreadUpdate,
+        Self::ThreadMove,
+        Self::MessageThreadMove,
+        Self::Conversation,
+    ];
+
+    /// The entry's name under `$defs`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::RescindRequest => "rescindRequest",
+            Self::TopicCreate => "topicCreate",
+            Self::TopicUpdate => "topicUpdate",
+            Self::CloseRequest => "closeRequest",
+            Self::ThreadCreate => "threadCreate",
+            Self::ThreadUpdate => "threadUpdate",
+            Self::ThreadMove => "threadMove",
+            Self::MessageThreadMove => "messageThreadMove",
+            Self::Conversation => "conversation",
+        }
+    }
+}
 
 struct Schemas {
     message: Validator,
-    definitions: Vec<(&'static str, Validator)>,
+    /// One validator per [`Definition::ALL`] entry, in that order.
+    definitions: Vec<Validator>,
 }
 
 static SCHEMAS: LazyLock<Schemas> = LazyLock::new(compile);
@@ -50,12 +91,11 @@ static SCHEMAS: LazyLock<Schemas> = LazyLock::new(compile);
 pub fn validate(shape: BodyShape, body: &Value) -> Result<(), ApiError> {
     let validator = match shape {
         BodyShape::Message => &SCHEMAS.message,
-        BodyShape::Definition(name) => SCHEMAS
-            .definitions
+        BodyShape::Definition(definition) => Definition::ALL
             .iter()
-            .find(|(definition, _)| *definition == name)
-            .map(|(_, validator)| validator)
-            .unwrap_or(&SCHEMAS.message),
+            .position(|candidate| *candidate == definition)
+            .and_then(|index| SCHEMAS.definitions.get(index))
+            .unwrap_or_else(|| unreachable!("a validator is compiled for every definition")),
     };
     match validator.iter_errors(body).next() {
         None => Ok(()),
@@ -72,15 +112,15 @@ fn compile() -> Schemas {
     #[allow(clippy::expect_used)]
     let root: Value = serde_json::from_str(MESSAGE_SCHEMA).expect("the embedded schema is JSON");
     let message = build(&root);
-    let definitions = DEFINITIONS
+    let definitions = Definition::ALL
         .iter()
-        .map(|name| {
+        .map(|definition| {
             let wrapper = json!({
                 "$schema": root["$schema"],
-                "$ref": format!("#/$defs/{name}"),
+                "$ref": format!("#/$defs/{}", definition.name()),
                 "$defs": root["$defs"],
             });
-            (*name, build(&wrapper))
+            build(&wrapper)
         })
         .collect();
     Schemas {
@@ -105,10 +145,11 @@ mod tests {
     #[test]
     fn every_definition_compiles_and_exists() {
         let root: Value = serde_json::from_str(MESSAGE_SCHEMA).unwrap_or_default();
-        for name in DEFINITIONS {
+        for definition in Definition::ALL {
+            let name = definition.name();
             assert!(root["$defs"].get(name).is_some(), "{name}");
         }
-        assert_eq!(SCHEMAS.definitions.len(), DEFINITIONS.len());
+        assert_eq!(SCHEMAS.definitions.len(), Definition::ALL.len());
     }
 
     #[test]

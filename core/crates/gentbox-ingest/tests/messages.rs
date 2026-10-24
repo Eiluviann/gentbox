@@ -47,11 +47,6 @@ fn spawn_poll(server: &Server, id: &str, wait_seconds: u64) -> tokio::task::Join
     })
 }
 
-/// Waits until the poll has registered as a live waiter in flight.
-async fn settle() {
-    tokio::time::sleep(Duration::from_millis(150)).await;
-}
-
 #[tokio::test]
 async fn every_message_example_goes_through_the_router_and_is_stored() {
     let server = Server::start().await;
@@ -196,7 +191,7 @@ async fn long_poll_pending_then_answered_mid_wait() {
     assert_eq!(pending, json!({ "messageId": id, "status": "pending" }));
 
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     answer(&server, &id, "allow").await.unwrap();
     let answered = poll.await.unwrap();
     assert_eq!(answered["status"], "answered");
@@ -211,7 +206,7 @@ async fn two_concurrent_answers_one_accepted_one_409() {
     let server = Server::start().await;
     let id = id_of(&server.post_message(blocking_prompt()).await);
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     let (first, second) = tokio::join!(answer(&server, &id, "allow"), answer(&server, &id, "deny"));
     let outcomes = [first, second];
     assert_eq!(outcomes.iter().filter(|outcome| outcome.is_ok()).count(), 1);
@@ -227,7 +222,7 @@ async fn delete_and_the_conversation_rescind_wake_waiters_with_rescinded() {
     let server = Server::start().await;
     let id = id_of(&server.post_message(blocking_prompt()).await);
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     let deleted = server
         .send_for("DELETE", &format!("/v1/messages/{id}"), None)
         .await;
@@ -250,7 +245,7 @@ async fn delete_and_the_conversation_rescind_wake_waiters_with_rescinded() {
     keyed["correlationKey"] = json!("ask-relay-name");
     let id = id_of(&server.post_message(keyed).await);
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     let rescinded = server
         .send(
             "POST",
@@ -331,7 +326,7 @@ async fn defer_wakes_the_waiter_with_deferred_then_pending() {
             .await,
     );
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     answer(&server, &id, "defer").await.unwrap();
     assert_eq!(poll.await.unwrap()["status"], "deferred");
     assert_eq!(server.poll(&id, 0).await["status"], "pending");
@@ -347,7 +342,7 @@ async fn dismissed_and_expired_wake_the_waiter() {
             .await,
     );
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     server.handle.dismiss(MessageId::new(&id)).await.unwrap();
     assert_eq!(poll.await.unwrap()["status"], "dismissed");
 
@@ -361,7 +356,7 @@ async fn dismissed_and_expired_wake_the_waiter() {
             .await,
     );
     let poll = spawn_poll(&server, &id, 30);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     server.clock.advance(time::Duration::minutes(1));
     server.handle.run_due_timers().await.unwrap();
     assert_eq!(poll.await.unwrap()["status"], "expired");
@@ -407,7 +402,7 @@ async fn shutting_down_answers_a_waiting_poll_pending() {
     let server = Server::start().await;
     let id = id_of(&server.post_message(blocking_prompt()).await);
     let poll = spawn_poll(&server, &id, 55);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     let started = std::time::Instant::now();
     server.stop().await;
     assert_eq!(poll.await.unwrap()["status"], "pending");
@@ -519,7 +514,7 @@ async fn ticks_persist_and_never_reach_the_long_poll() {
             .await,
     );
     let poll = spawn_poll(&server, &id, 1);
-    settle().await;
+    support::wait_until_polling(&server, &id).await;
     server
         .handle
         .tick_step(MessageId::new(&id), 0, true)

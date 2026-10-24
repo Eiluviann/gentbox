@@ -176,8 +176,26 @@ impl RateLimiter {
     }
 }
 
-/// Drops buckets that have refilled completely: they behave like new ones.
+/// Drops buckets that have refilled completely (they behave like new ones);
+/// if that is not enough, the least recently used half goes too, so the
+/// maps stay bounded (a dropped bucket starts full again).
 fn prune(buckets: &mut Buckets, now: Instant, limits: &Limits) {
+    drop_full_buckets(buckets, now, limits);
+    if buckets.agents.len() + buckets.conversations.len() > MAX_BUCKETS {
+        drop_oldest_half(&mut buckets.agents);
+        drop_oldest_half(&mut buckets.conversations);
+    }
+}
+
+fn drop_oldest_half<K: Eq + std::hash::Hash>(map: &mut HashMap<K, Bucket>) {
+    let mut ages: Vec<Instant> = map.values().map(|bucket| bucket.updated).collect();
+    ages.sort_unstable();
+    if let Some(cutoff) = ages.get(ages.len() / 2).copied() {
+        map.retain(|_, bucket| bucket.updated > cutoff);
+    }
+}
+
+fn drop_full_buckets(buckets: &mut Buckets, now: Instant, limits: &Limits) {
     buckets.agents.retain(|_, bucket| {
         bucket
             .refilled(now, limits.agent_burst, limits.agent_refill_per_second)
@@ -222,6 +240,24 @@ mod tests {
         }
         assert_eq!(limiter.check_message("claude-code", "fresh"), Err(1));
         assert_eq!(limiter.check_message("codex", "fresh"), Ok(()));
+    }
+
+    #[test]
+    fn the_buckets_stay_bounded_even_when_none_has_refilled() {
+        let limits = Limits {
+            agent_refill_per_second: 0.0001,
+            conversation_refill_per_second: 0.0001,
+            ..Limits::default()
+        };
+        let limiter = RateLimiter::new(limits);
+        for index in 0..(3 * MAX_BUCKETS) {
+            let _ = limiter.check_message(&format!("agent-{index}"), "one");
+        }
+        let buckets = limiter
+            .buckets
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        assert!(buckets.agents.len() + buckets.conversations.len() <= MAX_BUCKETS + 2);
     }
 
     #[test]

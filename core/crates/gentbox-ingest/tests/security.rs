@@ -396,16 +396,19 @@ async fn the_socket_serves_the_whole_api() {
 }
 
 #[tokio::test]
-async fn malformed_ids_are_422_and_never_fill_the_rate_limiter() {
+async fn malformed_ids_are_422_and_never_take_a_rate_limit_token() {
+    // One malformed agent and conversation, past the conversation burst of
+    // 10: if these took tokens, the eleventh would be 429 instead of 422.
     let server = Server::start().await;
-    for index in 0..60 {
+    for index in 0..15 {
         let refused = server
-            .post_message(json!({ "source": { "agent": format!("Bad Agent {index}") } }))
+            .post_message(json!({
+                "source": { "agent": "Bad Agent" },
+                "conversation": { "id": "same conversation" }
+            }))
             .await;
         assert_eq!(refused.status, 422, "{index}: {refused:?}");
     }
-    let accepted = server.post_message(json!({})).await;
-    assert_eq!(accepted.status, 201);
     server.stop().await;
 }
 

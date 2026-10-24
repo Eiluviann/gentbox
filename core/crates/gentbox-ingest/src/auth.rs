@@ -20,11 +20,20 @@ pub(crate) async fn require_token(
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "));
+        .and_then(bearer_credentials);
     match presented {
         Some(token) if is_token(token, &state.token) => next.run(request).await,
         _ => ApiError::unauthorized().into_response(),
     }
+}
+
+/// The credentials of a `Bearer` authorization; the scheme name is
+/// case-insensitive (RFC 7235).
+fn bearer_credentials(value: &str) -> Option<&str> {
+    let (scheme, credentials) = value.split_once(' ')?;
+    scheme
+        .eq_ignore_ascii_case("bearer")
+        .then(|| credentials.trim_start())
 }
 
 /// Whether `presented` is the hub's token, in time independent of where they
@@ -80,6 +89,15 @@ mod tests {
         ] {
             assert!(!is_loopback_host(host, 4000), "{host}");
         }
+    }
+
+    #[test]
+    fn the_bearer_scheme_is_case_insensitive() {
+        assert_eq!(bearer_credentials("Bearer abc"), Some("abc"));
+        assert_eq!(bearer_credentials("bearer abc"), Some("abc"));
+        assert_eq!(bearer_credentials("BEARER  abc"), Some("abc"));
+        assert_eq!(bearer_credentials("Basic abc"), None);
+        assert_eq!(bearer_credentials("Bearerabc"), None);
     }
 
     #[test]
