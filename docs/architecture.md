@@ -381,7 +381,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 **Listeners.**
 
-- A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it.
+- A Unix socket `<state>/API/hub.sock` (mode 0600, in a 0700 folder): the preferred transport for local clients, since only you can connect to it and nobody else can stand in for it. The Mac app's sandbox refuses it outside the app's own containers (an ad hoc build's `~/Library/Application Support/Gentbox`); the hub then serves TCP only, as for an over-long socket path, and clients fall back after the `hello` proof.
 - The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
 - Remote listener for the own iOS app's full bodies, off by default and only with Tailscale (§10, optional M3).
 
@@ -542,7 +542,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 - It needs `NSFocusStatusUsageDescription` and the Communication Notifications entitlement [Apple-forum-685744]. Communication Notifications is not available to free (Personal Team) accounts on macOS or iOS [Apple-caps-macos, Apple-caps-ios]: **not feasible on a Personal Team, available with the paid team.** Claiming it without a profile gets the app killed at launch (restricted entitlement) [Vaultday signing.md › TN3125].
 - Time Sensitive Notifications is also paid-only [Apple-caps-macos].
 - With the paid team (the user's choice, 2026-10-23) both capabilities are available: `INFocusStatusCenter` is the Focus source (Spike S3 confirms it on macOS 26, since the forum threads leave macOS behaviour open [Apple-forum-682143, Apple-forum-706888]), and blocking native notifications are Time Sensitive. Fallbacks for Personal Team builds: the `~/Library/DoNotDisturb/DB/` reader behind Full Disk Access, undocumented [focus-cli], or a Shortcuts automation.
-- Idle seconds (`CGEventSourceSecondsSinceLastEventType`), screen lock (the `com.apple.screenIsLocked`/`screenIsUnlocked` distributed notifications, undocumented but long-standing) and the frontmost app (`NSWorkspace`) need no entitlement (unverified by a source; checked in PR 3).
+- Idle seconds (`CGEventSourceSecondsSinceLastEventType`), screen lock (the `com.apple.screenIsLocked`/`screenIsUnlocked` distributed notifications, undocumented but long-standing) and the frontmost app (`NSWorkspace`) need no entitlement: the sandboxed Personal Team and ad hoc builds of PR 3 read all three (no source documents it).
 
 ### ntfy
 
@@ -574,7 +574,7 @@ Answers to the Phase 1 open questions, with sources (§13).
 
 - Free accounts can use App Groups and Keychain Sharing on macOS and iOS (plus Background Modes on iOS); not Push Notifications, iCloud/CloudKit, Time Sensitive, Communication Notifications, Associated Domains, Network Extensions [Apple-caps-macos, Apple-caps-ios].
 - iOS: profiles and App IDs expire after 7 days (rebuild and reinstall weekly), at most 10 App IDs, 3 devices and 3 apps per device [Apple-memberships]. Vaultday's iOS app (if any) counts against the same 3.
-- macOS: an app without restricted entitlements needs no provisioning profile, so only the certificate (about a year) expires [Apple-forum-705932]; with a team-prefixed App Group (unrestricted on macOS) the Mac app does not need weekly rebuilds. If it ever claims `keychain-access-groups`, the 7-day profile applies as in Vaultday. Local `UNUserNotificationCenter` notifications with action categories and `SMAppService` login items need no paid capability (unverified by a source; checked in PR 3/4).
+- macOS: an app without restricted entitlements needs no provisioning profile, so only the certificate (about a year) expires [Apple-forum-705932]; with a team-prefixed App Group (unrestricted on macOS) the Mac app does not need weekly rebuilds. If it ever claims `keychain-access-groups`, the 7-day profile applies as in Vaultday. `SMAppService` login items need no paid capability: the Personal Team build of PR 3 registers itself (2026-10-24). Local `UNUserNotificationCenter` notifications with action categories are checked in PR 4.
 - Tailscale traffic runs over a VPN interface, which is not "local network" for iOS Local Network Privacy, so no `NSLocalNetworkUsageDescription` prompt is expected [TN3179].
 
 ## 12. Security model
