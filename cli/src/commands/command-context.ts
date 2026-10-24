@@ -1,6 +1,7 @@
 import { type ParseArgsOptionsConfig, parseArgs } from 'node:util';
 import type { SenderContext } from '../build-message.ts';
 import {
+	describeCloseFailure,
 	describeHubFailure,
 	type HubClient,
 	type HubFailure,
@@ -84,6 +85,18 @@ export function hubError(
 	failure: HubFailure,
 ): ExitCode {
 	context.writeError(`gentbox: ${describeHubFailure(failure)}\n`);
+	return EXIT.failed;
+}
+
+/** A refused `topic close` or `thread close`, with the count and what to do about it. */
+export function closeError(
+	context: CommandContext,
+	failure: HubFailure,
+	entity: 'topic' | 'thread',
+): ExitCode {
+	context.writeError(
+		`gentbox: ${describeCloseFailure(failure, entity, '--rescind-open')}\n`,
+	);
 	return EXIT.failed;
 }
 

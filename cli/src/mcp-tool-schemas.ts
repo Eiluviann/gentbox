@@ -266,7 +266,9 @@ export const closeTopicInputSchema = z.strictObject({
 	rescindOpenMessages: z
 		.boolean()
 		.optional()
-		.describe('Also withdraw every open message in it.'),
+		.describe(
+			"Withdraw your own open messages in it first (only your own: if other senders' messages stay open, the close is refused and the user has to handle them).",
+		),
 	reason: rescindReasonSchema
 		.optional()
 		.describe('With rescindOpenMessages; default obsolete.'),
@@ -323,7 +325,9 @@ export const closeThreadInputSchema = z.strictObject({
 	rescindOpenMessages: z
 		.boolean()
 		.optional()
-		.describe('Also withdraw every open message in it.'),
+		.describe(
+			"Withdraw your own open messages in it first (only your own: if other senders' messages stay open, the close is refused and the user has to handle them).",
+		),
 	reason: rescindReasonSchema
 		.optional()
 		.describe('With rescindOpenMessages; default obsolete.'),
@@ -408,7 +412,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'close_topic',
 		description:
-			'Close a topic (and its open threads) when the undertaking is over. Open messages stay unless `rescindOpenMessages` is true. A later message to a closed topic reopens it.',
+			"Close a topic (and its open threads) when the undertaking is over. Closing succeeds only when nothing stays open: `rescindOpenMessages` withdraws only your own open messages first, so if other senders' messages remain, the close is refused and the user has to handle them. The General topic can't be closed. A later message to a closed topic reopens it.",
 		schema: closeTopicInputSchema,
 		inputSchema: toInputSchema(closeTopicInputSchema),
 	},
@@ -424,7 +428,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'close_thread',
 		description:
-			'Close a thread when its phase or version is over. Open messages stay unless `rescindOpenMessages` is true. A later message to a closed thread reopens it.',
+			"Close a thread when its phase or version is over. Closing succeeds only when nothing stays open: `rescindOpenMessages` withdraws only your own open messages first, so if other senders' messages remain, the close is refused and the user has to handle them. A later message to a closed thread reopens it.",
 		schema: closeThreadInputSchema,
 		inputSchema: toInputSchema(closeThreadInputSchema),
 	},

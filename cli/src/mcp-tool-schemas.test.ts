@@ -54,6 +54,27 @@ describe('the tool list', () => {
 		expect(notifyText).toContain('inbox');
 	});
 
+	it.each(['close_topic', 'close_thread'])(
+		'%s says a close needs nothing left open and rescindOpenMessages withdraws only your own',
+		(name) => {
+			const text = specOf(name).description;
+			expect(text).toContain('only when nothing stays open');
+			expect(text).toContain('only your own');
+			expect(text).toContain('refused');
+			const field = descriptionOf(
+				specOf(name).inputSchema.properties?.rescindOpenMessages,
+			);
+			expect(field).toContain('only your own');
+			expect(field).toContain('refused');
+		},
+	);
+
+	it('says the General topic cannot be closed', () => {
+		expect(specOf('close_topic').description).toContain(
+			"General topic can't be closed",
+		);
+	});
+
 	it('states that withdrawn means the agent asked', () => {
 		expect(specOf('rescind').description).toContain(
 			'Withdrawn means you asked',

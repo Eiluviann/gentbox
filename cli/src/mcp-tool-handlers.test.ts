@@ -665,7 +665,7 @@ describe('rescind', () => {
 	it('names the hub error when the message is already closed', async () => {
 		const rescindMessage = async () =>
 			fail({
-				kind: 'http',
+				kind: 'http' as const,
 				status: 409,
 				code: 'already_closed',
 				message: 'the message is already answered',
@@ -763,6 +763,57 @@ describe('topic and thread tools', () => {
 			rescindOpenMessages: true,
 			reason: 'obsolete',
 		});
+	});
+
+	it.each([
+		['close_topic', { topic: 'release-1.4' }, 'closeTopic', 'topic'],
+		['close_thread', { thread: THREAD_ID }, 'closeThread', 'thread'],
+	] as const)(
+		'%s turns a refused close into a clear message with the count',
+		async (name, input, method, entity) => {
+			const listTopics = async () => succeed([topic]);
+			const refused = vi.fn(async () =>
+				fail({
+					kind: 'http' as const,
+					status: 409,
+					code: 'has_open_messages',
+					message: 'still open',
+					pointer: undefined,
+					count: 4,
+				}),
+			);
+			const result = await runTool(
+				name,
+				input,
+				depsFor(stubHubClient({ listTopics, [method]: refused })),
+				undefined,
+			);
+			expect(result.isError).toBe(true);
+			const text = textOf(result);
+			expect(text).toContain(`${entity} was not closed`);
+			expect(text).toContain('4 open messages');
+			expect(text).toContain('only your own');
+		},
+	);
+
+	it('close_topic says the General topic cannot be closed', async () => {
+		const listTopics = async () => succeed([topic]);
+		const closeTopic = async () =>
+			fail({
+				kind: 'http' as const,
+				status: 409,
+				code: 'general_topic_cannot_close',
+				message: 'no',
+				pointer: undefined,
+			});
+		const result = await runTool(
+			'close_topic',
+			{ topic: 'release-1.4' },
+			depsFor(stubHubClient({ listTopics, closeTopic })),
+			undefined,
+		);
+		expect(result.isError).toBe(true);
+		expect(textOf(result)).toContain("General topic can't be closed");
 	});
 
 	it('create_thread can stand for the current conversation', async () => {

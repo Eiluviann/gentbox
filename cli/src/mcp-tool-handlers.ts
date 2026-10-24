@@ -16,6 +16,7 @@ import {
 } from './build-message.ts';
 import { resolveThreadId, resolveTopicId } from './commands/group-options.ts';
 import {
+	describeCloseFailure,
 	describeHubFailure,
 	type HubClient,
 	type HubFailure,
@@ -374,7 +375,7 @@ async function closeTopic(
 	});
 	return closed.ok
 		? jsonResult({ topic: closed.value }, undefined)
-		: failureResult(closed.error);
+		: errorResult(describeCloseFailure(closed.error, 'topic'));
 }
 
 async function createThread(
@@ -414,7 +415,7 @@ async function closeThread(
 	});
 	return closed.ok
 		? jsonResult({ thread: closed.value }, undefined)
-		: failureResult(closed.error);
+		: errorResult(describeCloseFailure(closed.error, 'thread'));
 }
 
 function draftFrom(input: NotifyInput | AskInput, event: string): MessageDraft {

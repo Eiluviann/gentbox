@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	computeHelloProof,
 	connectToHub,
+	describeCloseFailure,
 	describeHubFailure,
 	type HubClient,
+	type HubFailure,
 	isValidHelloProof,
 } from './hub-client.ts';
 import type { MessageV1 } from './message-types.ts';
@@ -488,6 +490,76 @@ describe('failures', () => {
 			expect(describeHubFailure(posted.error)).toBe(
 				'schema_invalid at /title: title is too long',
 			);
+	});
+
+	it('keeps the count of a refused close, from the body or else from the message', async () => {
+		let calls = 0;
+		const connection = await connect(() => {
+			calls++;
+			return {
+				status: 409,
+				body:
+					calls === 1
+						? { code: 'has_open_messages', message: 'still open', count: 3 }
+						: {
+								code: 'has_open_messages',
+								message: 'the topic still has 2 open messages',
+							},
+			};
+		});
+		expect(await connection.client.closeTopic(TOPIC_ID, {})).toMatchObject({
+			ok: false,
+			error: { status: 409, code: 'has_open_messages', count: 3 },
+		});
+		expect(await connection.client.closeTopic(TOPIC_ID, {})).toMatchObject({
+			ok: false,
+			error: { code: 'has_open_messages', count: 2 },
+		});
+	});
+
+	describe('describeCloseFailure', () => {
+		const refused = (code: string, count?: number): HubFailure => ({
+			kind: 'http',
+			status: 409,
+			code,
+			message: 'refused',
+			pointer: undefined,
+			count,
+		});
+
+		it('names the count and what the sender can do', () => {
+			const text = describeCloseFailure(
+				refused('has_open_messages', 3),
+				'topic',
+			);
+			expect(text).toContain('not closed');
+			expect(text).toContain('3 open messages');
+			expect(text).toContain('rescindOpenMessages');
+			expect(text).toContain('only your own');
+			expect(text).toContain('user');
+		});
+
+		it('says one message in the singular and copes with no count', () => {
+			expect(
+				describeCloseFailure(refused('has_open_messages', 1), 'thread'),
+			).toContain('1 open message ');
+			expect(
+				describeCloseFailure(refused('has_open_messages'), 'thread'),
+			).toContain('open messages');
+		});
+
+		it('says the General topic cannot be closed, matching any General code', () => {
+			expect(
+				describeCloseFailure(refused('general_topic_cannot_close'), 'topic'),
+			).toContain("General topic can't be closed");
+		});
+
+		it('leaves every other failure as the hub worded it', () => {
+			const other = refused('not_found');
+			expect(describeCloseFailure(other, 'topic')).toBe(
+				describeHubFailure(other),
+			);
+		});
 	});
 
 	it('retries a 429 a bounded number of times', async () => {

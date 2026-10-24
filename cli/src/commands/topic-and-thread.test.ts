@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HubClient } from '../hub-client.ts';
 import type { ThreadRecord, TopicRecord } from '../message-types.ts';
-import { succeed } from '../result.ts';
+import { fail, succeed } from '../result.ts';
 import { createCommandFixture } from '../test-support/command-fixture.ts';
 import { THREAD_ID, TOPIC_ID } from '../test-support/hub-fixtures.ts';
 import { stubHubClient } from '../test-support/stub-hub-client.ts';
@@ -96,6 +96,42 @@ describe('gentbox topic', () => {
 			rescindOpenMessages: true,
 			reason: 'obsolete',
 		});
+	});
+
+	it('prints a clear message with the count when the hub refuses to close', async () => {
+		const closeTopic = vi.fn<HubClient['closeTopic']>(async () =>
+			fail({
+				kind: 'http' as const,
+				status: 409,
+				code: 'has_open_messages',
+				message: 'still open',
+				pointer: undefined,
+				count: 2,
+			}),
+		);
+		const fixture = createCommandFixture(stubHubClient({ closeTopic }));
+		expect(await runTopic(['close', TOPIC_ID], fixture.context)).toBe(
+			EXIT.failed,
+		);
+		expect(fixture.stderr()).toContain('topic was not closed');
+		expect(fixture.stderr()).toContain('2 open messages');
+		expect(fixture.stderr()).toContain('--rescind-open');
+	});
+
+	it('says the General topic cannot be closed', async () => {
+		const closeTopic = async () =>
+			fail({
+				kind: 'http' as const,
+				status: 409,
+				code: 'general_topic_cannot_close',
+				message: 'no',
+				pointer: undefined,
+			});
+		const fixture = createCommandFixture(stubHubClient({ closeTopic }));
+		expect(await runTopic(['close', TOPIC_ID], fixture.context)).toBe(
+			EXIT.failed,
+		);
+		expect(fixture.stderr()).toContain("General topic can't be closed");
 	});
 
 	it('closes a topic named by id without looking it up', async () => {
@@ -224,6 +260,24 @@ describe('gentbox thread', () => {
 			rescindOpenMessages: true,
 			reason: undefined,
 		});
+		const refused = createCommandFixture(
+			stubHubClient({
+				closeThread: async () =>
+					fail({
+						kind: 'http' as const,
+						status: 409,
+						code: 'has_open_messages',
+						message: 'still open',
+						pointer: undefined,
+						count: 1,
+					}),
+			}),
+		);
+		expect(await runThread(['close', THREAD_ID], refused.context)).toBe(
+			EXIT.failed,
+		);
+		expect(refused.stderr()).toContain('thread was not closed');
+		expect(refused.stderr()).toContain('1 open message ');
 		expect(await runThread(['reopen', THREAD_ID], context)).toBe(EXIT.ok);
 		expect(
 			await runThread(['move', THREAD_ID, '--topic', TOPIC_ID], context),

@@ -46,6 +46,8 @@ export type HubFailure =
 			message: string;
 			/** JSON pointer of the failing field, for `schema_invalid`. */
 			pointer: string | undefined;
+			/** For `has_open_messages`: how many open messages stop a close. */
+			count?: number | undefined;
 	  }
 	| { kind: 'transport'; message: string }
 	| { kind: 'protocol'; message: string };
@@ -169,6 +171,33 @@ export function describeHubFailure(failure: HubFailure): string {
 		case 'protocol':
 			return `unexpected answer from the hub: ${failure.message}`;
 	}
+}
+
+/**
+ * A refused close in words the sender can act on. The codes are matched as
+ * open strings because the hub words them (`has_open_messages`, and a
+ * General-specific code); any other failure reads as the hub worded it.
+ *
+ * @param rescindOption how the caller spells the option that withdraws its own
+ *   open messages first (`rescindOpenMessages` in a tool, `--rescind-open` in the CLI)
+ */
+export function describeCloseFailure(
+	failure: HubFailure,
+	entity: 'topic' | 'thread',
+	rescindOption = 'rescindOpenMessages',
+): string {
+	if (failure.kind !== 'http' || failure.status !== 409)
+		return describeHubFailure(failure);
+	if (failure.code === 'has_open_messages') {
+		const open =
+			failure.count === undefined
+				? 'open messages'
+				: `${failure.count} open ${failure.count === 1 ? 'message' : 'messages'}`;
+		return `The ${entity} was not closed: it still has ${open} (closing succeeds only when nothing stays open). ${rescindOption} withdraws only your own messages first, so what other senders left open stays and the user has to handle it in Gentbox.`;
+	}
+	if (failure.code.includes('general'))
+		return "The General topic can't be closed.";
+	return describeHubFailure(failure);
 }
 
 export type ConnectOptions = {
@@ -571,7 +600,14 @@ function httpFailure(status: number, body: string): HubFailure {
 		code: parsed.value.code,
 		message: parsed.value.message,
 		pointer: parsed.value.pointer,
+		count: parsed.value.count ?? countInMessage(parsed.value.message),
 	};
+}
+
+/** The first whole number in a hub message, for a hub that words the count instead of sending it. */
+function countInMessage(message: string): number | undefined {
+	const digits = /\b(\d{1,6})\b/.exec(message)?.[1];
+	return digits === undefined ? undefined : Number(digits);
 }
 
 function retryAfterMilliseconds(header: string | string[] | undefined): number {

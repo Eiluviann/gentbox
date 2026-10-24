@@ -443,6 +443,8 @@ export const errorBodySchema = z.object({
 	message: z.string(),
 	pointer: z.string().optional(),
 	state: z.string().optional(),
+	/** With `has_open_messages`: how many open messages stop a close. */
+	count: z.number().int().min(0).optional(),
 });
 export type ErrorBody = z.infer<typeof errorBodySchema>;
 
