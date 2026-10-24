@@ -10,34 +10,46 @@ final class FakeService: InboxService, @unchecked Sendable {
 	var failure: GentboxError?
 	/// Failures for one message only (bulk Dismiss).
 	var failures: [String: GentboxError] = [:]
+	/// Holds every command until `release()`, as a slow hub would.
+	var holdsCommands = false
+	private var held: [CheckedContinuation<Void, Never>] = []
+
+	func release() {
+		let waiting = held
+		held = []
+		waiting.forEach { $0.resume() }
+	}
 
 	func inbox() async throws -> Inbox {
 		reads += 1
 		return next
 	}
 
-	private func record(_ command: String) throws {
+	private func record(_ command: String) async throws {
 		commands.append(command)
+		if holdsCommands {
+			await withCheckedContinuation { held.append($0) }
+		}
 		if let failure { throw failure }
 	}
 
 	func takeAction(messageId: String, actionId: String, value: String?) async throws {
-		try record("action \(messageId) \(actionId) \(value ?? "-")")
+		try await record("action \(messageId) \(actionId) \(value ?? "-")")
 	}
-	func snooze(messageId: String, minutes: UInt32?) async throws { try record("snooze \(messageId) \(minutes ?? 0)") }
+	func snooze(messageId: String, minutes: UInt32?) async throws { try await record("snooze \(messageId) \(minutes ?? 0)") }
 	func dismiss(messageId: String) async throws {
-		try record("dismiss \(messageId)")
+		try await record("dismiss \(messageId)")
 		if let failure = failures[messageId] { throw failure }
 	}
-	func muteTopic(topicId: String, isMuted: Bool) async throws { try record("mute topic \(topicId) \(isMuted)") }
-	func muteThread(threadId: String, isMuted: Bool) async throws { try record("mute thread \(threadId) \(isMuted)") }
-	func markTopicRead(topicId: String) async throws { try record("read topic \(topicId)") }
-	func markThreadRead(threadId: String) async throws { try record("read thread \(threadId)") }
-	func closeTopic(topicId: String) async throws { try record("close topic \(topicId)") }
-	func reopenTopic(topicId: String) async throws { try record("reopen topic \(topicId)") }
-	func closeThread(threadId: String) async throws { try record("close thread \(threadId)") }
-	func reopenThread(threadId: String) async throws { try record("reopen thread \(threadId)") }
-	func moveThread(threadId: String, topicId: String) async throws { try record("move \(threadId) \(topicId)") }
+	func muteTopic(topicId: String, isMuted: Bool) async throws { try await record("mute topic \(topicId) \(isMuted)") }
+	func muteThread(threadId: String, isMuted: Bool) async throws { try await record("mute thread \(threadId) \(isMuted)") }
+	func markTopicRead(topicId: String) async throws { try await record("read topic \(topicId)") }
+	func markThreadRead(threadId: String) async throws { try await record("read thread \(threadId)") }
+	func closeTopic(topicId: String) async throws { try await record("close topic \(topicId)") }
+	func reopenTopic(topicId: String) async throws { try await record("reopen topic \(topicId)") }
+	func closeThread(threadId: String) async throws { try await record("close thread \(threadId)") }
+	func reopenThread(threadId: String) async throws { try await record("reopen thread \(threadId)") }
+	func moveThread(threadId: String, topicId: String) async throws { try await record("move \(threadId) \(topicId)") }
 }
 
 @Suite("Inbox model")
@@ -259,6 +271,50 @@ struct InboxModelTests {
 		await model.readUntilCurrent()
 		#expect(model.expanded == .card("final"))
 		#expect(model.replyDraft == nil)
+	}
+
+	@Test func aDismissTakesTheItemOutBeforeTheHubAnswers() async {
+		let (model, service) = await accordion()
+		let done = message(id: "done")
+		service.holdsCommands = true
+		let dismissing = Task { await model.dismiss(done) }
+		while service.commands.isEmpty { await Task.yield() }
+		// The hub has not answered yet; the row is gone already.
+		#expect(!model.visibleItems.contains { $0.id == "done" })
+
+		service.next = makeInbox(nextUp: model.inbox?.nextUp, items: model.visibleItems)
+		service.release()
+		await dismissing.value
+		await model.readUntilCurrent()
+		#expect(!model.visibleItems.contains { $0.id == "done" })
+	}
+
+	@Test func aRefusedAnswerPutsTheItemBack() async {
+		let (model, service) = await accordion()
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking)
+		service.failure = .AlreadyClosed(state: .expired, rescindReason: nil)
+		await model.press(action("allow", .approve), on: prompt)
+		#expect(model.visibleItems.contains { $0.id == "prompt" })
+		#expect(model.failure == "Expired before your answer")
+	}
+
+	@Test func deferKeepsTheItemListed() async {
+		let (model, service) = await accordion()
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking)
+		service.holdsCommands = true
+		let deferring = Task { await model.press(action("later", .defer), on: prompt) }
+		while service.commands.isEmpty { await Task.yield() }
+		#expect(model.visibleItems.contains { $0.id == "prompt" })
+		service.release()
+		await deferring.value
+	}
+
+	@Test func anItemTheHubStillListsAfterTheCommandShowsAgain() async {
+		let (model, service) = await accordion()
+		await model.dismiss(message(id: "note", type: .generic))
+		// The hub kept it: the read after the command has the last word.
+		await model.readUntilCurrent()
+		#expect(model.visibleItems.contains { $0.id == "note" })
 	}
 
 	@Test func bulkDismissDismissesEachItemAndSkipsActionRequired() async {

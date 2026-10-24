@@ -89,6 +89,13 @@ public final class InboxModel {
 	public private(set) var selection: Set<String> = []
 	/// The reply field's text, while it shows.
 	public private(set) var replyDraft: ReplyDraft?
+	/// Messages an answer, a snooze or a dismiss took out of the list at
+	/// once, before the hub confirmed: they come back if it refuses. The
+	/// list never waits on the hub to respond to a click.
+	private var optimisticallyRemoved: Set<String> = []
+	/// Removals the hub accepted, with the reads started by then.
+	@ObservationIgnored private var confirmedRemovals: [String: Int] = [:]
+	@ObservationIgnored private var readsStarted = 0
 
 	/// A command's failure stays until the next command works: the read that
 	/// follows every command must not wipe it.
@@ -119,13 +126,13 @@ public final class InboxModel {
 
 	/// Whether nothing is listed at all.
 	public var isEmpty: Bool {
-		inbox?.items.isEmpty ?? true
+		liveItems.isEmpty
 	}
 
 	/// The list as drawn: everything, most pressing first, or one thread's
 	/// items under a filter.
 	public var visibleItems: [InboxMessage] {
-		let items = inbox?.items ?? []
+		let items = liveItems
 		guard let filter else { return items }
 		return items.filter { $0.threadId == filter.threadId }
 	}
@@ -136,7 +143,7 @@ public final class InboxModel {
 	public var expanded: Expanded? {
 		switch expansion {
 		case .followNextUp:
-			return inbox?.nextUp.map { .card($0.id) }
+			return liveNextUp.map { .card($0.id) }
 		case .chosen(let chosen):
 			return chosen
 		case .collapsed:
@@ -192,9 +199,9 @@ public final class InboxModel {
 	/// come from the filtered thread.
 	private func keepExpansionCurrent() {
 		if case .chosen(let chosen) = expansion,
-			!(inbox?.items.contains { $0.id == chosen.messageId } ?? false)
+			!liveItems.contains(where: { $0.id == chosen.messageId })
 		{
-			if let successor = inbox?.items.first(where: { $0.supersedes.contains(chosen.messageId) }) {
+			if let successor = liveItems.first(where: { $0.supersedes.contains(chosen.messageId) }) {
 				expansion = .chosen(.card(successor.id))
 				carryReplyDraft(to: successor)
 			} else {
@@ -234,7 +241,7 @@ public final class InboxModel {
 	/// The next-up item if the list shows it; under a filter, the filtered
 	/// thread's most pressing item instead (the list's first).
 	private var nextUpInView: InboxMessage? {
-		guard let next = inbox?.nextUp else { return filter == nil ? nil : visibleItems.first }
+		guard let next = liveNextUp else { return filter == nil ? nil : visibleItems.first }
 		return filter == nil || visibleItems.contains { $0.id == next.id } ? next : visibleItems.first
 	}
 
@@ -247,7 +254,7 @@ public final class InboxModel {
 	/// The filtered thread's items still open, counted live.
 	public var filterOpenCount: Int {
 		guard let filter else { return 0 }
-		return (inbox?.items ?? []).filter { $0.threadId == filter.threadId }.count
+		return liveItems.filter { $0.threadId == filter.threadId }.count
 	}
 
 	/// Close, once the filtered thread has nothing open: the banner's button.
@@ -285,14 +292,17 @@ public final class InboxModel {
 	/// hears a plain `dismissed`), and reports every failure together:
 	/// "2 dismissed · 1 already answered".
 	public func dismissSelected() async {
-		let picked = (inbox?.items ?? []).filter { selection.contains($0.id) && canSelect($0) }
+		let picked = liveItems.filter { selection.contains($0.id) && canSelect($0) }
 		selection = []
+		takeOutOfTheList(picked.map(\.id))
 		var dismissed = 0
 		var failures: [String: Int] = [:]
 		for message in picked {
 			if let failure = await perform({ try await $0.dismiss(messageId: message.id) }) {
+				optimisticallyRemoved.remove(message.id)
 				failures[failure.prefix(1).lowercased() + failure.dropFirst(), default: 0] += 1
 			} else {
+				confirmedRemovals[message.id] = readsStarted
 				dismissed += 1
 			}
 		}
@@ -326,11 +336,21 @@ public final class InboxModel {
 		isReading = true
 		repeat {
 			isReadAgainNeeded = false
+			readsStarted += 1
+			let read = readsStarted
 			do {
 				inbox = try await service.inbox()
 				readFailure = nil
+				// The hub has the last word: what it no longer lists is gone,
+				// and a read that began after a command succeeded shows the
+				// message as the hub keeps it.
+				let listed = Set(inbox?.items.map(\.id) ?? [])
+				let settled = confirmedRemovals.filter { $0.value < read }.map(\.key)
+				optimisticallyRemoved.subtract(settled)
+				settled.forEach { confirmedRemovals[$0] = nil }
+				optimisticallyRemoved.formIntersection(listed)
 				keepExpansionCurrent()
-				selection = selection.filter { id in inbox?.items.contains { $0.id == id } ?? false }
+				selection = selection.filter { listed.contains($0) && !optimisticallyRemoved.contains($0) }
 			} catch {
 				readFailure = Self.words(for: error)
 			}
@@ -340,19 +360,26 @@ public final class InboxModel {
 
 	// MARK: Commands
 
-	/// A button on a message.
+	/// A button on a message. An answer takes it out of the list at once;
+	/// Defer and Open keep it.
 	public func press(_ action: InboxAction, on message: InboxMessage, reply: String? = nil) async {
-		await run { try await $0.takeAction(messageId: message.id, actionId: action.id, value: reply) }
+		let command: @Sendable (any InboxService) async throws -> Void = {
+			try await $0.takeAction(messageId: message.id, actionId: action.id, value: reply)
+		}
+		switch action.kind {
+		case .approve, .deny, .choice, .reply, .done: await runRemoving(message, command)
+		default: await run(command)
+		}
 	}
 
-	/// Remind me later; never reaches the agent.
+	/// Remind me later; never reaches the agent. Out of the list at once.
 	public func snooze(_ message: InboxMessage, minutes: UInt32 = 15) async {
-		await run { try await $0.snooze(messageId: message.id, minutes: minutes) }
+		await runRemoving(message) { try await $0.snooze(messageId: message.id, minutes: minutes) }
 	}
 
-	/// Clears a message without answering it.
+	/// Clears a message without answering it. Out of the list at once.
 	public func dismiss(_ message: InboxMessage) async {
-		await run { try await $0.dismiss(messageId: message.id) }
+		await runRemoving(message) { try await $0.dismiss(messageId: message.id) }
 	}
 
 	public func setTopicMuted(_ topicId: String, _ isMuted: Bool) async {
@@ -377,7 +404,7 @@ public final class InboxModel {
 	/// dismiss. Snoozed items the list does not show make the hub refuse
 	/// too, and that refusal is worded in the foot.
 	public func closeThread(of message: InboxMessage) async -> CloseOutcome {
-		let open = (inbox?.items ?? []).filter { $0.threadId == message.threadId }
+		let open = liveItems.filter { $0.threadId == message.threadId }
 		guard open.isEmpty else {
 			filter = GroupFilter(threadId: message.threadId, title: message.group?.threadTitle ?? "this thread")
 			return .stillOpen(open.count)
@@ -396,6 +423,35 @@ public final class InboxModel {
 
 	public func moveThread(_ threadId: String, toTopic topicId: String) async {
 		await run { try await $0.moveThread(threadId: threadId, topicId: topicId) }
+	}
+
+	/// Takes the message out of the list in this frame, then runs the
+	/// command; a refusal puts it back.
+	private func runRemoving(_ message: InboxMessage, _ command: @Sendable (any InboxService) async throws -> Void) async {
+		takeOutOfTheList([message.id])
+		commandFailure = await perform(command)
+		if commandFailure != nil {
+			optimisticallyRemoved.remove(message.id)
+			keepExpansionCurrent()
+		} else {
+			confirmedRemovals[message.id] = readsStarted
+		}
+		requestRead()
+	}
+
+	private func takeOutOfTheList(_ ids: [String]) {
+		optimisticallyRemoved.formUnion(ids)
+		selection.subtract(ids)
+		keepExpansionCurrent()
+	}
+
+	/// The listed messages, less those taken out ahead of the hub.
+	private var liveItems: [InboxMessage] {
+		(inbox?.items ?? []).filter { !optimisticallyRemoved.contains($0.id) }
+	}
+
+	private var liveNextUp: InboxMessage? {
+		inbox?.nextUp.flatMap { optimisticallyRemoved.contains($0.id) ? nil : $0 }
 	}
 
 	/// Runs a command, then reads the inbox: the hub's events would too, but
