@@ -193,6 +193,9 @@ final class InboxContentView: FlippedView {
 		updateRows(isAnimated: animated)
 		let visibleHeight = layOut(sections)
 		motion.commit(animated: animated)
+		if animated {
+			IdleWork.holdOff(for: Tokens.motionDuration)
+		}
 		onHeightChange?(visibleHeight, animated)
 		CATransaction.commit()
 		prepareAhead()
@@ -285,6 +288,7 @@ final class InboxContentView: FlippedView {
 	private func show(_ view: NSView, isAnimated: Bool) {
 		adopt(view)
 		leaving.remove(ObjectIdentifier(view))
+		view.isHidden = false
 		if isAnimated {
 			LayerMotion.fade(view.layer, to: 1, duration: Tokens.motionDuration, from: view.layer?.presentation()?.opacity ?? 0)
 		} else {
@@ -320,9 +324,12 @@ final class InboxContentView: FlippedView {
 		park(view)
 	}
 
-	/// Below the card's bottom edge, outside its mask and its clicks.
+	/// Below the card's bottom edge, outside its mask and its clicks, and
+	/// hidden once parked, so no VoiceOver tree reaches it (macOS 15 does
+	/// not ask `accessibilityChildren` here).
 	private func park(_ view: NSView) {
 		view.move(to: NSPoint(x: 0, y: naturalHeight + 64))
+		view.isHidden = view.superview === self && isParked(view)
 	}
 
 	private func isParked(_ view: NSView) -> Bool {
@@ -371,7 +378,7 @@ final class InboxContentView: FlippedView {
 				_ = foot.layOut(width: Tokens.popoverWidth)
 			}
 		}
-		for message in snapshot.items {
+		for message in likelyNextCards {
 			guard let row = rows[message.id], !row.hasBody, !preparing.contains(message.id) else { continue }
 			preparing.insert(message.id)
 			IdleWork.enqueue { [weak self, weak row] in
@@ -379,6 +386,23 @@ final class InboxContentView: FlippedView {
 				row?.prepareBody()
 			}
 		}
+	}
+
+	/// The cards a click or a hand-over can show next: the rows on screen
+	/// (as far as the card reaches) and the next-up item. Rows scrolled out
+	/// of reach build theirs when they are clicked.
+	private var likelyNextCards: [InboxMessage] {
+		var reach = min(maxHeight, NSScreen.main?.visibleFrame.height ?? maxHeight)
+		var cards: [InboxMessage] = []
+		for message in snapshot.items {
+			guard let row = rows[message.id], reach > 0 else { break }
+			cards.append(message)
+			reach -= row.height
+		}
+		if let nextUp = app.inbox?.inbox?.nextUp, !cards.contains(where: { $0.id == nextUp.id }) {
+			cards.append(nextUp)
+		}
+		return cards
 	}
 
 	private func isPreparing(banner: Bool) -> Bool {
@@ -429,7 +453,11 @@ final class InboxContentView: FlippedView {
 				parked[id] = row
 			}
 			let wasShown = rows[id] === row
-			guard wasShown else { continue }
+			guard wasShown else {
+				// Parked under a filter and closed meanwhile: it goes.
+				if !isOpen { row.removeFromSuperview() }
+				continue
+			}
 			send(row, away: !isOpen, isAnimated: isAnimated)
 		}
 		rows = kept
@@ -462,6 +490,7 @@ final class InboxContentView: FlippedView {
 	/// A parked or leaving row shows again: it fades in at its place.
 	private func bringBack(_ row: InboxRowView, isAnimated: Bool) {
 		row.isLeaving = false
+		row.isHidden = false
 		row.setAccessibilityElement(true)
 		if isAnimated {
 			LayerMotion.fade(row.layer, to: 1, duration: Tokens.motionDuration, from: row.layer?.presentation()?.opacity ?? 0)
@@ -474,6 +503,7 @@ final class InboxContentView: FlippedView {
 	/// Below the card, in the list, outside the card's mask and clicks.
 	private func parkRow(_ row: InboxRowView) {
 		row.move(to: NSPoint(x: 0, y: naturalHeight + 64 - list.frame.minY))
+		row.isHidden = true
 	}
 
 	// MARK: Layout
@@ -531,6 +561,25 @@ final class InboxContentView: FlippedView {
 		#endif
 		return y
 	}
+
+	#if DEBUG || GENTBOX_HOOKS
+	/// Where the content's bottom shows now, mid-motion, in points below its
+	/// top: from the trace marker's presented place. Worked out between
+	/// presentation layers, which convert alike on every macOS, whereas a
+	/// bitmap of the flipped tree comes out cut differently on macOS 15.
+	var presentedContentBottom: CGFloat? {
+		guard traceMarker.superview === self, let root = layer, let marker = traceMarker.layer, let top = header.layer
+		else { return nil }
+		let space = root.presentation() ?? root
+		let shownMarker = (marker.presentation() ?? marker).convert(marker.bounds, to: space)
+		let shownHeader = (top.presentation() ?? top).convert(top.bounds, to: space)
+		// The header is at the top, whichever way the layer's y runs.
+		if shownHeader.midY < shownMarker.midY {
+			return shownMarker.maxY + AnimationTraceMarker.height - space.bounds.minY
+		}
+		return space.bounds.maxY - (shownMarker.minY - AnimationTraceMarker.height)
+	}
+	#endif
 
 	/// The rows top to bottom; the list's height.
 	private func layOutRows() -> CGFloat {

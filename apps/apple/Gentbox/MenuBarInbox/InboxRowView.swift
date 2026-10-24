@@ -55,8 +55,13 @@ final class InboxRowView: FlippedView {
 
 	private var isPressInHeader = false
 	private var hasShownMessage = false
-	/// Fading out after it left the list: it takes no clicks.
-	var isLeaving = false
+	/// Fading out after it left the list, or parked: no clicks or keys.
+	var isLeaving = false {
+		didSet {
+			// Leaving or parked, its card takes no clicks, keys or VoiceOver.
+			body?.isActive = !isLeaving && content.isExpanded
+		}
+	}
 	private(set) var headerHeight: CGFloat = 0
 
 	init(content: RowContent, inbox: InboxModel) {
@@ -308,6 +313,14 @@ final class InboxRowView: FlippedView {
 		true
 	}
 
+	/// A row on its way out, or parked while the hub confirms an answer,
+	/// keeps its card's controls but answers no keys: ↩ belongs to the card
+	/// that shows.
+	override func performKeyEquivalent(with event: NSEvent) -> Bool {
+		guard !isLeaving, content.isExpanded else { return false }
+		return super.performKeyEquivalent(with: event)
+	}
+
 	/// The header is one target: its labels and icons take no clicks.
 	override func hitTest(_ point: NSPoint) -> NSView? {
 		guard let superview, !isHidden, !isLeaving else { return nil }
@@ -346,9 +359,29 @@ final class InboxRowView: FlippedView {
 		setAccessibilityElement(true)
 		setAccessibilityRole(content.isExpanded ? .group : .button)
 		setAccessibilityIdentifier(content.isExpanded ? "card:\(message.title)" : "message:\(message.title)")
-		setAccessibilityLabel(content.isExpanded ? message.title : collapsedLabel)
+		// An expanded card's title is read by its own label inside it.
+		setAccessibilityLabel(content.isExpanded ? nil : collapsedLabel)
 		setAccessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
 		setAccessibilitySelected(content.isPicked)
+		// ⌘-click picks a row for bulk Dismiss; VoiceOver picks it here.
+		let canPick = !content.isExpanded && inbox.canSelect(message)
+		setAccessibilityCustomActions(canPick ? [
+			NSAccessibilityCustomAction(name: content.isPicked ? "Unpick" : "Pick for Dismiss") { [weak self] in
+				MainActor.assumeIsolated {
+					guard let self else { return false }
+					self.inbox.toggleSelection(of: self.content.message)
+					return true
+				}
+			},
+		] : [])
+	}
+
+	/// VoiceOver's "show menu": the item menu the ellipsis and a right-click
+	/// open.
+	override func accessibilityPerformShowMenu() -> Bool {
+		let menu = ItemMenu.make(for: content.message, moveTargets: content.moveTargets, inbox: inbox)
+		menu.popUp(positioning: nil, at: NSPoint(x: RowMetrics.textX, y: headerHeight), in: self)
+		return true
 	}
 
 	/// Title, breadcrumb, agent, time and waiting mark, as VoiceOver reads a
@@ -507,12 +540,9 @@ private final class MoreButton: NSButton {
 	init(onPress: @escaping (NSButton) -> Void) {
 		self.onPress = onPress
 		super.init(frame: .zero)
-		isBordered = false
+		bezelStyle = .accessoryBarAction
 		image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: nil)
-		contentTintColor = .secondaryLabelColor
 		imagePosition = .imageOnly
-		wantsLayer = true
-		layer?.cornerRadius = 6
 		target = self
 		action = #selector(press)
 	}
@@ -520,12 +550,6 @@ private final class MoreButton: NSButton {
 	@available(*, unavailable)
 	required init?(coder _: NSCoder) {
 		fatalError("init(coder:) is not used")
-	}
-
-	override var wantsUpdateLayer: Bool { true }
-
-	override func updateLayer() {
-		layer?.backgroundColor = Tokens.track.cgColor
 	}
 
 	override func acceptsFirstMouse(for _: NSEvent?) -> Bool {

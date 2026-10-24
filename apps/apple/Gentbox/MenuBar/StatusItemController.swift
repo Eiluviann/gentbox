@@ -64,7 +64,7 @@ final class StatusItemController: NSObject {
 			)
 			demo?.run()
 		}
-		#endif
+		// Test, snapshot and trace hooks: none of them reach a Release build.
 		if UserDefaults.standard.bool(forKey: Self.openAtLaunchKey) {
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_SNAPSHOT_PATH"], !path.isEmpty {
 				// Snapshots are for comparing with the design boards, which are
@@ -76,7 +76,6 @@ final class StatusItemController: NSObject {
 			// Shown without taking the keyboard: launching it must not steal
 			// focus from the app you are in.
 			showPanel(takingKeyboard: false)
-			#if DEBUG || GENTBOX_HOOKS
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_TRACE_DIR"], !path.isEmpty {
 				trace = AnimationTrace(
 					directory: URL(fileURLWithPath: path), panel: panel,
@@ -87,8 +86,8 @@ final class StatusItemController: NSObject {
 				)
 				trace?.run()
 			}
-			#endif
 		}
+		#endif
 	}
 
 	private func configureButton() {
@@ -258,6 +257,7 @@ final class StatusItemController: NSObject {
 		#endif
 	}
 
+	#if DEBUG || GENTBOX_HOOKS
 	/// A test hook: writes the panel's content to a PNG after every inbox
 	/// change. The app draws its own window, so no Screen Recording
 	/// permission is involved (a runner without it captures only the desktop
@@ -309,6 +309,7 @@ final class StatusItemController: NSObject {
 		NSGraphicsContext.restoreGraphicsState()
 		try? opaque.representation(using: .png, properties: [:])?.write(to: url, options: .atomic)
 	}
+	#endif
 
 	/// Redraws the mark and the count, then waits for the next change.
 	private func updateButton() {

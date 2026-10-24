@@ -27,13 +27,16 @@ enum ButtonRole {
 
 /// A button that runs a closure, takes the first click in the panel (which
 /// never activates the app), and shows its keyboard hint (↩, ⌘⌫, R) after
-/// the title at 60 %. VoiceOver reads the title alone.
+/// the title, smaller (and at 60 % on the plain bezel). VoiceOver reads the
+/// title alone.
 @MainActor
 final class InboxButton: NSButton {
 	private let onPress: () -> Void
+	private let role: ButtonRole
 
 	init(title: String, hint: String? = nil, role: ButtonRole, size: ButtonSize = .regular, onPress: @escaping () -> Void) {
 		self.onPress = onPress
+		self.role = role
 		super.init(frame: .zero)
 		target = self
 		action = #selector(press)
@@ -46,9 +49,7 @@ final class InboxButton: NSButton {
 		} else {
 			bezelStyle = .push
 			controlSize = size.controlSize
-			if role == .primary {
-				bezelColor = .controlAccentColor
-			}
+			updateBezel()
 			hasDestructiveAction = role == .destructive
 			attributedTitle = Self.title(title, hint: hint, role: role, size: size)
 		}
@@ -65,6 +66,17 @@ final class InboxButton: NSButton {
 		true
 	}
 
+	override var keyEquivalent: String {
+		didSet { updateBezel() }
+	}
+
+	/// A primary with ↩ is the default button, which AppKit draws in the
+	/// accent itself; any other primary takes the accent as its bezel.
+	private func updateBezel() {
+		guard role == .primary else { return }
+		bezelColor = keyEquivalent == "\r" ? nil : .controlAccentColor
+	}
+
 	@objc private func press() {
 		onPress()
 	}
@@ -75,19 +87,15 @@ final class InboxButton: NSButton {
 			.font: NSFont.systemFont(ofSize: NSFont.systemFontSize(for: size.controlSize)),
 		])
 		if let hint {
-			words.append(NSAttributedString(string: "  \(hint)", attributes: [
-				.font: NSFont.systemFont(ofSize: 11),
-				.foregroundColor: hintColor(for: role),
-			]))
+			// On a primary the hint takes the title's own colour, which AppKit
+			// sets for the bezel it draws (white on the accent, dark on grey).
+			var attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11)]
+			if role != .primary {
+				attributes[.foregroundColor] = dimmedText
+			}
+			words.append(NSAttributedString(string: "  \(hint)", attributes: attributes))
 		}
 		return words
-	}
-
-	private static func hintColor(for role: ButtonRole) -> NSColor {
-		switch role {
-		case .primary: NSColor(white: 1, alpha: 0.6)
-		case .secondary, .destructive, .link: dimmedText
-		}
 	}
 
 	/// The button text at 60 %, in light and dark alike.
@@ -236,7 +244,14 @@ extension NSView {
 	/// `isHidden` would put off until then.
 	func setConcealed(_ isConcealed: Bool) {
 		alphaValue = isConcealed ? 0 : 1
-		setAccessibilityElement(!isConcealed)
+		setAccessible(!isConcealed)
+	}
+
+	/// In or out of VoiceOver's reach. A control's cell is an element of
+	/// its own on macOS 15, so it goes in or out with the control.
+	func setAccessible(_ isAccessible: Bool) {
+		setAccessibilityElement(isAccessible)
+		(self as? NSControl)?.cell?.setAccessibilityElement(isAccessible)
 	}
 
 	/// Moves the view only when it isn't there already: AppKit redoes its

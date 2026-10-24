@@ -211,6 +211,38 @@ struct InboxModelTests {
 		#expect(model.filter == nil)
 	}
 
+	/// A click's answer leaves the list before any task runs; Defer stays.
+	@Test func takingOutAheadIsImmediateForAnswersOnly() async {
+		let (model, _) = await accordion()
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking)
+		model.takeOutAhead(prompt, for: action("later", .defer))
+		#expect(model.visibleItems.contains { $0.id == "prompt" })
+		model.takeOutAhead(prompt, for: action("allow", .approve))
+		#expect(!model.visibleItems.contains { $0.id == "prompt" })
+		model.takeOutAhead(message(id: "done"))
+		#expect(model.visibleItems.map(\.id) == ["note"])
+	}
+
+	/// Close on another thread's row filters the list to that thread: the
+	/// card the filter hides is no longer the expanded one, so no key acts
+	/// on it unseen.
+	@Test func aFilterMovesTheExpansionIntoTheFilteredThread() async {
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking, threadId: "th1")
+		let other = message(id: "other", threadId: "th2")
+		let service = FakeService()
+		service.next = makeInbox(nextUp: prompt, items: [prompt, other, message(id: "more", threadId: "th2")])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		model.presentationChanged(isPresented: true)
+		model.startReply(on: "prompt")
+		#expect(model.expanded == .card("prompt"))
+		let outcome = await model.closeThread(of: other)
+		#expect(outcome == .stillOpen(2))
+		#expect(model.expanded == .card("other"))
+		#expect(model.replyDraft == nil)
+		#expect(!service.commands.contains { $0.hasPrefix("action") })
+	}
+
 	@Test func theOpenCountFallsLiveAndCloseWorksAtZero() async {
 		let (model, service) = await accordion()
 		_ = await model.closeThread(of: message(id: "done"))
@@ -236,7 +268,8 @@ struct InboxModelTests {
 		model.presentationChanged(isPresented: true)
 		_ = await model.closeThread(of: first)
 		#expect(model.filter?.threadId == "th1")
-		model.toggleExpansion(of: "first")
+		// The filter hid the prompt's card: the expansion moved into the thread.
+		#expect(model.expanded == .card("first"))
 
 		service.next = makeInbox(nextUp: prompt, items: [prompt, second])
 		await model.readUntilCurrent()
@@ -310,7 +343,7 @@ struct InboxModelTests {
 	}
 
 	@Test func anItemTheHubStillListsAfterTheCommandShowsAgain() async {
-		let (model, service) = await accordion()
+		let (model, _) = await accordion()
 		await model.dismiss(message(id: "note", type: .generic))
 		// The hub kept it: the read after the command has the last word.
 		await model.readUntilCurrent()

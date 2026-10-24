@@ -27,14 +27,22 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	/// ↩ reaches both Send and the field: one answer per reply.
 	private var hasSent = false
 
-	/// Its row is expanded: it takes clicks, keys and VoiceOver.
+	/// Its row is expanded and staying: it takes clicks, keys and VoiceOver.
 	var isActive = false {
 		didSet {
 			guard isActive != oldValue else { return }
+			if isActive {
+				keysFrom = CACurrentMediaTime() + Tokens.motionDuration
+			}
 			setAccessibilityElement(isActive)
 			showBar()
 		}
 	}
+
+	/// A card that has just shown, often handed over from one just answered,
+	/// takes keys only once its motion is over: a second ↩ meant for the
+	/// card that left must not answer one not yet seen.
+	private var keysFrom: CFTimeInterval = 0
 
 	init(inbox: InboxModel) {
 		self.inbox = inbox
@@ -171,7 +179,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			for view in bar.allViews {
 				let isShown = shown.contains { $0 === view }
 				view.alphaValue = isShown ? 1 : 0
-				view.setAccessibilityElement(isShown)
+				view.setAccessible(isShown)
 			}
 		}
 		if isActive, isReplying, let field = controls?.replyField {
@@ -183,15 +191,27 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		}
 	}
 
+	/// The controls shown take clicks; the concealed ones never do, even
+	/// where one lies over a shown one (the reply field over the answers).
 	override func hitTest(_ point: NSPoint) -> NSView? {
 		guard isActive, let hit = super.hitTest(point) else { return nil }
 		let barViews = [controls, nextControls].compactMap { $0 }.flatMap(\.allViews)
 		guard barViews.contains(where: { hit === $0 || hit.isDescendant(of: $0) }) else { return hit }
-		return shownViews.contains { hit === $0 || hit.isDescendant(of: $0) } ? hit : self
+		if shownViews.contains(where: { hit === $0 || hit.isDescendant(of: $0) }) {
+			return hit
+		}
+		let local = convert(point, from: superview)
+		for view in shownViews.reversed() {
+			if let shownHit = view.hitTest(local) {
+				return shownHit
+			}
+		}
+		return self
 	}
 
 	override func performKeyEquivalent(with event: NSEvent) -> Bool {
-		shownViews.contains { $0.performKeyEquivalent(with: event) }
+		guard isActive, !event.isARepeat, CACurrentMediaTime() >= keysFrom else { return false }
+		return shownViews.contains { $0.performKeyEquivalent(with: event) }
 	}
 
 	override func viewDidMoveToWindow() {
@@ -207,6 +227,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			inbox.startReply(on: message.id)
 		} else {
 			Interactions.untilNextFrame("Action")
+			inbox.takeOutAhead(message, for: action)
 			Task { await inbox.press(action, on: message) }
 		}
 	}
@@ -214,12 +235,14 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	func dismiss() {
 		guard let message else { return }
 		Interactions.untilNextFrame("Action")
+		inbox.takeOutAhead(message)
 		Task { await inbox.dismiss(message) }
 	}
 
 	func snooze() {
 		guard let message else { return }
 		Interactions.untilNextFrame("Action")
+		inbox.takeOutAhead(message)
 		Task { await inbox.snooze(message) }
 	}
 
@@ -257,6 +280,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		hasSent = true
 		inbox.endReply()
 		Interactions.untilNextFrame("Action")
+		inbox.takeOutAhead(message, for: action)
 		Task { await inbox.press(action, on: message, reply: text) }
 	}
 }
@@ -327,7 +351,7 @@ final class ActionControls {
 		guard !factories.isEmpty else { return false }
 		let view = factories.removeFirst()(self, body)
 		view.alphaValue = 0
-		view.setAccessibilityElement(false)
+		view.setAccessible(false)
 		body.addSubview(view)
 		return !factories.isEmpty
 	}

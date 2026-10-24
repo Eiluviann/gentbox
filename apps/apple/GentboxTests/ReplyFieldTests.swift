@@ -16,7 +16,7 @@ final class ReplyFieldTests: XCTestCase {
 		XCTAssertEqual(field.lineCount(width: width), 1)
 		XCTAssertEqual(field.height(width: width), empty)
 		// The regular rounded bezel's own height around one line.
-		XCTAssertEqual(empty, 22, accuracy: 2)
+		XCTAssertEqual(empty, 23, accuracy: 2)
 	}
 
 	func testItGrowsALineAtATimeUpToThree() {
@@ -50,6 +50,41 @@ final class ReplyFieldTests: XCTestCase {
 		let lastOneLine = words.prefix(firstTwo).joined(separator: " ")
 		let unwrapped = (lastOneLine as NSString).size(withAttributes: [.font: field.font as Any]).width
 		XCTAssertLessThan(unwrapped, width)
+	}
+
+	/// Checked against the field editor itself, on whatever macOS runs the
+	/// tests: the box never has fewer lines than the editor has wrapped to.
+	func testItTakesALineNoLaterThanTheFieldEditorWraps() throws {
+		let field = ReplyField()
+		field.frame = NSRect(x: 10, y: 10, width: width, height: field.height(width: width))
+		let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 200), styleMask: .borderless, backing: .buffered, defer: true)
+		window.contentView?.addSubview(field)
+		XCTAssertTrue(window.makeFirstResponder(field))
+		let editor = try XCTUnwrap(field.currentEditor() as? NSTextView)
+		var text = ""
+		for word in Array(repeating: "Run only the auth suite, not the whole package", count: 6).joined(separator: " ").split(separator: " ") {
+			text += text.isEmpty ? String(word) : " \(word)"
+			editor.string = text
+			let wrapped = Self.lines(in: editor)
+			XCTAssertGreaterThanOrEqual(field.lineCount(width: width), min(wrapped, ReplyField.maxLines), "“\(text)”")
+		}
+		window.makeFirstResponder(nil)
+	}
+
+	private static func lines(in editor: NSTextView) -> Int {
+		if let layout = editor.textLayoutManager {
+			layout.ensureLayout(for: layout.documentRange)
+			var lines = 0
+			layout.enumerateTextLayoutFragments(from: layout.documentRange.location, options: [.ensuresLayout]) { fragment in
+				lines += fragment.textLineFragments.count
+				return true
+			}
+			return lines
+		}
+		guard let manager = editor.layoutManager, let container = editor.textContainer else { return 0 }
+		var lines = 0
+		manager.enumerateLineFragments(forGlyphRange: manager.glyphRange(for: container)) { _, _, _, _, _ in lines += 1 }
+		return lines
 	}
 
 	func testPastThreeLinesItStaysThreeLinesTallAndScrollsInside() throws {

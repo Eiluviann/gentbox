@@ -366,9 +366,25 @@ public final class InboxModel {
 		let command: @Sendable (any InboxService) async throws -> Void = {
 			try await $0.takeAction(messageId: message.id, actionId: action.id, value: reply)
 		}
+		if Self.isAnswer(action) {
+			await runRemoving(message, command)
+		} else {
+			await run(command)
+		}
+	}
+
+	/// What a click or a key does before the command's task runs: an answer,
+	/// a snooze or a dismiss (`action` nil) takes the item out in this frame,
+	/// not a run-loop turn later. The command that follows does the rest.
+	public func takeOutAhead(_ message: InboxMessage, for action: InboxAction? = nil) {
+		guard action.map(Self.isAnswer) ?? true else { return }
+		takeOutOfTheList([message.id])
+	}
+
+	private static func isAnswer(_ action: InboxAction) -> Bool {
 		switch action.kind {
-		case .approve, .deny, .choice, .reply, .done: await runRemoving(message, command)
-		default: await run(command)
+		case .approve, .deny, .choice, .reply, .done: true
+		default: false
 		}
 	}
 
@@ -407,6 +423,12 @@ public final class InboxModel {
 		let open = liveItems.filter { $0.threadId == message.threadId }
 		guard open.isEmpty else {
 			filter = GroupFilter(threadId: message.threadId, title: message.group?.threadTitle ?? "this thread")
+			// A card the filter hides would still be the one keys act on:
+			// the expansion moves to the filtered thread's first item.
+			if let expanded, !open.contains(where: { $0.id == expanded.messageId }) {
+				replyDraft = nil
+				expansion = .chosen(.card(nextUpInView?.id ?? open[0].id))
+			}
 			return .stillOpen(open.count)
 		}
 		await run { try await $0.closeThread(threadId: message.threadId) }

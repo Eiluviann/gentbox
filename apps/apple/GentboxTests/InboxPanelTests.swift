@@ -129,6 +129,8 @@ final class InboxPanelTests: XCTestCase {
 
 		panel.spawn(reduceMotion: false)
 		XCTAssertFalse(panel.isDespawning, "a re-open turns the despawn back")
-		XCTAssertFalse(panel.ignoresMouseEvents)
+		// Input again, where the pointer is over the card; below it, clicks
+		// pass through to the windows under the panel.
+		XCTAssertEqual(panel.ignoresMouseEvents, !panel.cardFrameOnScreen.contains(NSEvent.mouseLocation))
 	}
 }

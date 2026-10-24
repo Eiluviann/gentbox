@@ -15,6 +15,7 @@ enum ItemMenu {
 			})
 		}
 		menu.addItem(ClosureMenuItem("Snooze 15 min", symbol: "moon.zzz") {
+			inbox.takeOutAhead(message)
 			Task { await inbox.snooze(message) }
 		})
 		guard let group = message.group else { return menu }

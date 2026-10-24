@@ -90,6 +90,51 @@ class InboxPanel: NSPanel {
 		CATransaction.commit()
 		// Clicks reach the card as it will be: the motion is a quarter second.
 		stage.card = card
+		updateMouseTaking()
+		if animated {
+			DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration) { [weak self] in
+				MainActor.assumeIsolated { self?.updateMouseTaking() }
+			}
+		}
+	}
+
+	// MARK: Clicks below the card
+
+	/// Mouse-moved monitors while it shows: the panel takes the mouse only
+	/// with the pointer over the card, so clicks and scrolls below the card
+	/// reach the windows under it. A transparent part of a window still
+	/// takes its own clicks.
+	private var pointerMonitors: [Any] = []
+
+	private func followPointer() {
+		if pointerMonitors.isEmpty {
+			acceptsMouseMovedEvents = true
+			let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+				MainActor.assumeIsolated { self?.updateMouseTaking() }
+			}
+			let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+				MainActor.assumeIsolated { self?.updateMouseTaking() }
+				return event
+			}
+			pointerMonitors = [global, local].compactMap { $0 }
+		}
+		updateMouseTaking()
+	}
+
+	private func stopFollowingPointer() {
+		pointerMonitors.forEach(NSEvent.removeMonitor)
+		pointerMonitors = []
+	}
+
+	/// Over the card as it shows now or as it settles, the panel takes the
+	/// mouse; anywhere else in its column it lets it through.
+	private func updateMouseTaking() {
+		guard !isDespawning, !pointerMonitors.isEmpty else { return }
+		let pointer = NSEvent.mouseLocation
+		let isOverCard = cardFrameOnScreen.contains(pointer) || presentedCardFrameOnScreen.contains(pointer)
+		if ignoresMouseEvents == isOverCard {
+			ignoresMouseEvents = !isOverCard
+		}
 	}
 
 	/// The card's frame on screen, where it settles.
@@ -216,6 +261,7 @@ class InboxPanel: NSPanel {
 		despawnGeneration += 1
 		isDespawning = false
 		ignoresMouseEvents = false
+		followPointer()
 		let presentation = layer.presentation()
 		let fromOpacity = isVisible ? (presentation?.opacity ?? layer.opacity) : 0
 		let fromScale = isVisible ? Self.scale(of: presentation?.transform ?? layer.transform) : (reduceMotion ? 1 : 0.96)
@@ -228,6 +274,7 @@ class InboxPanel: NSPanel {
 		guard let layer = stage.layer else { return completion() }
 		isDespawning = true
 		ignoresMouseEvents = true
+		stopFollowingPointer()
 		despawnGeneration += 1
 		let generation = despawnGeneration
 		let presentation = layer.presentation()
