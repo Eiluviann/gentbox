@@ -8,6 +8,17 @@ function specOf(name: string): ToolSpec {
 	return spec;
 }
 
+/** The `description` of a property in a JSON Schema. */
+function descriptionOf(property: unknown): string {
+	if (
+		typeof property !== 'object' ||
+		property === null ||
+		!('description' in property)
+	)
+		return '';
+	return typeof property.description === 'string' ? property.description : '';
+}
+
 function jsonSchemaAccepts(spec: ToolSpec, input: unknown): boolean {
 	return new Ajv2020({ strict: false }).compile(spec.inputSchema)(input);
 }
@@ -43,7 +54,8 @@ describe('the tool list', () => {
 				);
 			} else {
 				expect(description).toContain('never a command or path');
-				expect(description).toMatch(/e\.g\. "[A-Z]/);
+				expect(description).toMatch(/Good: "[A-Z][^"]+"/);
+				expect(description).toContain('Bad: "npm publish --tag next"');
 			}
 		},
 	);
@@ -54,6 +66,18 @@ describe('the tool list', () => {
 			const description = specOf(name).description;
 			expect(description).toContain('`steps` is required');
 			expect(description).toContain('"text":"Sign in to npm"');
+		},
+	);
+
+	it.each([
+		['create_topic', 'Good: "Release 1.4"'],
+		['create_thread', 'Good: "Phase 3 ingest"'],
+	])(
+		'%s: the title parameter carries a good and a bad example',
+		(name, good) => {
+			const title = descriptionOf(specOf(name).inputSchema.properties?.title);
+			expect(title).toContain(good);
+			expect(title).toContain('Bad: "npm publish --tag next"');
 		},
 	);
 

@@ -241,7 +241,9 @@ export const createTopicInputSchema = z.strictObject({
 		.string()
 		.min(1)
 		.max(80)
-		.describe('Plain-words name, e.g. "Release 1.4". Never a command or path.'),
+		.describe(
+			'Plain-words name. Good: "Release 1.4". Bad: "npm publish --tag next". Never a command or path.',
+		),
 	summary: z.string().max(400).optional(),
 	kind: z
 		.string()
@@ -277,7 +279,7 @@ export const createThreadInputSchema = z.strictObject({
 		.min(1)
 		.max(80)
 		.describe(
-			'Plain-words name, e.g. "Phase 3 ingest". Never a command or path.',
+			'Plain-words name. Good: "Phase 3 ingest". Bad: "npm publish --tag next". Never a command or path.',
 		),
 	summary: z.string().max(400).optional(),
 	kind: z
@@ -417,7 +419,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 		name: 'create_topic',
 		description: [
 			"Create a topic: a project, a bigger undertaking or a category that groups threads and messages in the user's inbox. Creating an existing key returns it unchanged.",
-			'`title` is a plain-words name (e.g. "Release 1.4"), never a command or path; the hub refuses a title that looks like one.',
+			'`title` is a plain-words name, never a command or path. Good: "Release 1.4". Bad: "npm publish --tag next". The hub refuses a title that looks like a command.',
 		].join('\n\n'),
 		schema: createTopicInputSchema,
 		inputSchema: toInputSchema(createTopicInputSchema),
@@ -433,7 +435,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 		name: 'create_thread',
 		description: [
 			'Create a thread inside a topic: a version, a phase or a conversation. Creating an existing key returns it unchanged. With `standsForCurrentConversation` the thread stands for this conversation and takes over its automatic thread in the topic.',
-			'`title` is a plain-words name (e.g. "Phase 3 ingest"), never a command or path; the hub refuses a title that looks like one.',
+			'`title` is a plain-words name, never a command or path. Good: "Phase 3 ingest". Bad: "npm publish --tag next". The hub refuses a title that looks like a command.',
 		].join('\n\n'),
 		schema: createThreadInputSchema,
 		inputSchema: toInputSchema(createThreadInputSchema),
