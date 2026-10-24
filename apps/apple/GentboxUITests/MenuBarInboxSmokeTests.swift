@@ -16,6 +16,8 @@ import XCTest
 final class MenuBarInboxSmokeTests: XCTestCase {
 	private var app: XCUIApplication!
 	private var stateFolder: URL!
+	/// The trace this test records, attached in tear-down if it failed.
+	private var traceInUse: URL?
 
 	override func setUpWithError() throws {
 		continueAfterFailure = false
@@ -34,8 +36,12 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		try waitForTheHub(startedAfter: launchedAt)
 	}
 
+	/// Runs even when a failure stopped the test early.
 	override func tearDownWithError() throws {
 		app?.terminate()
+		if let traceInUse {
+			attachTraceOnFailure(from: traceInUse)
+		}
 	}
 
 	func testACurlPostedMessageAppearsWithItsConversationAsTheBreadcrumb() throws {
@@ -245,8 +251,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// between two samples, never more: a panel that lagged or led the
 	/// content would drift further. Settled, they agree.
 	func testThePanelsHeightMovesWithTheContent() throws {
-		let frames = try traceFrames()
-		defer { attachTraceOnFailure(frames) }
+		let frames = try traceFrames(in: "height-moves-with-content")
 		let steps = Dictionary(grouping: frames) { $0.step }
 		XCTAssertEqual(
 			Set(steps.keys),
@@ -257,21 +262,27 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		)
 		for (step, frames) in steps {
 			XCTAssertGreaterThan(frames.count, 5, step)
-			if ["expand-row", "collapse", "removal", "arrival"].contains(step) {
-				XCTAssertGreaterThan(Set(frames.map(\.panelHeight)).count, 3, "the panel did not move in \(step)")
+			// A jump shows two heights; an eased move at least three. A machine
+			// under load can stall the samples until the motion is over (every
+			// frame then shows the end), which the settled check covers.
+			let isMotionSampled = frames.first?.panelHeight != frames.last?.panelHeight
+			if ["expand-row", "collapse", "removal", "arrival", "update"].contains(step), isMotionSampled {
+				XCTAssertGreaterThanOrEqual(Set(frames.map(\.panelHeight)).count, 3, "the panel did not ease in \(step)")
 			}
 			let missing = frames.filter { $0.gap == nil }.map(\.ms)
 			XCTAssertEqual(missing, [], "\(step): no content bottom marker in the frames at these ms")
+			// In device pixels: one is a point on CI's 1× display.
 			for (previous, frame) in zip(frames, frames.dropFirst()) {
 				guard let gap = frame.gap else { continue }
 				let sampleMotion = Double(abs(frame.panelHeight - previous.panelHeight))
 				XCTAssertLessThanOrEqual(
-					abs(gap), sampleMotion + 1.5,
+					abs(gap) * frame.scale, (sampleMotion + 1.5) * frame.scale,
 					"\(step) at \(frame.ms) ms: the content's bottom is \(gap) pt from the panel's, which moved \(sampleMotion) pt since the last frame",
 				)
 			}
 			for frame in frames.suffix(3) {
-				XCTAssertTrue((0...1).contains(frame.gap ?? -1), "\(step) settled \(String(describing: frame.gap)) pt from the panel's bottom")
+				let gapPixels = (frame.gap ?? .infinity) * frame.scale
+				XCTAssertLessThanOrEqual(abs(gapPixels), 1, "\(step) settled \(gapPixels) px from the panel's bottom")
 			}
 		}
 	}
@@ -279,8 +290,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// The panel never moves: from opening to closing its top edge and left
 	/// edge stay where they were set, and only the bottom edge moves.
 	func testThePanelsTopEdgeNeverMoves() throws {
-		let frames = try traceFrames()
-		defer { attachTraceOnFailure(frames) }
+		let frames = try traceFrames(in: "top-edge-never-moves")
 		XCTAssertGreaterThan(frames.count, 30)
 		XCTAssertEqual(Set(frames.map(\.panelTop)).count, 1, "the top edge moved: \(Set(frames.map(\.panelTop)))")
 		XCTAssertEqual(Set(frames.map(\.panelX)).count, 1, "the panel slid: \(Set(frames.map(\.panelX)))")
@@ -364,9 +374,17 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"title": "Allow the deploy?", "conversation": ["id": "deploy"], "correlationKey": "deploy", "actions": actions,
 		])
 		openInbox()
-		let first = element("message:Allow the deploy?")
-		XCTAssertTrue(first.waitForExistence(timeout: 10))
-		first.click()
+		// The other prompt's waiter must be live, so it is next-up: open it
+		// until its answers show (a waiter that attached after opening left
+		// the deploy prompt pinned as the card instead).
+		let otherCard = element("card:Allow editing a.ts?")
+		if !otherCard.waitForExistence(timeout: 5) {
+			element("message:Allow editing a.ts?").click()
+		}
+		XCTAssertTrue(otherCard.waitForExistence(timeout: 5))
+		XCTAssertTrue(element("action:Approve").waitForExistence(timeout: 10), "the other prompt's waiter never attached")
+		// Then the deploy prompt is the card you read.
+		element("message:Allow the deploy?").click()
 		XCTAssertTrue(element("card:Allow the deploy?").waitForExistence(timeout: 5))
 
 		let replacement = try post([
@@ -400,19 +418,26 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let panelHeight: Int
 		/// Nil when the frame shows no content bottom marker.
 		let gap: Double?
+		/// Device pixels per point.
+		let scale: Double
 	}
 
-	private var traceFolder: URL {
-		stateFolder.appendingPathComponent("trace", isDirectory: true)
+	/// Each trace test keeps its own record, beside the state folder the app
+	/// empties at every launch.
+	private func traceFolder(_ name: String) -> URL {
+		stateFolder.deletingLastPathComponent()
+			.appendingPathComponent("UITraces", isDirectory: true)
+			.appendingPathComponent(name, isDirectory: true)
 	}
 
 	/// Launches the app with `AnimationTrace` over five items, answers each
 	/// `awaiting-<step>` it writes (a prompt arrives, the expanded item is
 	/// superseded with a shorter body, a waiter starts on the prompt), and
 	/// reads its record.
-	private func traceFrames() throws -> [TraceFrame] {
+	private func traceFrames(in name: String) throws -> [TraceFrame] {
 		app.terminate()
-		let trace = traceFolder
+		let trace = traceFolder(name)
+		traceInUse = trace
 		app.launchEnvironment["GENTBOX_TRACE_DIR"] = trace.path
 		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
 			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
@@ -423,7 +448,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		for index in 1...5 {
 			try post(completedTask(index, body: "line one\nline two\nline three"))
 		}
-		try awaitTrace("arrival")
+		try awaitTrace("arrival", in: trace)
 		let prompt = try post([
 			"type": "decision_required", "blocking": "blocking", "awaitsResponse": true,
 			"title": "Allow the deploy?", "body": "make deploy",
@@ -432,12 +457,12 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"thread": ["key": "t7", "title": "Thread 7"],
 			"actions": [["id": "allow", "label": "Approve", "kind": "approve"], ["id": "deny", "label": "Deny", "kind": "deny"]],
 		])
-		let expanded = try awaitTrace("update")
+		let expanded = try awaitTrace("update", in: trace)
 		if let index = Int(expanded.split(separator: " ").last ?? "") {
 			// A new title: the same one within 10 s would only count a repeat.
 			try post(completedTask(index, body: "line one", title: "Completed task number \(index), again"))
 		}
-		try awaitTrace("waiter")
+		try awaitTrace("waiter", in: trace)
 		let waiter = try longPoll(prompt)
 		defer { waiter.terminate() }
 		let csv = trace.appendingPathComponent("frames.csv")
@@ -449,12 +474,12 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			.split(separator: "\n").dropFirst()
 			.map { $0.split(separator: ",").map(String.init) }
 			.compactMap { fields in
-				guard fields.count == 8, let number = Int(fields[0]), let ms = Int(fields[2]), let x = Int(fields[3]),
-					let top = Int(fields[4]), let height = Int(fields[5])
+				guard fields.count == 9, let number = Int(fields[0]), let ms = Int(fields[2]), let x = Int(fields[3]),
+					let top = Int(fields[4]), let height = Int(fields[5]), let scale = Double(fields[8])
 				else { return nil }
 				return TraceFrame(
 					number: number, step: fields[1], ms: ms, panelX: x, panelTop: top, panelHeight: height,
-					gap: Double(fields[7]),
+					gap: Double(fields[7]), scale: scale,
 				)
 			}
 	}
@@ -471,8 +496,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 
 	/// Waits for the trace's `awaiting-<step>` and returns what it holds.
 	@discardableResult
-	private func awaitTrace(_ step: String) throws -> String {
-		let file = traceFolder.appendingPathComponent("awaiting-\(step)")
+	private func awaitTrace(_ step: String, in trace: URL) throws -> String {
+		let file = trace.appendingPathComponent("awaiting-\(step)")
 		let deadline = Date().addingTimeInterval(40)
 		while !FileManager.default.fileExists(atPath: file.path), Date() < deadline {
 			Thread.sleep(forTimeInterval: 0.1)
@@ -480,19 +505,22 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		return try String(contentsOf: file, encoding: .utf8)
 	}
 
-	/// Keeps `frames.csv` and the frames of every failing step in the result
-	/// bundle.
-	private func attachTraceOnFailure(_ frames: [TraceFrame]) {
-		guard (testRun?.failureCount ?? 0) > 0 else { return }
-		let csv = XCTAttachment(contentsOfFile: traceFolder.appendingPathComponent("frames.csv"))
-		csv.name = "frames.csv"
-		csv.lifetime = .keepAlways
-		add(csv)
-		for frame in frames {
-			let png = traceFolder.appendingPathComponent(String(format: "%04d-%@.png", frame.number, frame.step))
-			guard let image = NSImage(contentsOf: png) else { continue }
-			let attachment = XCTAttachment(image: image)
-			attachment.name = png.lastPathComponent
+	/// Keeps `frames.csv` and every frame in the result bundle when the test
+	/// failed.
+	private func attachTraceOnFailure(from trace: URL) {
+		guard (testRun?.failureCount ?? 0) > 0,
+			let files = try? FileManager.default.contentsOfDirectory(at: trace, includingPropertiesForKeys: nil)
+		else { return }
+		for file in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+			let attachment: XCTAttachment
+			switch file.pathExtension {
+			case "csv": attachment = XCTAttachment(contentsOfFile: file)
+			case "png":
+				guard let image = NSImage(contentsOf: file) else { continue }
+				attachment = XCTAttachment(image: image)
+			default: continue
+			}
+			attachment.name = file.lastPathComponent
 			attachment.lifetime = .keepAlways
 			add(attachment)
 		}

@@ -2,28 +2,32 @@ import AppKit
 import XCTest
 
 /// The trace's marker detector reads the frames CI captures on a 1× display,
-/// where the marker blends into the pixel rows it straddles.
+/// where the marker blends into the pixel rows it straddles, and places it
+/// by its centre.
 final class TraceMarkerScanTests: XCTestCase {
 	func testABlendedHalfPixelLineOnA1xFrameIsFound() throws {
 		// What CI drew: rows 366 and 367 of 380 at green 0.49 and 0.72.
 		let frame = try whiteFrame(pixels: NSSize(width: 380, height: 380), points: NSSize(width: 380, height: 380))
 		paintRow(366, red: 1, green: 0.49, blue: 1, in: frame)
 		paintRow(367, red: 1, green: 0.72, blue: 1, in: frame)
-		XCTAssertEqual(TraceMarkerScan.markerHeightAboveBottom(in: frame), 12)
+		XCTAssertEqual(TraceMarkerScan.markerCentreAboveBottom(in: frame), 13)
 	}
 
 	func testAPointLineOnA2xFrameIsMeasuredInPoints() throws {
 		let frame = try whiteFrame(pixels: NSSize(width: 200, height: 200), points: NSSize(width: 100, height: 100))
 		paintRow(150, red: 1, green: 0, blue: 1, in: frame)
 		paintRow(151, red: 1, green: 0, blue: 1, in: frame)
-		XCTAssertEqual(TraceMarkerScan.markerHeightAboveBottom(in: frame), 24)
+		XCTAssertEqual(TraceMarkerScan.markerCentreAboveBottom(in: frame), 24.5)
 	}
 
-	func testNoMarkerAndGreyOrRedRowsAreNotOne() throws {
+	func testNoMarkerAndGreyRedPinkOrPurpleRowsAreNotOne() throws {
 		let frame = try whiteFrame(pixels: NSSize(width: 100, height: 100), points: NSSize(width: 100, height: 100))
-		paintRow(40, red: 0.84, green: 0.84, blue: 0.84, in: frame)
-		paintRow(60, red: 0.84, green: 0, blue: 0.08, in: frame)
-		XCTAssertNil(TraceMarkerScan.markerHeightAboveBottom(in: frame))
+		paintRow(30, red: 0.84, green: 0.84, blue: 0.84, in: frame)
+		paintRow(40, red: 0.84, green: 0, blue: 0.08, in: frame)
+		// The system's pink and purple accent colours.
+		paintRow(50, red: 1, green: 0.18, blue: 0.57, in: frame)
+		paintRow(60, red: 0.69, green: 0.32, blue: 0.87, in: frame)
+		XCTAssertNil(TraceMarkerScan.markerCentreAboveBottom(in: frame))
 	}
 
 	private func whiteFrame(pixels: NSSize, points: NSSize) throws -> NSBitmapImageRep {

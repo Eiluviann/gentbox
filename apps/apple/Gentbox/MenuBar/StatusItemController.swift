@@ -201,7 +201,9 @@ final class StatusItemController: NSObject {
 	/// content scrolls.
 	private func fitPanel(natural: CGFloat) {
 		guard panel.isVisible, let placement else { return }
-		let natural = ceil(natural)
+		// Up to the next device pixel, so the panel ends where the content does.
+		let scale = panel.backingScaleFactor
+		let natural = ceil(natural * scale) / scale
 		layout.isCapped = natural > placement.maxHeight
 		let target = min(natural, placement.maxHeight)
 		guard target != height.target || pendingHeight != nil else { return }

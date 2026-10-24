@@ -111,5 +111,5 @@ jobs:
           # The result bundle, and the frames AnimationTrace recorded.
           path: |
             apps/apple/build/results/ci.xcresult
-            ~/Library/Application Support/Gentbox/UITests/trace
+            ~/Library/Application Support/Gentbox/UITraces
           retention-days: 7

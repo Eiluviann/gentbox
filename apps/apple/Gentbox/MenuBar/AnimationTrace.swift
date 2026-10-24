@@ -32,7 +32,7 @@ final class AnimationTrace: NSObject {
 	private let panel: NSPanel
 	private let measure: () -> CGFloat
 	private let inbox: () -> InboxModel?
-	private var log = "frame,step,ms,panelX,panelTop,panelHeight,contentHeight,gap\n"
+	private var log = "frame,step,ms,panelX,panelTop,panelHeight,contentHeight,gap,scale\n"
 	private var frame = 0
 	/// Captured in memory and analysed after each step, so the work never
 	/// slows the frames being recorded.
@@ -50,6 +50,8 @@ final class AnimationTrace: NSObject {
 
 	func run() {
 		Task { @MainActor in
+			// A fresh record: another run's frames must not mix in.
+			try? FileManager.default.removeItem(at: directory)
 			try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 			// Wait for an inbox with enough rows.
 			while (inbox()?.visibleItems.count ?? 0) < 4 {
@@ -115,7 +117,8 @@ final class AnimationTrace: NSObject {
 			record(name, at: Date().timeIntervalSince(start))
 		}
 		for capture in captures {
-			log += "\(capture.line),\(Self.gap(in: capture.bitmap))\n"
+			let scale = CGFloat(capture.bitmap.pixelsHigh) / max(capture.bitmap.size.height, 1)
+			log += "\(capture.line),\(Self.gap(in: capture.bitmap)),\(scale)\n"
 			try? capture.bitmap.representation(using: .png, properties: [:])?
 				.write(to: directory.appendingPathComponent(capture.name))
 		}
@@ -153,11 +156,12 @@ final class AnimationTrace: NSObject {
 		captures.append((String(format: "%04d-%@.png", frame, name), line, bitmap))
 	}
 
-	/// Points from the marker to where the content ends, less how far the
-	/// panel's bottom edge sits below that, or `missing`.
+	/// Points from the content's bottom down to the panel's bottom edge,
+	/// from where the marker's centre is drawn, or `missing`.
 	private static func gap(in bitmap: NSBitmapImageRep) -> String {
-		guard let markerAboveBottom = TraceMarkerScan.markerHeightAboveBottom(in: bitmap) else { return "missing" }
-		return String(format: "%.1f", markerAboveBottom - AnimationTraceMarker.height)
+		guard let markerAboveBottom = TraceMarkerScan.markerCentreAboveBottom(in: bitmap) else { return "missing" }
+		let centreAboveContentBottom = AnimationTraceMarker.height + AnimationTraceMarker.thickness / 2
+		return String(format: "%.2f", markerAboveBottom - centreAboveContentBottom)
 	}
 }
 
@@ -167,11 +171,12 @@ final class AnimationTrace: NSObject {
 struct AnimationTraceMarker: View {
 	static let isShown = !(ProcessInfo.processInfo.environment["GENTBOX_TRACE_DIR"] ?? "").isEmpty
 	static let height: CGFloat = 40
+	/// Two points: on a 1× display at least one pixel row is all marker.
+	static let thickness: CGFloat = 2
 
 	var body: some View {
-		// Two points: on a 1× display at least one pixel row is all marker.
 		Color(red: 1, green: 0, blue: 1)
-			.frame(height: 2)
+			.frame(height: Self.thickness)
 			.padding(.bottom, Self.height)
 			.accessibilityHidden(true)
 	}
