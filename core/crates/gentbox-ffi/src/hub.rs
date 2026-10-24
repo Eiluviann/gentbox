@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use gentbox_core::classify::RuleSet;
 use gentbox_core::ids::{MessageId, ThreadId, TopicId};
 use gentbox_core::response::AnsweredVia;
-use gentbox_core::topic::{ThreadIdRef, ThreadRef, TopicIdRef, TopicRef};
+use gentbox_core::topic::{CloseRequest, ThreadIdRef, ThreadRef, TopicIdRef, TopicRef};
 use gentbox_hub::{
     ActionRequest, Hub, HubConfig, HubError, HubHandle, MessageThreadMove, ThreadMove,
 };
@@ -277,23 +277,19 @@ impl GentboxHub {
             .map(drop)
     }
 
-    /// Closes a topic and its open threads; with `dismiss_open_messages`,
-    /// also dismisses their open messages, so waiting senders hear
-    /// `dismissed`. Nothing on the Mac withdraws: "Withdrawn" is only the
-    /// agent's own word. `action_required` messages stay open for Done.
+    /// Closes a topic and its threads once nothing in them is open. Nothing
+    /// on the Mac withdraws: "Withdrawn" is only the agent's own word; open
+    /// items are answered, done or dismissed first.
     ///
     /// # Errors
     ///
-    /// [`GentboxError::NotFound`].
-    pub async fn close_topic(
-        &self,
-        topic_id: String,
-        dismiss_open_messages: bool,
-    ) -> Result<(), GentboxError> {
+    /// [`GentboxError::HasOpenMessages`] while anything in it is open,
+    /// [`GentboxError::NotFound`], [`GentboxError::GeneralTopic`] for an agent's General topic.
+    pub async fn close_topic(&self, topic_id: String) -> Result<(), GentboxError> {
         let handle = self.handle.clone();
         self.run(async move {
             handle
-                .close_topic_for_user(TopicId::new(topic_id), dismiss_open_messages)
+                .close_topic(TopicId::new(topic_id), CloseRequest::default(), None)
                 .await
         })
         .await
@@ -312,21 +308,17 @@ impl GentboxHub {
             .map(drop)
     }
 
-    /// Closes a thread; with `dismiss_open_messages`, also dismisses its open
-    /// messages (see [`GentboxHub::close_topic`]).
+    /// Closes a thread once nothing in it is open.
     ///
     /// # Errors
     ///
+    /// [`GentboxError::HasOpenMessages`] while anything in it is open,
     /// [`GentboxError::NotFound`].
-    pub async fn close_thread(
-        &self,
-        thread_id: String,
-        dismiss_open_messages: bool,
-    ) -> Result<(), GentboxError> {
+    pub async fn close_thread(&self, thread_id: String) -> Result<(), GentboxError> {
         let handle = self.handle.clone();
         self.run(async move {
             handle
-                .close_thread_for_user(ThreadId::new(thread_id), dismiss_open_messages)
+                .close_thread(ThreadId::new(thread_id), CloseRequest::default(), None)
                 .await
         })
         .await

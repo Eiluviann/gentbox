@@ -304,9 +304,15 @@ fn closing_moves_a_group_to_the_closed_section_and_reopening_brings_it_back() {
         "thread": { "key": "v1-0", "title": "v1.0" },
         "type": "task_completed", "title": "v1.0 tagged"
     }));
-    let thread_id = fixture.inbox().topics[0].threads[0].id.clone();
+    let inbox = fixture.inbox();
+    let thread_id = inbox.topics[0].threads[0].id.clone();
+    let topic_id = inbox.topics[0].id.clone();
+    // Only a thread with nothing open closes.
     fixture
-        .block_on(fixture.hub.close_thread(thread_id.clone(), false))
+        .block_on(fixture.hub.dismiss(inbox.items[0].id.clone()))
+        .unwrap();
+    fixture
+        .block_on(fixture.hub.close_thread(thread_id.clone()))
         .unwrap();
     let inbox = fixture.inbox();
     assert!(inbox.topics.is_empty());
@@ -317,14 +323,9 @@ fn closing_moves_a_group_to_the_closed_section_and_reopening_brings_it_back() {
     fixture
         .block_on(fixture.hub.reopen_thread(thread_id))
         .unwrap();
-    let inbox = fixture.inbox();
-    assert!(inbox.closed.is_empty());
-    assert_eq!(inbox.topics[0].threads[0].messages.len(), 1);
+    assert!(fixture.inbox().closed.is_empty());
 
-    let topic_id = inbox.topics[0].id.clone();
-    fixture
-        .block_on(fixture.hub.close_topic(topic_id, true))
-        .unwrap();
+    fixture.block_on(fixture.hub.close_topic(topic_id)).unwrap();
     let inbox = fixture.inbox();
     // The topic's row stands for its threads.
     let closed: Vec<_> = inbox.closed.iter().map(|group| group.kind).collect();
@@ -473,28 +474,39 @@ fn next_up_is_a_prompt_whose_sender_still_waits() {
 }
 
 #[test]
-fn closing_from_the_mac_dismisses_its_messages_and_never_withdraws() {
+fn closing_with_open_items_is_refused_with_their_count_and_general_never_closes() {
     let fixture = Fixture::start();
     fixture.post(json!({
         "topic": { "key": "gentbox", "title": "Gentbox" },
         "thread": { "key": "v1-0", "title": "v1.0" },
         "type": "task_completed", "title": "v1.0 tagged"
     }));
-    let thread_id = fixture.inbox().items[0].thread_id.clone();
-    fixture
-        .block_on(fixture.hub.close_thread(thread_id, true))
+    fixture.post(json!({
+        "conversation": { "id": "session-2" },
+        "type": "task_completed", "title": "Docs build"
+    }));
+    let inbox = fixture.inbox();
+    let tagged = inbox
+        .items
+        .iter()
+        .find(|item| item.title == "v1.0 tagged")
         .unwrap();
-    let events = fixture.recorder.events.lock().unwrap();
-    assert!(
-        !events
-            .iter()
-            .any(|(event, _)| matches!(event, HubEvent::Withdrawn { .. }))
-    );
-    assert!(events.iter().any(|(event, _)| matches!(
-        event,
-        HubEvent::Closed {
-            state: gentbox_ffi::LifecycleState::Dismissed,
-            ..
-        }
-    )));
+    let refused = fixture.block_on(fixture.hub.close_thread(tagged.thread_id.clone()));
+    assert_eq!(refused, Err(GentboxError::HasOpenMessages { count: 1 }));
+    let refused = fixture.block_on(fixture.hub.close_topic(tagged.topic_id.clone()));
+    assert_eq!(refused, Err(GentboxError::HasOpenMessages { count: 1 }));
+
+    let docs = inbox
+        .items
+        .iter()
+        .find(|item| item.title == "Docs build")
+        .unwrap();
+    fixture
+        .block_on(fixture.hub.dismiss(docs.id.clone()))
+        .unwrap();
+    let refused = fixture.block_on(fixture.hub.close_topic(docs.topic_id.clone()));
+    assert_eq!(refused, Err(GentboxError::GeneralTopic));
+    fixture
+        .block_on(fixture.hub.close_thread(docs.thread_id.clone()))
+        .unwrap();
 }

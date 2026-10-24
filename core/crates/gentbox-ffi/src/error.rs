@@ -41,6 +41,15 @@ pub enum GentboxError {
         /// Why, in the hub's words.
         message: String,
     },
+    /// A topic or thread closes only when nothing in it is open.
+    #[error("{count} item(s) still open")]
+    HasOpenMessages {
+        /// How many messages are open in it.
+        count: u32,
+    },
+    /// An agent's General topic never closes; its threads do.
+    #[error("the General topic cannot be closed")]
+    GeneralTopic,
     /// The hub has stopped.
     #[error("the hub has stopped")]
     Stopped,
@@ -63,6 +72,8 @@ impl From<HubError> for GentboxError {
             HubError::MessageClosed { state, .. } => Self::AlreadyClosed {
                 state: state.into(),
             },
+            HubError::HasOpenMessages { count } => Self::HasOpenMessages { count },
+            HubError::GeneralTopic => Self::GeneralTopic,
             HubError::Stopped => Self::Stopped,
             HubError::Store(_) | HubError::Panicked => Self::Internal {
                 message: error.to_string(),
