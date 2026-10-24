@@ -228,10 +228,35 @@ mod tests {
     }
 
     #[test]
-    fn given_folders_win() {
-        let found = folders(Some(PathBuf::from("/s")), None, &Environment::default())
-            .ok()
-            .map(|folders| folders.state);
-        assert_eq!(found, Some(PathBuf::from("/s")));
+    fn a_given_state_folder_wins_and_the_config_folder_follows_the_platform() {
+        let environment = Environment {
+            home: Some(PathBuf::from("/home/me")),
+            ..Environment::default()
+        };
+        let found = folders(Some(PathBuf::from("/s")), None, &environment).ok();
+        let config = if cfg!(target_os = "macos") {
+            PathBuf::from("/s")
+        } else {
+            PathBuf::from("/home/me/.config/gentbox")
+        };
+        assert_eq!(
+            found,
+            Some(Folders {
+                state: PathBuf::from("/s"),
+                config,
+            })
+        );
+        let both = folders(
+            Some(PathBuf::from("/s")),
+            Some(PathBuf::from("/c")),
+            &Environment::default(),
+        )
+        .ok()
+        .map(|folders| folders.config);
+        assert_eq!(
+            both,
+            Some(PathBuf::from("/c")),
+            "no home needed when both are given"
+        );
     }
 }
