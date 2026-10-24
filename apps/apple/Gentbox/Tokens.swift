@@ -35,17 +35,16 @@ enum Tokens {
 			? NSColor(white: 1, alpha: 0.15)
 			: NSColor(white: 0, alpha: 0.2)
 	}
-	/// The expanded card: `.pp-hero { background: #fff }` (an.css:1147).
+	/// The expanded card: white, `.pp-hero { background: #fff }` (an.css:1147).
+	/// Dark values are interim system surfaces until the dark design lands.
 	static let card = Color(nsColor: NSColor(name: "GentboxCard") { appearance in
 		appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .windowBackgroundColor : .white
 	})
-	/// The collapsed rows: `.pp-line { background: #f8f8fa }` (an.css:1148),
-	/// a very light grey under the white card.
-	static let row = Color(nsColor: NSColor(name: "GentboxRow") { appearance in
-		appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-			? .controlBackgroundColor
-			: NSColor(red: 0xF8 / 255, green: 0xF8 / 255, blue: 0xFA / 255, alpha: 1)
-	})
+	/// The collapsed rows: white like the card, by the user's instruction,
+	/// which overrides the board's light-grey list (`.pp-line { background:
+	/// #f8f8fa }`, an.css:1148). Rows are told apart by the hairline rules and
+	/// the card by its padding, not by a fill.
+	static let row = card
 	/// The rule between items: `--line` #e0e0e0 (an.css:13).
 	static let line = Color(nsColor: .separatorColor)
 	/// A command in the card: `.pp-cmd { background: var(--track) }` #f2f2f7
