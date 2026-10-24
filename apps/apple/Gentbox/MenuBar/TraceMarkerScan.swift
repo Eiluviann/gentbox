@@ -1,4 +1,4 @@
-#if DEBUG
+#if DEBUG || GENTBOX_HOOKS
 import AppKit
 
 /// Finds `AnimationTraceMarker` in a captured frame. On a 1× display the

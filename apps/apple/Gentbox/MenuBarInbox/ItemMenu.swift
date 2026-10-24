@@ -1,65 +1,78 @@
+import AppKit
 import GentboxCore
-import SwiftUI
 
 /// A message's menu (design: `mac-popover-item-menu`), on hover or
 /// right-click: open the conversation, snooze, and mute, close or move its
 /// thread and topic. Topic and thread rows are gone from the popover, so
-/// their actions live here.
-struct ItemMenu: View {
-	let message: InboxMessage
-	let moveTargets: [TopicChoice]
-	let inbox: InboxModel
-
-	var body: some View {
+/// their actions live here. Built when it opens, never ahead.
+@MainActor
+enum ItemMenu {
+	static func make(for message: InboxMessage, moveTargets: [TopicChoice], inbox: InboxModel) -> NSMenu {
+		let menu = NSMenu()
 		if let open = message.offeredActions.first(where: { $0.kind == .open }) {
-			Button {
+			menu.addItem(ClosureMenuItem("Open conversation", symbol: "arrow.up.forward.app") {
 				Task { await inbox.press(open, on: message) }
-			} label: {
-				Label("Open conversation", systemImage: "arrow.up.forward.app")
-			}
+			})
 		}
-		Button {
+		menu.addItem(ClosureMenuItem("Snooze 15 min", symbol: "moon.zzz") {
 			Task { await inbox.snooze(message) }
-		} label: {
-			Label("Snooze 15 min", systemImage: "moon.zzz")
+		})
+		guard let group = message.group else { return menu }
+		menu.addItem(.separator())
+		menu.addItem(ClosureMenuItem(
+			group.threadIsMuted ? "Unmute thread \(group.threadTitle)" : "Mute thread \(group.threadTitle)",
+			symbol: group.threadIsMuted ? "bell" : "bell.slash",
+		) {
+			Task { await inbox.setThreadMuted(message.threadId, !group.threadIsMuted) }
+		})
+		menu.addItem(ClosureMenuItem(
+			group.topicIsMuted ? "Unmute topic \(group.topicTitle)" : "Mute topic \(group.topicTitle)",
+			symbol: group.topicIsMuted ? "bell" : "bell.slash",
+		) {
+			Task { await inbox.setTopicMuted(message.topicId, !group.topicIsMuted) }
+		})
+		// A thread closes only when nothing in it is open; while items are,
+		// Close shows them instead ("N items still open").
+		menu.addItem(ClosureMenuItem("Close thread", symbol: "archivebox") {
+			Task { _ = await inbox.closeThread(of: message) }
+		})
+		let targets = moveTargets.filter { $0.id != message.topicId }
+		if !targets.isEmpty {
+			let move = NSMenuItem(title: "Move to topic", action: nil, keyEquivalent: "")
+			move.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
+			let submenu = NSMenu()
+			for target in targets {
+				submenu.addItem(ClosureMenuItem(target.title, symbol: nil) {
+					Task { await inbox.moveThread(message.threadId, toTopic: target.id) }
+				})
+			}
+			move.submenu = submenu
+			menu.addItem(move)
 		}
-		if let group = message.group {
-			Divider()
-			Button {
-				Task { await inbox.setThreadMuted(message.threadId, !group.threadIsMuted) }
-			} label: {
-				Label(
-					group.threadIsMuted ? "Unmute thread \(group.threadTitle)" : "Mute thread \(group.threadTitle)",
-					systemImage: group.threadIsMuted ? "bell" : "bell.slash",
-				)
-			}
-			Button {
-				Task { await inbox.setTopicMuted(message.topicId, !group.topicIsMuted) }
-			} label: {
-				Label(
-					group.topicIsMuted ? "Unmute topic \(group.topicTitle)" : "Mute topic \(group.topicTitle)",
-					systemImage: group.topicIsMuted ? "bell" : "bell.slash",
-				)
-			}
-			// A thread closes only when nothing in it is open; while items are,
-			// Close shows them instead ("N items still open").
-			Button {
-				Task { _ = await inbox.closeThread(of: message) }
-			} label: {
-				Label("Close thread", systemImage: "archivebox")
-			}
-			let targets = moveTargets.filter { $0.id != message.topicId }
-			if !targets.isEmpty {
-				Menu {
-					ForEach(targets, id: \.id) { target in
-						Button(target.title) {
-							Task { await inbox.moveThread(message.threadId, toTopic: target.id) }
-						}
-					}
-				} label: {
-					Label("Move to topic", systemImage: "folder")
-				}
-			}
+		return menu
+	}
+}
+
+/// A menu item that runs a closure.
+@MainActor
+final class ClosureMenuItem: NSMenuItem {
+	private let run: () -> Void
+
+	init(_ title: String, symbol: String?, keyEquivalent: String = "", run: @escaping () -> Void) {
+		self.run = run
+		super.init(title: title, action: #selector(runClosure), keyEquivalent: keyEquivalent)
+		target = self
+		if let symbol {
+			image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
 		}
+	}
+
+	@available(*, unavailable)
+	required init(coder _: NSCoder) {
+		fatalError("init(coder:) is not used")
+	}
+
+	@objc private func runClosure() {
+		run()
 	}
 }

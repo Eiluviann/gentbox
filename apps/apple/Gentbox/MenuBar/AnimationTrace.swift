@@ -1,7 +1,6 @@
-#if DEBUG
+#if DEBUG || GENTBOX_HOOKS
 import AppKit
 import GentboxCore
-import SwiftUI
 
 /// A debug hook for the inbox's motion: with `GENTBOX_TRACE_DIR` set (and
 /// the inbox opened at launch), it drives the inbox exactly as clicks do
@@ -18,7 +17,9 @@ import SwiftUI
 /// replace Snooze).
 ///
 /// Sampling runs on the panel's display link and starts at the first frame
-/// drawn after the change, so a capture never lands inside SwiftUI's update.
+/// drawn after the change. The motion runs in Core Animation, so each sample
+/// reads what is presented: the card's height from its mask, and the frame
+/// from the content's presentation layers.
 ///
 /// `gap` is the distance in points from the content's bottom, marked by
 /// `AnimationTraceMarker`, to the panel's bottom edge, read from the frame
@@ -29,10 +30,15 @@ import SwiftUI
 @MainActor
 final class AnimationTrace: NSObject {
 	private let directory: URL
-	private let panel: NSPanel
+	private let panel: InboxPanel
 	private let measure: () -> CGFloat
 	private let inbox: () -> InboxModel?
-	private var log = "frame,step,ms,panelX,panelTop,panelHeight,contentHeight,gap,scale\n"
+	private let open: () -> Void
+	private let close: () -> Void
+	private var log = "frame,step,ms,panelX,panelTop,panelHeight,contentHeight,gap,scale,alpha,zoom\n"
+	/// Per step: the card's height before the action, and how long after
+	/// the change the first sample came.
+	private var steps = "step,beforeHeight,latencyMs\n"
 	private var frame = 0
 	/// Captured in memory and analysed after each step, so the work never
 	/// slows the frames being recorded.
@@ -41,17 +47,25 @@ final class AnimationTrace: NSObject {
 	private var frameWaiters: [CheckedContinuation<Void, Never>] = []
 
 	/// - Parameter measure: the content's natural height now.
-	init(directory: URL, panel: NSPanel, measure: @escaping () -> CGFloat, inbox: @escaping () -> InboxModel?) {
+	init(
+		directory: URL, panel: InboxPanel, measure: @escaping () -> CGFloat, inbox: @escaping () -> InboxModel?,
+		open: @escaping () -> Void, close: @escaping () -> Void,
+	) {
 		self.directory = directory
 		self.panel = panel
 		self.measure = measure
 		self.inbox = inbox
+		self.open = open
+		self.close = close
 	}
 
 	func run() {
 		Task { @MainActor in
-			// A fresh record: another run's frames must not mix in.
-			try? FileManager.default.removeItem(at: directory)
+			// A fresh record: another run's frames must not mix in. Only ever
+			// a test's own `UITraces/<name>` folder is emptied.
+			if directory.deletingLastPathComponent().lastPathComponent == "UITraces" {
+				try? FileManager.default.removeItem(at: directory)
+			}
 			try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 			// Wait for an inbox with enough rows.
 			while (inbox()?.visibleItems.count ?? 0) < 4 {
@@ -90,7 +104,19 @@ final class AnimationTrace: NSObject {
 					self.signal("waiter")
 				}
 			}
+			// Spawn and despawn: the card's frame holds while it fades and
+			// scales; a re-open mid-despawn turns it back.
+			await step("despawn") { close() }
+			await step("spawn") { open() }
+			await step("reopen-mid-despawn") {
+				close()
+				Task { @MainActor in
+					try? await Task.sleep(for: .milliseconds(50))
+					open()
+				}
+			}
 			link?.invalidate()
+			try? steps.write(to: directory.appendingPathComponent("steps.csv"), atomically: true, encoding: .utf8)
 			try? log.write(to: directory.appendingPathComponent("frames.csv"), atomically: true, encoding: .utf8)
 			FileHandle.standardError.write(Data("TRACE done: \(frame) frames in \(directory.path)\n".utf8))
 		}
@@ -105,20 +131,24 @@ final class AnimationTrace: NSObject {
 	/// back from the hub), lets that change reach a drawn frame, then
 	/// records every display frame for 0.6 s.
 	private func step(_ name: String, until isUnderway: () -> Bool = { true }, _ action: () -> Void) async {
+		let beforeHeight = panel.presentedCardFrameOnScreen.height
 		action()
 		let deadline = Date().addingTimeInterval(20)
 		while !isUnderway(), Date() < deadline {
 			try? await Task.sleep(for: .milliseconds(4))
 		}
+		let changedAt = Date()
 		await nextFrame()
 		let start = Date()
+		steps += "\(name),\(Int(beforeHeight)),\(Int(start.timeIntervalSince(changedAt) * 1000))\n"
 		while Date().timeIntervalSince(start) < 0.6 {
 			await nextFrame()
 			record(name, at: Date().timeIntervalSince(start))
 		}
 		for capture in captures {
 			let scale = CGFloat(capture.bitmap.pixelsHigh) / max(capture.bitmap.size.height, 1)
-			log += "\(capture.line),\(Self.gap(in: capture.bitmap)),\(scale)\n"
+			let parts = capture.line.split(separator: "|", maxSplits: 1).map(String.init)
+			log += "\(parts[0]),\(Self.gap(in: capture.bitmap)),\(scale),\(parts.count > 1 ? parts[1] : "0,0")\n"
 			try? capture.bitmap.representation(using: .png, properties: [:])?
 				.write(to: directory.appendingPathComponent(capture.name))
 		}
@@ -126,34 +156,65 @@ final class AnimationTrace: NSObject {
 		try? await Task.sleep(for: .milliseconds(300))
 	}
 
-	/// Resumes at the panel's next display frame.
+	/// Resumes at the panel's next display frame, or after 20 ms: a panel
+	/// that despawned is off screen, and its display link stops.
 	private func nextFrame() async {
 		if link == nil {
 			let link = panel.displayLink(target: self, selector: #selector(displayFrame(_:)))
+			link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
 			link.add(to: .main, forMode: .common)
 			self.link = link
+		}
+		Task { @MainActor [weak self] in
+			try? await Task.sleep(for: .milliseconds(20))
+			self?.resumeWaiters()
 		}
 		await withCheckedContinuation { frameWaiters.append($0) }
 	}
 
 	@objc private func displayFrame(_: CADisplayLink) {
+		resumeWaiters()
+	}
+
+	private func resumeWaiters() {
 		let waiters = frameWaiters
 		frameWaiters = []
 		waiters.forEach { $0.resume() }
 	}
 
 	private func record(_ name: String, at seconds: TimeInterval) {
+		let card = panel.presentedCardFrameOnScreen
 		frame += 1
 		let line = [
-			"\(frame)", name, "\(Int(seconds * 1000))", "\(Int(panel.frame.minX))", "\(Int(panel.frame.maxY))",
-			"\(Int(panel.frame.height))", "\(Int(measure()))",
+			"\(frame)", name, "\(Int(seconds * 1000))", "\(Int(card.minX))", "\(Int(card.maxY))",
+			"\(Int(card.height))", "\(Int(measure()))",
 		].joined(separator: ",")
-		// The content's hosting view fills the panel.
-		guard let view = panel.contentView?.subviews.first,
-			let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+		let spawn = panel.presentedSpawn
+		let spawnColumns = String(format: "%.3f,%.4f", spawn.opacity, spawn.scale)
+		// The content as presented now, cut to the card as drawn now.
+		guard let bitmap = Self.presented(panel.content, height: card.height, scale: panel.backingScaleFactor)
 		else { return }
-		view.cacheDisplay(in: view.bounds, to: bitmap)
-		captures.append((String(format: "%04d-%@.png", frame, name), line, bitmap))
+		captures.append((String(format: "%04d-%@.png", frame, name), line + "|" + spawnColumns, bitmap))
+	}
+
+	/// The top `height` points of `view` as its layers show mid-motion: a
+	/// view's own drawing (`cacheDisplay`) shows the model, which Core
+	/// Animation has already moved to where the motion ends.
+	private static func presented(_ view: NSView, height: CGFloat, scale: CGFloat) -> NSBitmapImageRep? {
+		guard let layer = view.layer, height > 0,
+			let bitmap = NSBitmapImageRep(
+				bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * scale), pixelsHigh: Int(height * scale),
+				bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+				colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0,
+			),
+			let context = NSGraphicsContext(bitmapImageRep: bitmap)?.cgContext
+		else { return nil }
+		bitmap.size = NSSize(width: view.bounds.width, height: height)
+		context.scaleBy(x: scale, y: scale)
+		// Bitmaps are y-up: the content's top, `height` points of it, fills them.
+		context.translateBy(x: 0, y: height - view.bounds.height)
+		(layer.presentation() ?? layer).render(in: context)
+		return bitmap
 	}
 
 	/// Points from the content's bottom down to the panel's bottom edge,
@@ -168,17 +229,17 @@ final class AnimationTrace: NSObject {
 /// A two-point magenta line `height` points above the content's bottom
 /// (over the last row), drawn only while tracing, so a frame shows
 /// where the content ends even when the panel cuts a little of it off.
-struct AnimationTraceMarker: View {
+@MainActor
+final class AnimationTraceMarker: FlippedView {
 	static let isShown = !(ProcessInfo.processInfo.environment["GENTBOX_TRACE_DIR"] ?? "").isEmpty
 	static let height: CGFloat = 40
 	/// Two points: on a 1× display at least one pixel row is all marker.
 	static let thickness: CGFloat = 2
 
-	var body: some View {
-		Color(red: 1, green: 0, blue: 1)
-			.frame(height: Self.thickness)
-			.padding(.bottom, Self.height)
-			.accessibilityHidden(true)
+	override init(frame: NSRect) {
+		super.init(frame: frame)
+		fill = NSColor(srgbRed: 1, green: 0, blue: 1, alpha: 1)
+		setAccessibilityElement(false)
 	}
 }
 #endif

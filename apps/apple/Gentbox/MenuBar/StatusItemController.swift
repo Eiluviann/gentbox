@@ -1,7 +1,6 @@
 import AppKit
 import GentboxCore
 import Observation
-import SwiftUI
 
 /// The menu-bar item and its inbox: the Gentbox mark, the count of agents
 /// waiting on you, and the inbox in a non-activating panel under the item
@@ -18,39 +17,30 @@ final class StatusItemController: NSObject {
 
 	private let app: AppModel
 	private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-	private let layout = PanelLayout()
-	private let host: NSHostingController<MenuBarInbox>
-	/// The same content laid out at its natural height, off screen: the
-	/// panel's height on opening, and whether content that scrolls fits again.
-	/// While the panel shows, the content reports its own height.
-	private let measuringHost: NSHostingController<MenuBarInbox>
+	private let content: InboxContentView
 	/// The inbox's own panel, used for nothing else: popups, toasts and
 	/// Settings get windows of their own.
 	private let panel: InboxPanel
 	/// Where the open panel hangs: its left edge and its top, fixed from
 	/// opening to closing. Only the height changes while it shows.
 	private var placement: (x: CGFloat, top: CGFloat, maxHeight: CGFloat)?
-	private var height = PanelHeightMotion(height: 0)
-	/// A new height, waiting for the next display frame to start from.
-	private var pendingHeight: CGFloat?
-	private var heightLink: CADisplayLink?
 	private var outsideClicks: Any?
-	#if DEBUG
+	#if DEBUG || GENTBOX_HOOKS
 	private var trace: AnimationTrace?
+	private var demo: DemoDriver?
 	#endif
 
 	init(app: AppModel) {
 		self.app = app
-		host = NSHostingController(rootView: MenuBarInbox(app: app, layout: layout))
-		// The panel is sized by hand from the content's ideal size: letting
-		// the content size the window feeds its frame back into SwiftUI's
-		// layout, which AppKit aborts as a loop.
-		host.sizingOptions = []
-		measuringHost = NSHostingController(rootView: MenuBarInbox(app: app, layout: layout, isMeasuring: true))
-		measuringHost.sizingOptions = []
-		panel = InboxPanel(content: host.view)
+		content = InboxContentView(app: app)
+		#if DEBUG || GENTBOX_HOOKS
+		panel = Self.isRecording ? RecordingInboxPanel(content: content) : InboxPanel(content: content)
+		#else
+		panel = InboxPanel(content: content)
+		#endif
 		super.init()
-		layout.onNaturalHeightChange = { [weak self] natural in self?.fitPanel(natural: natural) }
+		Interactions.panel = panel
+		content.onHeightChange = { [weak self] height, animated in self?.fitPanel(height: height, animated: animated) }
 		NotificationCenter.default.addObserver(
 			self, selector: #selector(screensChanged(_:)),
 			name: NSApplication.didChangeScreenParametersNotification, object: nil,
@@ -58,7 +48,23 @@ final class StatusItemController: NSObject {
 		panel.onClose = { [weak self] in self?.closePanel() }
 		configureButton()
 		updateButton()
-		fitOnChange()
+		#if DEBUG || GENTBOX_HOOKS
+		if Self.isOffscreen {
+			item.isVisible = false
+		}
+		#endif
+		presentWhenRunning()
+		#if DEBUG || GENTBOX_HOOKS
+		if let path = ProcessInfo.processInfo.environment["GENTBOX_DEMO_DIR"], !path.isEmpty {
+			demo = DemoDriver(
+				directory: URL(fileURLWithPath: path), panel: panel,
+				open: { [weak self] in self?.showPanel(takingKeyboard: false) },
+				close: { [weak self] in self?.closePanel() },
+				inbox: { [weak app] in app?.inbox },
+			)
+			demo?.run()
+		}
+		#endif
 		if UserDefaults.standard.bool(forKey: Self.openAtLaunchKey) {
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_SNAPSHOT_PATH"], !path.isEmpty {
 				// Snapshots are for comparing with the design boards, which are
@@ -70,12 +76,14 @@ final class StatusItemController: NSObject {
 			// Shown without taking the keyboard: launching it must not steal
 			// focus from the app you are in.
 			showPanel(takingKeyboard: false)
-			#if DEBUG
+			#if DEBUG || GENTBOX_HOOKS
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_TRACE_DIR"], !path.isEmpty {
 				trace = AnimationTrace(
 					directory: URL(fileURLWithPath: path), panel: panel,
-					measure: { [layout] in layout.naturalHeight },
+					measure: { [content] in content.naturalHeight },
 					inbox: { [weak app] in app?.inbox },
+					open: { [weak self] in self?.showPanel(takingKeyboard: false) },
+					close: { [weak self] in self?.closePanel() },
 				)
 				trace?.run()
 			}
@@ -94,7 +102,7 @@ final class StatusItemController: NSObject {
 	}
 
 	@objc private func togglePanel(_: NSStatusBarButton) {
-		if panel.isVisible {
+		if panel.isVisible, !panel.isDespawning {
 			closePanel()
 		} else {
 			showPanel(takingKeyboard: true)
@@ -104,15 +112,24 @@ final class StatusItemController: NSObject {
 	/// Opened from the status item it takes the keyboard (the card's ↩, ⌘⌫
 	/// and R) without activating the app.
 	private func showPanel(takingKeyboard: Bool) {
+		Interactions.untilNextFrame("Open")
 		app.inbox?.requestRead()
 		app.inbox?.presentationChanged(isPresented: true)
-		placePanel()
-		guard placement != nil else { return }
+		// Re-opened while it fades out: it turns back where it is.
+		if !panel.isDespawning {
+			placePanel()
+			guard placement != nil else { return }
+		}
+		panel.spawn(reduceMotion: Self.reducesMotion)
 		if takingKeyboard {
 			panel.makeKeyAndOrderFront(nil)
 		} else {
 			panel.orderFrontRegardless()
 		}
+		#if DEBUG || GENTBOX_HOOKS
+		// The recording harness: your clicks elsewhere must not cut a clip.
+		if demo != nil { return }
+		#endif
 		// A click anywhere else closes it, as a menu would; clicks inside the
 		// panel and its menus are this app's own and never reach this monitor.
 		outsideClicks = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -120,19 +137,37 @@ final class StatusItemController: NSObject {
 		}
 	}
 
-	private func closePanel() {
-		guard panel.isVisible else { return }
-		panel.orderOut(nil)
-		heightLink?.invalidate()
-		heightLink = nil
-		pendingHeight = nil
-		placement = nil
+	/// Every way of closing (Escape, a click elsewhere, losing the keyboard,
+	/// the status item) fades the panel out first; a display going away
+	/// closes it at once.
+	private func closePanel(animated: Bool = true) {
+		guard panel.isVisible, animated ? !panel.isDespawning : true else { return }
 		if let outsideClicks {
 			NSEvent.removeMonitor(outsideClicks)
 		}
 		outsideClicks = nil
+		if animated {
+			panel.despawn(reduceMotion: Self.reducesMotion) { [weak self] in self?.finishClosing() }
+		} else {
+			finishClosing()
+		}
+	}
+
+	private func finishClosing() {
+		panel.orderOut(nil)
+		placement = nil
 		// The next opening starts again from the next-up item, unfiltered.
 		app.inbox?.presentationChanged(isPresented: false)
+	}
+
+	private static var reducesMotion: Bool {
+		#if DEBUG || GENTBOX_HOOKS
+		// Tests and recordings show both variants whatever the Mac is set to.
+		if let override = ProcessInfo.processInfo.environment["GENTBOX_REDUCE_MOTION"] {
+			return override == "1"
+		}
+		#endif
+		return NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 	}
 
 	/// Hangs the panel under the status item at its content's height, before
@@ -142,97 +177,85 @@ final class StatusItemController: NSObject {
 		// `NSScreen.main` is the key window's screen, nil while the app runs in
 		// the background with no key window.
 		guard let screen = item.button?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
-		let anchor = item.button?.window?.frame ?? .zero
-		let natural = naturalHeight()
+		var anchor = item.button?.window?.frame ?? .zero
+		var visibleFrame = screen.visibleFrame
+		#if DEBUG || GENTBOX_HOOKS
+		if Self.isOffscreen {
+			(anchor, visibleFrame) = Self.offscreen(visibleFrame)
+		}
+		#endif
+		let maxHeight = InboxPanel.maxHeight(under: anchor, in: visibleFrame)
+		content.maxHeight = maxHeight
+		content.settle()
 		let frame = InboxPanel.frame(
-			size: NSSize(width: Tokens.popoverWidth, height: natural), under: anchor, in: screen.visibleFrame,
+			size: NSSize(width: Tokens.popoverWidth, height: devicePixelCeiling(content.naturalHeight)),
+			under: anchor, in: visibleFrame,
 		)
-		let maxHeight = InboxPanel.maxHeight(under: anchor, in: screen.visibleFrame)
 		placement = (frame.minX, frame.maxY, maxHeight)
-		layout.isCapped = natural > maxHeight
-		height.reset(to: frame.height)
-		panel.setFrame(frame, display: false, animate: false)
+		panel.place(card: frame, bottom: visibleFrame.minY)
 	}
 
 	/// A display was added, removed or rearranged while the panel shows: its
 	/// place may be off screen now, and it never moves, so it closes, as a
 	/// menu would.
 	@objc private func screensChanged(_: Notification) {
-		closePanel()
+		closePanel(animated: false)
 	}
 
-	/// The content's natural height, header and foot included, measured off
-	/// screen.
-	private func naturalHeight() -> CGFloat {
-		ceil(measuringHost.sizeThatFits(in: NSSize(width: Tokens.popoverWidth, height: 100_000)).height)
-	}
-
-	/// While the content scrolls it reports no natural height of its own, so
-	/// each change is measured off screen to see whether it fits again.
-	private func fitOnChange() {
+	/// An inbox that starts while the panel shows is shown too.
+	private func presentWhenRunning() {
 		withObservationTracking {
 			_ = app.phase
-			_ = app.inbox?.inbox
-			_ = app.inbox?.failure
-			_ = app.inbox?.expanded
-			_ = app.inbox?.filter
-			_ = app.inbox?.selection
-			_ = app.inbox?.replyDraft?.messageId
 		} onChange: { [weak self] in
 			Task { @MainActor in
 				guard let self else { return }
-				// An inbox that starts while the panel shows is shown too.
 				if self.panel.isVisible {
 					self.app.inbox?.presentationChanged(isPresented: true)
 				}
-				if self.layout.isCapped {
-					self.fitPanel(natural: self.naturalHeight())
-				}
-				self.fitOnChange()
+				self.presentWhenRunning()
 			}
 		}
 	}
 
-	/// The content's natural height changed, in the layout pass that starts
-	/// its animation: the panel's height starts towards it at the next
-	/// display frame, the first the animated content can be drawn in, on the
-	/// same curve, so the two move together (a stalled main thread delays
-	/// both alike). Taller than the screen, the panel stops there and the
-	/// content scrolls.
-	private func fitPanel(natural: CGFloat) {
-		guard panel.isVisible, let placement else { return }
-		// Up to the next device pixel, so the panel ends where the content does.
-		let scale = panel.backingScaleFactor
-		let natural = ceil(natural * scale) / scale
-		layout.isCapped = natural > placement.maxHeight
-		let target = min(natural, placement.maxHeight)
-		guard target != height.target || pendingHeight != nil else { return }
-		pendingHeight = target
-		guard heightLink == nil else { return }
-		let link = panel.displayLink(target: self, selector: #selector(stepHeight(_:)))
-		link.add(to: .main, forMode: .common)
-		heightLink = link
+	/// The content's height changed: the card follows in the same Core
+	/// Animation transaction, on the same curve, so its bottom edge stays on
+	/// the content's. The content has already stopped at the screen's height.
+	private func fitPanel(height: CGFloat, animated: Bool) {
+		guard panel.isVisible, placement != nil else { return }
+		panel.setCardHeight(devicePixelCeiling(height), animated: animated)
 	}
 
-	/// One display frame of the height motion: the top edge and the left edge
-	/// stay; only the bottom edge moves. Retargets and frames share one
-	/// clock, the time of the frame.
-	@objc private func stepHeight(_ link: CADisplayLink) {
-		guard let placement else { return }
-		let time = CACurrentMediaTime()
-		if let pendingHeight {
-			height.retarget(to: pendingHeight, at: time)
-			self.pendingHeight = nil
-		}
-		let current = height.height(at: time)
-		panel.setFrame(
-			NSRect(x: placement.x, y: placement.top - current, width: Tokens.popoverWidth, height: current),
-			display: true, animate: false,
-		)
-		if !height.isMoving(at: time) {
-			link.invalidate()
-			heightLink = nil
-		}
+	/// Up to the next device pixel, so the card ends where the content does.
+	private func devicePixelCeiling(_ height: CGFloat) -> CGFloat {
+		let scale = panel.backingScaleFactor
+		return ceil(height * scale) / scale
+	}
+
+	/// Driven by `DemoDriver` for a recording.
+	#if DEBUG || GENTBOX_HOOKS
+	/// `GENTBOX_TEST_OFFSCREEN=1`: measurements while the user's screen is in
+	/// use. The status item is hidden and the panel hangs as it would under
+	/// it, but to the right of every display, so nothing shows.
+	static var isOffscreen: Bool {
+		ProcessInfo.processInfo.environment["GENTBOX_TEST_OFFSCREEN"] == "1"
+	}
+
+	/// A status item's place at the top right of `visibleFrame`, and the
+	/// frame, both moved past the right edge of every display.
+	private static func offscreen(_ visibleFrame: NSRect) -> (anchor: NSRect, visibleFrame: NSRect) {
+		let rightmost = NSScreen.screens.map(\.frame.maxX).max() ?? visibleFrame.maxX
+		let shift = rightmost - visibleFrame.minX + 1000
+		let anchor = NSRect(x: visibleFrame.maxX - 240, y: visibleFrame.maxY, width: 40, height: 24)
+		return (anchor.offsetBy(dx: shift, dy: 0), visibleFrame.offsetBy(dx: shift, dy: 0))
+	}
+	#endif
+
+	private static var isRecording: Bool {
+		#if DEBUG || GENTBOX_HOOKS
+		!(ProcessInfo.processInfo.environment["GENTBOX_DEMO_DIR"] ?? "").isEmpty
+		#else
+		false
+		#endif
 	}
 
 	/// A test hook: writes the panel's content to a PNG after every inbox
@@ -257,9 +280,11 @@ final class StatusItemController: NSObject {
 	}
 
 	private func writeSnapshot(to url: URL) {
-		let view = host.view
-		guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-		view.cacheDisplay(in: view.bounds, to: bitmap)
+		let view: NSView = content
+		// The hosting view spans the panel's column; the card is its top.
+		let card = NSRect(x: 0, y: 0, width: view.bounds.width, height: panel.cardHeight)
+		guard let bitmap = view.bitmapImageRepForCachingDisplay(in: card) else { return }
+		view.cacheDisplay(in: card, to: bitmap)
 		// The cache leaves the panel's own surface out: lay it under.
 		let size = NSSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
 		guard let opaque = NSBitmapImageRep(

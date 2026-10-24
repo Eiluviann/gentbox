@@ -66,4 +66,69 @@ final class InboxPanelTests: XCTestCase {
 		let tall = InboxPanel.frame(size: NSSize(width: 380, height: 5000), under: item, in: screen)
 		XCTAssertEqual(tall.height, InboxPanel.maxHeight(under: item, in: screen))
 	}
+
+	/// Spawn scales about the card's top centre: that point never moves, so
+	/// the card grows down and out from under the status item.
+	func testTheSpawnScaleHoldsTheCardsTopCentre() {
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), bottom: 0)
+		let cardTopCentre = CGPoint(x: panel.frame.width / 2, y: panel.frame.height - InboxPanel.margin)
+		for scale in [0.96, 0.98, 1.0] {
+			let moved = cardTopCentre.applying(CATransform3DGetAffineTransform(panel.cardTopTransform(scale: scale)))
+			XCTAssertEqual(moved.x, cardTopCentre.x, accuracy: 0.001, "scale \(scale)")
+			XCTAssertEqual(moved.y, cardTopCentre.y, accuracy: 0.001, "scale \(scale)")
+		}
+	}
+
+	/// The card's height moves in Core Animation from where it shows, on the
+	/// content's curve; without motion it jumps, dropping any motion left.
+	func testTheCardsHeightAnimatesFromWhereItShows() throws {
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), bottom: 0)
+		// Shadow, surface, ring: the ring's own view stays on top.
+		let ring = try XCTUnwrap(panel.contentView?.subviews.last?.layer?.sublayers?.first)
+		XCTAssertEqual(ring.borderWidth, 0.5)
+		XCTAssertEqual(panel.contentView?.subviews.count, 3)
+		panel.setCardHeight(400, animated: true)
+		XCTAssertEqual(panel.cardHeight, 400)
+		let grow = try XCTUnwrap(ring.animation(forKey: "motion.bounds") as? CABasicAnimation)
+		XCTAssertEqual((grow.fromValue as? NSValue)?.rectValue.height ?? 0, 300)
+		XCTAssertEqual((grow.toValue as? NSValue)?.rectValue.height ?? 0, 400)
+		XCTAssertEqual(grow.duration, Tokens.motionDuration, accuracy: 0.001)
+		var control = [Float](repeating: 0, count: 2)
+		grow.timingFunction?.getControlPoint(at: 1, values: &control)
+		XCTAssertEqual(control, [0.42, 0], "ease in and out")
+
+		panel.setCardHeight(250, animated: false)
+		XCTAssertNil(ring.animation(forKey: "motion.bounds"))
+		XCTAssertEqual(ring.bounds.height, 250)
+	}
+
+	func testSpawnAndDespawnFadeAndScaleAndReduceMotionOnlyFades() throws {
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), bottom: 0)
+		panel.spawn(reduceMotion: false)
+		let spawn = try XCTUnwrap(panel.contentView?.layer?.animation(forKey: "spawn") as? CAAnimationGroup)
+		XCTAssertEqual(spawn.duration, 0.18, accuracy: 0.001)
+		let grow = try XCTUnwrap(spawn.animations?.last as? CABasicAnimation)
+		XCTAssertEqual((grow.fromValue as? NSValue)?.caTransform3DValue.m11 ?? 0, 0.96, accuracy: 0.001)
+
+		panel.spawn(reduceMotion: true)
+		let fade = try XCTUnwrap(panel.contentView?.layer?.animation(forKey: "spawn") as? CAAnimationGroup)
+		let still = try XCTUnwrap(fade.animations?.last as? CABasicAnimation)
+		XCTAssertEqual((still.fromValue as? NSValue)?.caTransform3DValue.m11 ?? 0, 1, accuracy: 0.001)
+		XCTAssertEqual((still.toValue as? NSValue)?.caTransform3DValue.m11 ?? 0, 1, accuracy: 0.001)
+
+		panel.despawn(reduceMotion: false) {}
+		XCTAssertTrue(panel.isDespawning)
+		XCTAssertTrue(panel.ignoresMouseEvents, "despawning ignores input")
+		let out = try XCTUnwrap(panel.contentView?.layer?.animation(forKey: "spawn") as? CAAnimationGroup)
+		XCTAssertEqual(out.duration, 0.12, accuracy: 0.001)
+		let shrink = try XCTUnwrap(out.animations?.last as? CABasicAnimation)
+		XCTAssertEqual((shrink.toValue as? NSValue)?.caTransform3DValue.m11 ?? 0, 0.98, accuracy: 0.001)
+
+		panel.spawn(reduceMotion: false)
+		XCTAssertFalse(panel.isDespawning, "a re-open turns the despawn back")
+		XCTAssertFalse(panel.ignoresMouseEvents)
+	}
 }

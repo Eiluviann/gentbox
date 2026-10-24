@@ -62,7 +62,7 @@ flowchart LR
     core[gentbox-core<br/>classify · policy · lifecycle]
     store[(gentbox-store<br/>SQLite)]
     relay[gentbox-relay<br/>APNs · ntfy answers and fallback]
-    ui[SwiftUI over gentbox-ffi<br/>menu-bar inbox · popups · native notifications]
+    ui[AppKit + Core Animation over gentbox-ffi<br/>menu-bar inbox · popups · native notifications]
   end
   apns[(Apple Push<br/>your own .p8 key)]
   ntfy[(ntfy server<br/>ntfy.sh or self-hosted)]
@@ -82,7 +82,7 @@ flowchart LR
 
 ADR: [0001](adr/0001-hub-placement.md).
 
-- **Mac (Now).** The Rust core runs in-process inside the SwiftUI menu-bar app, which registers itself as a login item (`SMAppService.mainApp`). One process owns the store, the ingest listener, the relay and the UI. The app talks to the core through UniFFI (`gentbox-ffi`), not over HTTP.
+- **Mac (Now).** The Rust core runs in-process inside the menu-bar app (AppKit and Core Animation, ADR [0012](adr/0012-menu-bar-inbox-appkit.md)), which registers itself as a login item (`SMAppService.mainApp`). One process owns the store, the ingest listener, the relay and the UI. The app talks to the core through UniFFI (`gentbox-ffi`), not over HTTP.
 - **Headless (Now, Linux-first).** The same crates build the `gentboxd` binary: ingest, store, policy and relay without a UI. It serves Linux, a Mac without the app, and the integration tests. On Linux it runs as a systemd user unit (Planned: the unit file and desktop notifications over D-Bus).
 - **One hub per user.** Each hub takes an exclusive lock on `<state>/hub.lock` before it binds anything. A second hub (the app while `gentboxd` runs, or two app builds) exits with "another hub is running (pid …)" instead of splitting state. The app does not become a client of a running daemon; on the Mac the app is the hub.
 
