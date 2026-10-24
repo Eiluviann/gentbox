@@ -94,6 +94,16 @@ jobs:
       # the result bundle (screenshots, the full log) is kept when it fails.
       - run: apps/apple/scripts/test.sh -quiet -resultBundlePath build/results/ci.xcresult
         timeout-minutes: 30
+      # `-quiet` hides which test failed: name the failures in the log.
+      - name: Name the failing tests
+        if: failure()
+        working-directory: apps/apple
+        run: >
+          xcrun xcresulttool get test-results summary --path build/results/ci.xcresult
+          | python3 -c 'import json, sys;
+          d = json.load(sys.stdin);
+          print(d.get("result"), d.get("passedTests"), "passed,", d.get("failedTests"), "failed");
+          [print("FAILED", f.get("testIdentifierString") or f.get("testName"), "--", f.get("failureText")) for f in d.get("testFailures", [])]'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
