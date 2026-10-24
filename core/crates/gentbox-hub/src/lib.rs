@@ -41,6 +41,8 @@ pub use config::{DATABASE_FILE_NAME, HubConfig};
 pub use dispatch::{HubDelegate, HubEvent, NoDelegate};
 pub use lock::{HubLock, LOCK_FILE_NAME, LockError};
 pub use waiters::{LIVE_WAITER_WINDOW, MAX_WAIT, PendingWait, WaitStart};
+// Store types that appear in the handle's signatures.
+pub use gentbox_store::{MessageFilter, SweepReport, Upserted};
 
 /// How many commands may queue before senders wait their turn.
 const COMMAND_QUEUE: usize = 256;
