@@ -110,14 +110,19 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(tokio.waitForExistence(timeout: 10))
 		tokio.rightClick()
 		app.menuItems["Mute topic Dependency upgrades"].click()
-		XCTAssertTrue(isMuted(tokio))
-		XCTAssertEqual(text(of: element("inbox.muted-summary")), "Dependency upgrades muted")
+		// The foot names what is muted. (The row's own "Muted" value is for
+		// VoiceOver; macOS 15 exposes the row as two groups and only one
+		// carries it, so the test reads the foot.)
+		let summary = element("inbox.muted-summary")
+		XCTAssertTrue(summary.waitForExistence(timeout: 5))
+		XCTAssertEqual(text(of: summary), "Dependency upgrades muted")
 
 		let search = element("message:Search filters persist in the URL")
 		search.rightClick()
 		app.menuItems["Mute thread Search filters"].click()
-		XCTAssertTrue(isMuted(search))
-		XCTAssertEqual(text(of: element("inbox.muted-summary")), "2 topics and threads muted")
+		let both = NSPredicate(format: "value == '2 topics and threads muted' OR label == '2 topics and threads muted'")
+		let updated = XCTNSPredicateExpectation(predicate: both, object: summary)
+		XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 5), .completed, text(of: summary))
 	}
 
 	func testTheNextUpCardOffersAnswersWhileTheSenderWaits() throws {
@@ -402,13 +407,6 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// A static text's string: macOS puts it in the value, not the label.
 	private func text(of element: XCUIElement) -> String {
 		element.label.isEmpty ? (element.value as? String ?? "") : element.label
-	}
-
-	/// The row reads "Muted" once the change is drawn.
-	private func isMuted(_ header: XCUIElement) -> Bool {
-		let muted = NSPredicate(format: "value == 'Muted'")
-		let expectation = XCTNSPredicateExpectation(predicate: muted, object: header)
-		return XCTWaiter.wait(for: [expectation], timeout: 5) == .completed
 	}
 
 	private func element(_ identifier: String) -> XCUIElement {
