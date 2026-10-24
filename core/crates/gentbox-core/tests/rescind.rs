@@ -61,6 +61,22 @@ fn reasons_are_worded_for_the_inbox() {
 }
 
 #[test]
+fn the_delivery_log_text_never_calls_an_implicit_clean_up_a_withdrawal() {
+    assert_eq!(
+        RescindReason::HandledInSession.log_text(),
+        "Handled in the session"
+    );
+    assert_eq!(
+        RescindReason::Obsolete.log_text(),
+        "Withdrawn: No longer needed"
+    );
+    assert_eq!(
+        RescindReason::ResolvedElsewhere.log_text(),
+        "Withdrawn: Resolved elsewhere"
+    );
+}
+
+#[test]
 fn only_an_implicit_clean_up_shows_as_handled_in_the_session() {
     // Withdrawn means the agent asked; the hub's own clean-ups get another label.
     assert_eq!(

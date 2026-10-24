@@ -59,6 +59,16 @@ impl RescindReason {
         }
     }
 
+    /// The delivery log's text for a rescission: only a sender's own reasons
+    /// read as a withdrawal.
+    pub fn log_text(self) -> String {
+        if self.is_explicit() {
+            format!("{}: {}", self.label(), self.in_words())
+        } else {
+            self.in_words().to_owned()
+        }
+    }
+
     /// The label of the inbox row: "Withdrawn" only when the agent asked, and
     /// "Handled in the session" for the hub's own clean-up.
     pub fn label(self) -> &'static str {
@@ -132,7 +142,10 @@ pub enum ChannelEffect {
     RemoveToast,
     /// Remove the Mac native notification (`removeDeliveredNotifications`).
     RemoveNativeNotification,
-    /// Keep the inbox row, marked "Withdrawn" with the reason in words.
+    /// Keep the inbox row, labelled by [`RescindReason::label`] ("Withdrawn"
+    /// for a sender's own reasons, "Handled in the session" for the hub's
+    /// clean-ups) with the reason in words. Apps key on the reason's label,
+    /// never on this effect's name.
     MarkWithdrawn(RescindReason),
     /// Fold the inbox row into the message that replaced it.
     FoldIntoSuccessor(MessageId),
@@ -173,9 +186,9 @@ pub enum RescindError {
 ///   are removed, whatever its state: acknowledging (opening the inbox,
 ///   bringing the conversation forward) does not close a persistent popup, so
 ///   the hub keeps [`OpenItem::delivered`] current and removal is idempotent;
-/// - the inbox row is kept as "Withdrawn".
+/// - the inbox row is kept, labelled by [`RescindReason::label`];
 /// - **superseded:** the inbox row folds into `successor` instead of staying
-///   as "Withdrawn".
+///   as a row of its own.
 /// - a waiter with a live long-poll is woken with `rescinded`.
 /// - phone entries appear only when `has_phone_channel`.
 pub fn rescission_for(

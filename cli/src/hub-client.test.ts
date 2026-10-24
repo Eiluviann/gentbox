@@ -492,7 +492,7 @@ describe('failures', () => {
 			);
 	});
 
-	it('keeps the count of a refused close, from the body or else from the message', async () => {
+	it("keeps the open-message count of a refused close from the hub's openMessages field", async () => {
 		let calls = 0;
 		const connection = await connect(() => {
 			calls++;
@@ -500,10 +500,15 @@ describe('failures', () => {
 				status: 409,
 				body:
 					calls === 1
-						? { code: 'has_open_messages', message: 'still open', count: 3 }
+						? {
+								code: 'has_open_messages',
+								message: '3 items still open',
+								openMessages: 3,
+							}
 						: {
 								code: 'has_open_messages',
-								message: 'the topic still has 2 open messages',
+								message: 'still open',
+								count: 2,
 							},
 			};
 		});
@@ -515,6 +520,20 @@ describe('failures', () => {
 			ok: false,
 			error: { code: 'has_open_messages', count: 2 },
 		});
+	});
+
+	it('never reads a count out of the message text', async () => {
+		const connection = await connect(() => ({
+			status: 409,
+			body: {
+				code: 'has_open_messages',
+				message: '"Release 1.4 phase 3" still has open items',
+			},
+		}));
+		const refused = await connection.client.closeTopic(TOPIC_ID, {});
+		expect(refused.ok).toBe(false);
+		if (!refused.ok && refused.error.kind === 'http')
+			expect(refused.error.count).toBeUndefined();
 	});
 
 	describe('describeCloseFailure', () => {

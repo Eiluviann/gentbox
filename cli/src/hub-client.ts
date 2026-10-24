@@ -600,14 +600,8 @@ function httpFailure(status: number, body: string): HubFailure {
 		code: parsed.value.code,
 		message: parsed.value.message,
 		pointer: parsed.value.pointer,
-		count: parsed.value.count ?? countInMessage(parsed.value.message),
+		count: parsed.value.openMessages ?? parsed.value.count,
 	};
-}
-
-/** The first whole number in a hub message, for a hub that words the count instead of sending it. */
-function countInMessage(message: string): number | undefined {
-	const digits = /\b(\d{1,6})\b/.exec(message)?.[1];
-	return digits === undefined ? undefined : Number(digits);
 }
 
 function retryAfterMilliseconds(header: string | string[] | undefined): number {

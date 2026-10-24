@@ -202,6 +202,9 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		if (!asked.ok) return;
 		const polled = await client.getResponse(asked.value.ingest.id, 0);
 		expect(polled).toMatchObject({ ok: true, value: { status: 'pending' } });
+		// Clean up: the poll above gives the item a live waiter for a while, and
+		// the next test's asks would fold into it.
+		await client.rescindMessage(asked.value.ingest.id, 'resolved_elsewhere');
 	});
 
 	it('a muted ask returns muted at once, names the mute, and stays open until the model rescinds it', async () => {

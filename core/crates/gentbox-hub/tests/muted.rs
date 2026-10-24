@@ -8,6 +8,7 @@ mod support;
 use gentbox_core::classify::RuleSet;
 use gentbox_core::response::{IngestResponse, IngestWarning, WarningCode};
 use gentbox_core::topic::TopicCreate;
+use gentbox_hub::IngestStatus;
 use serde_json::json;
 use support::{TestHub, blocking_prompt};
 
@@ -122,5 +123,72 @@ async fn an_unmuted_message_gets_no_muted_warning() {
     let hub = TestHub::start();
     let response = hub.create(blocking_prompt()).await;
     assert!(muted_warning(&response).is_none());
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn an_idempotent_retry_of_a_muted_ask_reports_the_mute_again() {
+    let hub = TestHub::start();
+    muted_topic(&hub).await;
+    let mut prompt = blocking_prompt();
+    prompt["topic"] = json!({ "key": "release-1.4" });
+    prompt["idempotencyKey"] = json!("retry-1");
+    let first = hub.create(prompt.clone()).await;
+    let retry = hub.post(prompt).await;
+    assert_eq!(retry.status, IngestStatus::Existing);
+    assert_eq!(retry.response.id, first.id);
+    assert!(!retry.response.should_wait);
+    let warning = muted_warning(&retry.response).expect("a muted warning");
+    assert_eq!(
+        warning.message,
+        "Delivered to the inbox without a ping: topic 'Release 1.4' is muted"
+    );
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn a_retry_of_an_unmuted_or_closed_message_gets_no_muted_warning() {
+    let hub = TestHub::start();
+    let mut prompt = blocking_prompt();
+    prompt["idempotencyKey"] = json!("retry-2");
+    let first = hub.create(prompt.clone()).await;
+    assert!(muted_warning(&hub.post(prompt).await.response).is_none());
+
+    // Muted later and then closed: nothing is held back any more, so nothing is reported.
+    hub.handle
+        .mute_thread(first.thread_id.clone(), true)
+        .await
+        .unwrap();
+    hub.press(&first.id, "allow").await.unwrap();
+    let mut again = blocking_prompt();
+    again["idempotencyKey"] = json!("retry-2");
+    assert!(muted_warning(&hub.post(again).await.response).is_none());
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn a_rule_muted_ask_that_folds_into_a_live_ask_does_not_report_a_mute() {
+    // The response names the live ask, not the muted one. A `muted` warning
+    // would lead the sender to rescind a message someone is waiting on.
+    let rules = RuleSet::parse(
+        "[[rule]]\nname = \"Mute prompts\"\nmatch = { event = \"claude-code.permission_request\" }\nmute = true\n",
+    )
+    .unwrap();
+    let hub = TestHub::start_with(|config| config.rules = rules);
+    let live = hub.create(blocking_prompt()).await;
+    assert!(live.should_wait);
+
+    let mut muted = blocking_prompt();
+    muted["event"] = json!("claude-code.permission_request");
+    muted["title"] = json!("Allow Bash to run every test?");
+    let folded = hub.post(muted).await;
+    assert_eq!(folded.status, IngestStatus::Existing);
+    assert_eq!(folded.response.id, live.id);
+    assert!(!folded.response.should_wait);
+    assert!(
+        muted_warning(&folded.response).is_none(),
+        "{:?}",
+        folded.response
+    );
     hub.stop().await;
 }

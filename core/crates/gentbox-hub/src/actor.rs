@@ -242,16 +242,17 @@ impl HubState {
         let now = self.now();
         if let Some(stored) = self.idempotent_match(&input)? {
             let should_wait = self.current_should_wait(&stored)?;
+            let warnings = self.muted_warning_for_stored(&stored)?;
             return Ok(IngestOutcome {
                 status: IngestStatus::Existing,
-                response: ingest_response(&stored, should_wait, Vec::new()),
+                response: ingest_response(&stored, should_wait, warnings),
             });
         }
         let settings = source_settings(&self.sources, &input.source.agent);
         let prepared = prepare_message(input, &self.rules, BuiltInRules::load(), settings)
             .map_err(HubError::Rejected)?;
         let rescinds = prepared.message.rescinds.clone();
-        let mut warnings = prepared.warnings.clone();
+        let warnings = prepared.warnings.clone();
         let snapshot = self.store.repository().grouping_snapshot()?;
         let resolution = resolve_grouping(&snapshot, &prepared.grouping_request())
             .map_err(HubError::Grouping)?;
@@ -267,7 +268,11 @@ impl HubState {
             groups.thread_id.clone(),
         );
         let plan = self.plan_for(&message, groups.is_muted);
-        warnings.extend(muted_warning(&message, &groups));
+        // Only a message stored as its own item reports a mute. One folded into
+        // or dropped as a repeat of another message answers with that message's
+        // id, and a `muted` warning there would send the sender to rescind it.
+        let mut warnings_if_stored = warnings.clone();
+        warnings_if_stored.extend(muted_warning(&message, groups.muted_group.as_deref()));
         let items = self.open_items(&message.conversation_key(), now)?;
         let outcome = coalesce(&CoalesceInput {
             incoming: &message,
@@ -294,12 +299,18 @@ impl HubState {
                 &groups,
                 Some(Supersede { replaces, pings }),
                 rescissions,
-                warnings,
+                warnings_if_stored,
                 now,
             ),
-            CoalesceOutcome::New { rescissions } => {
-                self.store_new(message, plan, &groups, None, rescissions, warnings, now)
-            }
+            CoalesceOutcome::New { rescissions } => self.store_new(
+                message,
+                plan,
+                &groups,
+                None,
+                rescissions,
+                warnings_if_stored,
+                now,
+            ),
         }
     }
 
@@ -1494,6 +1505,21 @@ impl HubState {
         Ok(self.plan_for(message, is_effectively_muted(&topic, &thread)))
     }
 
+    /// The `muted` warning of a stored, still live message, for an idempotent
+    /// retry: the mute is looked up again, so a lifted mute reports nothing.
+    fn muted_warning_for_stored(&self, message: &Message) -> Result<Vec<IngestWarning>, HubError> {
+        if !message.is_live() {
+            return Ok(Vec::new());
+        }
+        let repo = self.store.repository();
+        let topic = repo.topic(&message.topic_id)?;
+        let thread = repo.thread(&message.thread_id)?;
+        let muted_group = muted_group_name(Some(&topic), Some(&thread));
+        Ok(muted_warning(message, muted_group.as_deref())
+            .into_iter()
+            .collect())
+    }
+
     fn current_should_wait(&self, message: &Message) -> Result<bool, HubError> {
         if !message.is_live() {
             return Ok(false);
@@ -1588,17 +1614,13 @@ impl PlannedGroups {
                 (thread.id.clone(), Some(thread))
             }
         };
-        let muted_topic = snapshot
-            .topics
-            .iter()
-            .find(|topic| topic.id == topic_id && topic.muted);
-        let muted_thread = snapshot
-            .threads
-            .iter()
-            .find(|thread| thread.id == thread_id && thread.muted);
-        let muted_group = muted_topic
-            .map(|topic| format!("topic '{}'", topic.title))
-            .or_else(|| muted_thread.map(|thread| format!("thread '{}'", thread.title)));
+        let muted_group = muted_group_name(
+            snapshot.topics.iter().find(|topic| topic.id == topic_id),
+            snapshot
+                .threads
+                .iter()
+                .find(|thread| thread.id == thread_id),
+        );
         Self {
             topic_id,
             thread_id,
@@ -1667,7 +1689,7 @@ fn close_withdrawn(
             recorded_at: now,
             event: DeliveryEvent::Withdrawn,
             surface: None,
-            detail: Some(rescission.reason.in_words().to_owned()),
+            detail: Some(rescission.reason.log_text()),
         })?;
         closed.push((message, rescission.clone()));
     }
@@ -1735,13 +1757,26 @@ fn rename_implicit_threads(
     Ok(renamed)
 }
 
+/// What holds a message back, named for the sender: the muted topic, else
+/// the muted thread.
+fn muted_group_name(topic: Option<&Topic>, thread: Option<&Thread>) -> Option<String> {
+    topic
+        .filter(|topic| topic.muted)
+        .map(|topic| format!("topic '{}'", topic.title))
+        .or_else(|| {
+            thread
+                .filter(|thread| thread.muted)
+                .map(|thread| format!("thread '{}'", thread.title))
+        })
+}
+
 /// Tells the sender its message went to the inbox without a ping because a
 /// mute holds it back (urgent messages break through and get no warning).
-fn muted_warning(message: &Message, groups: &PlannedGroups) -> Option<IngestWarning> {
+fn muted_warning(message: &Message, muted_group: Option<&str>) -> Option<IngestWarning> {
     if message.urgent {
         return None;
     }
-    let cause = match (&groups.muted_group, &message.muted_by_rule) {
+    let cause = match (muted_group, &message.muted_by_rule) {
         (Some(group), _) => format!("{group} is muted"),
         (None, Some(rule)) => format!("rule '{rule}' mutes it"),
         (None, None) => return None,

@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import {
 	type AskOutcome,
 	askAndWait,
+	mutedCause,
 	type WaitOptions,
 	waitForAnswer,
 } from './ask-flow.ts';
@@ -255,7 +256,17 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'muted',
-					instruction: `Your message was delivered to the inbox, but its topic or thread is muted, so the user wasn't pinged and may answer later. The message stays open. ${KEEP_OPEN_ADVICE}`,
+					instruction: `Your message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open. ${KEEP_OPEN_ADVICE}`,
+				},
+				warnings,
+			);
+		case 'merged':
+			return jsonResult(
+				{
+					status: 'no_answer',
+					messageId,
+					reason: 'merged',
+					instruction: `Your ask was merged into an open message that already existed (${messageId}) instead of being stored on its own, so nobody will answer it separately. That message may belong to a request someone is waiting on: do not rescind it. Ask the user in the conversation instead.`,
 				},
 				warnings,
 			);

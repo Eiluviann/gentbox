@@ -161,6 +161,18 @@ describe('the reasons a sender names and the one the hub records', () => {
 		expect(actionResponseSchema.safeParse(response).success).toBe(true);
 	});
 
+	it('reads a rescind reason it has never seen, so a newer hub never breaks a poll', () => {
+		const parsed = actionResponseSchema.safeParse({
+			messageId: '01JBM3Z8Q7Y4K2N6P0R5T9VWXA',
+			status: 'rescinded',
+			rescindReason: 'from_the_future',
+		});
+		expect(parsed).toMatchObject({
+			success: true,
+			data: { rescindReason: 'from_the_future' },
+		});
+	});
+
 	it.each([
 		['rescindRequest', rescindRequestSchema, { reason: 'handled_in_session' }],
 		[

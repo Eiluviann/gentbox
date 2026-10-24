@@ -110,7 +110,9 @@ export type AskOutcome =
 	| WaitOutcome
 	| { kind: 'not_waiting' }
 	/** Delivered to the inbox, but a mute held back the ping: nobody is waiting and the message stays open. */
-	| { kind: 'muted'; messageId: string; detail: string };
+	| { kind: 'muted'; messageId: string; detail: string }
+	/** Folded into a message that was already open: its id is that message's, not the ask's own. */
+	| { kind: 'merged'; messageId: string };
 
 export type AskResult = {
 	ingest: IngestResponse;
@@ -132,7 +134,9 @@ export async function askAndWait(
 	if (!posted.ok) return fail(posted.error);
 	const ingest = posted.value.record;
 	if (!ingest.shouldWait) {
-		return succeed(await settleWithoutWaiting(client, ingest));
+		return succeed(
+			await settleWithoutWaiting(client, ingest, posted.value.wasCreated),
+		);
 	}
 	const outcome = await waitForAnswer(client, ingest.id, options);
 	return succeed({ ingest, outcome });
@@ -142,6 +146,7 @@ export async function askAndWait(
 async function settleWithoutWaiting(
 	client: HubClient,
 	ingest: IngestResponse,
+	wasCreated: boolean,
 ): Promise<AskResult> {
 	const hasClosed = ['answered', 'dismissed', 'rescinded', 'expired'].includes(
 		ingest.state,
@@ -162,7 +167,16 @@ async function settleWithoutWaiting(
 			},
 		};
 	}
+	if (!wasCreated) {
+		return { ingest, outcome: { kind: 'merged', messageId: ingest.id } };
+	}
 	return { ingest, outcome: { kind: 'not_waiting' } };
+}
+
+/** The cause in the hub's `muted` warning ("Delivered to the inbox without a ping: <cause>"). */
+export function mutedCause(detail: string): string {
+	const separator = detail.indexOf(': ');
+	return separator === -1 ? detail : detail.slice(separator + 2);
 }
 
 function isMutedWarning(warning: IngestWarning): boolean {

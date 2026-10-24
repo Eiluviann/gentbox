@@ -391,6 +391,52 @@ describe('ask', () => {
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
+	it('names a rule as the source of a mute, not a topic or thread', async () => {
+		const ruleWarning = {
+			code: 'muted',
+			message:
+				"Delivered to the inbox without a ping: rule 'Mute prompts' mutes it",
+		} as const;
+		const { client } = askingClient(
+			vi.fn<HubClient['getResponse']>(),
+			ingestResponse({ shouldWait: false, warnings: [ruleWarning] }),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		const instruction = String(jsonOf(result).instruction);
+		expect(instruction).toContain("rule 'Mute prompts' mutes it");
+		expect(instruction).not.toContain('topic or thread');
+	});
+
+	it('tells the model its ask was merged into another open message, and not to rescind that one', async () => {
+		const postMessage = async () =>
+			succeed({
+				wasCreated: false,
+				record: ingestResponse({ shouldWait: false }),
+			});
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(stubHubClient({ postMessage, rescindMessage })),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'no_answer',
+			reason: 'merged',
+			messageId: MESSAGE_ID,
+		});
+		const instruction = String(jsonOf(result).instruction);
+		expect(instruction).toContain('merged into');
+		expect(instruction).toContain('do not rescind');
+		expect(instruction).not.toContain('`wait`');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
 	it('returns muted at once: delivered without a ping, still open, collect it with wait', async () => {
 		const getResponse = vi.fn<HubClient['getResponse']>();
 		const { client, rescindMessage } = askingClient(

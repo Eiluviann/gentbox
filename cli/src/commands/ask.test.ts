@@ -136,6 +136,28 @@ describe('gentbox ask', () => {
 		},
 	);
 
+	it('exits 4 with reason merged when the ask was folded into another open message', async () => {
+		const postMessage = vi.fn<HubClient['postMessage']>(async () =>
+			succeed({
+				wasCreated: false,
+				record: ingestResponse({ shouldWait: false }),
+			}),
+		);
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const fixture = createCommandFixture(
+			stubHubClient({ postMessage, rescindMessage }),
+		);
+		expect(await runAsk(['--title', 'Allow it?'], fixture.context)).toBe(
+			EXIT.noAnswer,
+		);
+		expect(fixture.stdoutJson()).toMatchObject({
+			status: 'no_answer',
+			reason: 'merged',
+		});
+		expect(JSON.stringify(fixture.stdoutJson())).toContain('do not rescind');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
 	it('exits 4 and says a message the hub cleared was handled in the session, not withdrawn', async () => {
 		const { client } = askingClient(
 			actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
@@ -192,6 +214,10 @@ describe('gentbox ask', () => {
 		});
 		expect(fixture.stdoutJson()).not.toHaveProperty('messageWithdrawn');
 		expect(fixture.stderr()).toContain(`warning [muted]: ${warning.message}`);
+		// The note names the cause the hub reported, whatever it is.
+		expect(JSON.stringify(fixture.stdoutJson())).toContain(
+			"topic 'Release 1.4' is muted",
+		);
 		expect(rescindMessage).not.toHaveBeenCalled();
 		expect(getResponse).not.toHaveBeenCalled();
 	});

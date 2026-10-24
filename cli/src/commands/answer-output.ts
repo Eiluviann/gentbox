@@ -1,4 +1,4 @@
-import type { AskOutcome } from '../ask-flow.ts';
+import { type AskOutcome, mutedCause } from '../ask-flow.ts';
 import {
 	type CommandContext,
 	EXIT,
@@ -67,7 +67,15 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'muted',
-				note: `The message was delivered to the inbox, but its topic or thread is muted, so the user wasn't pinged and may answer later. The message stays open. Run \`gentbox wait\` to collect the answer, or ask in the conversation and \`gentbox rescind\` the message (--reason resolved_elsewhere) once that is handled.`,
+				note: `The message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open. Run \`gentbox wait\` to collect the answer, or ask in the conversation and \`gentbox rescind\` the message (--reason resolved_elsewhere) once that is handled.`,
+			});
+			return EXIT.noAnswer;
+		case 'merged':
+			printJson(context, {
+				messageId,
+				status: 'no_answer',
+				reason: 'merged',
+				note: 'Your ask was merged into an open message that already existed instead of being stored on its own, so nobody will answer it separately. That message may belong to a request someone is waiting on: do not rescind it. Ask in the conversation instead.',
 			});
 			return EXIT.noAnswer;
 		case 'cancelled':

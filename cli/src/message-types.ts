@@ -44,11 +44,14 @@ export type RescindReason = z.infer<typeof rescindReasonSchema>;
  * showed the item was handled in the session. A sender never sends the latter,
  * and it is not a withdrawal.
  */
-export const recordedRescindReasonSchema = z.enum([
+export const KNOWN_RECORDED_RESCIND_REASONS = [
 	...rescindReasonSchema.options,
 	'handled_in_session',
-]);
-export type RecordedRescindReason = z.infer<typeof recordedRescindReasonSchema>;
+] as const;
+
+/** Read from the hub, so an open string: a newer hub's reason still parses. */
+export const recordedRescindReasonSchema = z.string();
+export type RecordedRescindReason = string;
 
 export const rescindRequestSchema = z.strictObject({
 	reason: rescindReasonSchema,
@@ -444,6 +447,8 @@ export const errorBodySchema = z.object({
 	pointer: z.string().optional(),
 	state: z.string().optional(),
 	/** With `has_open_messages`: how many open messages stop a close. */
+	openMessages: z.number().int().min(0).optional(),
+	/** An older spelling of `openMessages`. */
 	count: z.number().int().min(0).optional(),
 });
 export type ErrorBody = z.infer<typeof errorBodySchema>;

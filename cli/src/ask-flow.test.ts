@@ -318,6 +318,47 @@ describe('askAndWait', () => {
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
+	it('returns merged, naming the other message, when the ask was folded into one that is already open', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>();
+		const { client, rescindMessage } = clientWith({
+			postMessage: async () =>
+				succeed({
+					wasCreated: false,
+					record: ingestResponse({ shouldWait: false }),
+				}),
+			getResponse,
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'merged', messageId: MESSAGE_ID } },
+		});
+		expect(getResponse).not.toHaveBeenCalled();
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('still returns muted for a retry that carries the mute warning', async () => {
+		const { client } = clientWith({
+			postMessage: async () =>
+				succeed({
+					wasCreated: false,
+					record: ingestResponse({
+						shouldWait: false,
+						warnings: [{ code: 'muted', message: 'Delivered … muted' }],
+					}),
+				}),
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'muted' } },
+		});
+	});
+
 	it('reports the real outcome of an idempotent retry that hit a closed message', async () => {
 		const { client, rescindMessage } = clientWith({
 			postMessage: async () =>
