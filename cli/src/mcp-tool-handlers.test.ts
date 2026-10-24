@@ -459,6 +459,40 @@ describe('ask', () => {
 		});
 	});
 
+	it('says an item the hub cleared was handled in the session, not withdrawn', async () => {
+		const { client } = askingClient(async () =>
+			succeed(
+				actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
+			),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		});
+		const text = textOf(result);
+		expect(text).toContain('handled in the session');
+		expect(text).toContain('not withdrawn');
+	});
+
+	it('says a withdrawal is a withdrawal', async () => {
+		const { client } = askingClient(async () =>
+			succeed(actionResponse('rescinded', { rescindReason: 'superseded' })),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		expect(textOf(result)).not.toContain('handled in the session');
+	});
+
 	it('passes the hub warnings back verbatim, also on an answer', async () => {
 		const { client } = askingClient(
 			async () =>
@@ -537,6 +571,25 @@ describe('wait', () => {
 			actionKind: 'approve',
 		});
 		expect(getResponse.mock.calls[0]?.[1]).toBe(30);
+	});
+
+	it('says a message the hub cleared was handled in the session, not withdrawn', async () => {
+		const getResponse = async () =>
+			succeed(
+				actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
+			);
+		const result = await runTool(
+			'wait',
+			{ messageId: MESSAGE_ID },
+			depsFor(stubHubClient({ getResponse })),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		});
+		expect(textOf(result)).toContain('handled in the session');
+		expect(textOf(result)).toContain('not withdrawn');
 	});
 
 	it('leaves the message open when nothing arrives in time', async () => {

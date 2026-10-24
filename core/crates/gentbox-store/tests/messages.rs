@@ -793,6 +793,7 @@ fn rescinded_messages_are_kept_with_their_reason() {
     assert_eq!(
         reasons,
         [
+            Some(ResolutionReason::Rescinded(RescindReason::HandledInSession)),
             Some(ResolutionReason::Rescinded(RescindReason::Obsolete)),
             Some(ResolutionReason::Rescinded(
                 RescindReason::ResolvedElsewhere

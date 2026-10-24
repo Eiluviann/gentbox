@@ -3,6 +3,8 @@
 
 mod support;
 
+use gentbox_core::lifecycle::{LifecycleState, ResolutionReason};
+use gentbox_core::rescind::RescindReason;
 use gentbox_store::{Store, StoreError, latest_version};
 use rusqlite::Connection;
 use support::{NOW, file_store, plain, seed_group};
@@ -11,7 +13,7 @@ use support::{NOW, file_store, plain, seed_group};
 fn an_empty_file_is_migrated_to_the_latest_version() {
     let (directory, store) = file_store();
     assert_eq!(store.schema_version().unwrap(), latest_version());
-    assert_eq!(latest_version(), 2);
+    assert_eq!(latest_version(), 3);
     assert!(directory.path().join("gentbox.db").exists());
 }
 
@@ -103,7 +105,7 @@ fn a_file_from_a_newer_gentbox_is_refused() {
         error,
         StoreError::SchemaTooNew {
             found: 99,
-            supported: 2
+            supported: 3
         }
     ));
 }
@@ -125,7 +127,7 @@ fn an_in_memory_store_is_fully_migrated() {
 }
 
 #[test]
-fn a_version_1_file_migrates_to_version_2_and_keeps_its_data() {
+fn a_version_1_file_migrates_to_the_latest_version_and_keeps_its_data() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("gentbox.db");
     {
@@ -143,7 +145,7 @@ fn a_version_1_file_migrates_to_version_2_and_keeps_its_data() {
             .unwrap();
     }
     let store = Store::open(&path).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 2);
+    assert_eq!(store.schema_version().unwrap(), latest_version());
     let topic = store
         .repository()
         .topic(&gentbox_core::ids::TopicId::new("kept"))
@@ -170,4 +172,38 @@ fn swept_messages_remember_only_the_id_and_when() {
         .map(Result::unwrap)
         .collect();
     assert_eq!(columns, ["id", "swept_at"]);
+}
+
+#[test]
+fn a_version_2_file_migrates_to_version_3_and_keeps_its_rescinded_rows() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("gentbox.db");
+    {
+        let store = Store::open(&path).unwrap();
+        let repository = store.repository();
+        seed_group(&repository, "one");
+        let mut message = plain("first", "one", "one");
+        repository.insert_message(&message, NOW).unwrap();
+        message.lifecycle.state = LifecycleState::Rescinded;
+        message.lifecycle.resolution = Some(ResolutionReason::Rescinded(RescindReason::Obsolete));
+        repository.update_message(&message, NOW).unwrap();
+    }
+    // Rewind to what a version 2 file looked like: no marker column.
+    {
+        let connection = Connection::open(&path).unwrap();
+        connection
+            .execute_batch("ALTER TABLE messages DROP COLUMN rescind_handled_in_session")
+            .unwrap();
+        connection.pragma_update(None, "user_version", 2).unwrap();
+    }
+    let store = Store::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), 3);
+    let message = store
+        .repository()
+        .message(&support::message_id("first"))
+        .unwrap();
+    assert_eq!(
+        message.lifecycle.resolution,
+        Some(ResolutionReason::Rescinded(RescindReason::Obsolete))
+    );
 }

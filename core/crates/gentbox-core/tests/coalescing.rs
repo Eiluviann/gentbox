@@ -409,7 +409,7 @@ fn a_repeat_of_a_different_field_is_not_a_duplicate() {
 }
 
 #[test]
-fn completion_rescinds_waiting_items_without_a_live_waiter_as_obsolete() {
+fn completion_rescinds_waiting_items_without_a_live_waiter_as_handled_in_the_session() {
     let blocking = message(
         "BLOCKING",
         DecisionRequired,
@@ -435,8 +435,8 @@ fn completion_rescinds_waiting_items_without_a_live_waiter_as_obsolete() {
     assert_eq!(
         rescinded_ids(&outcome),
         vec![
-            ("BLOCKING".to_owned(), RescindReason::Obsolete),
-            ("DEFERRABLE".to_owned(), RescindReason::Obsolete),
+            ("BLOCKING".to_owned(), RescindReason::HandledInSession),
+            ("DEFERRABLE".to_owned(), RescindReason::HandledInSession),
         ],
         "a live waiter and non_blocking items survive the end of the turn"
     );
@@ -455,7 +455,7 @@ fn only_a_completion_rescinds_by_completion() {
 }
 
 #[test]
-fn progress_rescinds_idle_and_waiting_items_without_a_live_waiter_as_resolved_elsewhere() {
+fn progress_rescinds_idle_and_waiting_items_without_a_live_waiter_as_handled_in_the_session() {
     let conversation = ConversationKey::new("claude-code", "conversation-1");
     let idle = message(
         "IDLE",
@@ -487,9 +487,9 @@ fn progress_rescinds_idle_and_waiting_items_without_a_live_waiter_as_resolved_el
     assert_eq!(
         ids,
         vec![
-            ("IDLE", RescindReason::ResolvedElsewhere),
-            ("BLOCKING", RescindReason::ResolvedElsewhere),
-            ("DEFERRABLE", RescindReason::ResolvedElsewhere),
+            ("IDLE", RescindReason::HandledInSession),
+            ("BLOCKING", RescindReason::HandledInSession),
+            ("DEFERRABLE", RescindReason::HandledInSession),
         ]
     );
 }

@@ -12,8 +12,8 @@ import {
 export const PROGRESS_HELP = `gentbox progress
 
 Tells the hub this conversation moved on: whatever its idle and unanswered blocking items asked
-for was handled in the session, so they are withdrawn (resolved_elsewhere). Items someone is
-still waiting on stay.`;
+for was handled in the session, so the hub clears them and shows them as "Handled in the session"
+(not withdrawn: you did not ask). Items someone is still waiting on stay.`;
 
 export async function runProgress(
 	args: string[],

@@ -136,6 +136,23 @@ describe('gentbox ask', () => {
 		},
 	);
 
+	it('exits 4 and says a message the hub cleared was handled in the session, not withdrawn', async () => {
+		const { client } = askingClient(
+			actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
+		);
+		const fixture = createCommandFixture(client);
+		expect(await runAsk(['--title', 'Allow it?'], fixture.context)).toBe(
+			EXIT.noAnswer,
+		);
+		expect(fixture.stdoutJson()).toMatchObject({
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		});
+		const note = JSON.stringify(fixture.stdoutJson());
+		expect(note).toContain('handled in the session');
+		expect(note).toContain('not withdrawn');
+	});
+
 	it('exits 4 and leaves the message open when nobody can answer now', async () => {
 		const { client, rescindMessage, getResponse } = askingClient(
 			actionResponse('pending'),

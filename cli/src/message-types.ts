@@ -30,12 +30,25 @@ export const blockingLevelSchema = z.enum([
 ]);
 export type BlockingLevel = z.infer<typeof blockingLevelSchema>;
 
+/** The reasons a sender names when it withdraws its own message. */
 export const rescindReasonSchema = z.enum([
 	'resolved_elsewhere',
 	'obsolete',
 	'superseded',
 ]);
 export type RescindReason = z.infer<typeof rescindReasonSchema>;
+
+/**
+ * The reasons the hub reports on a closed message: a sender's own, or
+ * `handled_in_session`, the hub's clean-up when a completion or progress call
+ * showed the item was handled in the session. A sender never sends the latter,
+ * and it is not a withdrawal.
+ */
+export const recordedRescindReasonSchema = z.enum([
+	...rescindReasonSchema.options,
+	'handled_in_session',
+]);
+export type RecordedRescindReason = z.infer<typeof recordedRescindReasonSchema>;
 
 export const rescindRequestSchema = z.strictObject({
 	reason: rescindReasonSchema,
@@ -406,7 +419,7 @@ export type ResponseStatus = z.infer<typeof responseStatusSchema>;
 export const actionResponseSchema = z.object({
 	messageId: ulidSchema,
 	status: responseStatusSchema,
-	rescindReason: rescindReasonSchema.optional(),
+	rescindReason: recordedRescindReasonSchema.optional(),
 	actionId: z.string().optional(),
 	actionKind: z.enum(['approve', 'deny', 'choice', 'reply', 'done']).optional(),
 	value: z.string().max(8192).optional(),

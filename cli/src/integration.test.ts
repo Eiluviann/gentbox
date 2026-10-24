@@ -17,6 +17,7 @@ import { readDiscoveryEnvironment } from './discovery.ts';
 import { connectToHub, type HubClient } from './hub-client.ts';
 import { runCli } from './main.ts';
 import { runTool } from './mcp-tool-handlers.ts';
+import { succeed } from './result.ts';
 import { TEST_SENDER } from './test-support/command-fixture.ts';
 import { environmentOf } from './test-support/environment-of.ts';
 
@@ -59,7 +60,12 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		rmSync(stateDirectory, { recursive: true, force: true });
 	});
 
+	// One connection serves the tests that do not care about the transport: every
+	// `hello` draws on the hub's shared, rate-limited bucket.
+	let sharedClient: HubClient | undefined;
+
 	async function connect(): Promise<HubClient> {
+		if (sharedClient !== undefined) return sharedClient;
 		const connected = await connectToHub({
 			environment: readDiscoveryEnvironment(
 				environmentOf(['GENTBOX_API_DIR', apiDirectory]),
@@ -67,6 +73,7 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 			identity: IDENTITY,
 		});
 		if (!connected.ok) throw new Error(connected.error);
+		sharedClient = connected.value;
 		return connected.value;
 	}
 
@@ -113,6 +120,7 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 
 	it('proves the hub over TCP when the socket is gone: the Rust and TypeScript hello proofs agree', async () => {
 		rmSync(join(apiDirectory, 'hub.sock'));
+		sharedClient = undefined;
 		const client = await connect();
 		const posted = await client.postMessage(
 			message('Release notes drafted', { type: 'generic' }),
@@ -225,6 +233,54 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 			'resolved_elsewhere',
 		);
 		expect(rescinded).toMatchObject({
+			ok: true,
+			value: { status: 'rescinded', rescindReason: 'resolved_elsewhere' },
+		});
+	});
+
+	it('a completion clears an earlier ask as handled in the session, an explicit rescind keeps its reason', async () => {
+		const client = await connect();
+		const stale = await client.postMessage(
+			message('Pick the next phase', {
+				type: 'decision_required',
+				blocking: 'deferrable',
+				correlationKey: 'handled-1',
+			}),
+		);
+		if (!stale.ok) throw new Error('post failed');
+		const done = await client.postMessage(
+			message('Phase 3 is done', { type: 'task_completed' }),
+		);
+		expect(done.ok).toBe(true);
+		const cleared = await client.getResponse(stale.value.record.id, 0);
+		expect(cleared).toMatchObject({
+			ok: true,
+			value: { status: 'rescinded', rescindReason: 'handled_in_session' },
+		});
+		const result = await runTool(
+			'wait',
+			{ messageId: stale.value.record.id },
+			{
+				getClient: async () => succeed(client),
+				sender: { ...TEST_SENDER, conversationId: IDENTITY.conversationId },
+				defaultTimeoutSeconds: 5,
+			},
+			undefined,
+		);
+		expect(JSON.stringify(result)).toContain('not withdrawn');
+
+		const explicit = await client.postMessage(
+			message('Plan is ready', {
+				type: 'generic',
+				correlationKey: 'explicit-1',
+			}),
+		);
+		if (!explicit.ok) throw new Error('post failed');
+		const withdrawn = await client.rescindMessage(
+			explicit.value.record.id,
+			'resolved_elsewhere',
+		);
+		expect(withdrawn).toMatchObject({
 			ok: true,
 			value: { status: 'rescinded', rescindReason: 'resolved_elsewhere' },
 		});

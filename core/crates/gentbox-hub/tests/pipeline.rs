@@ -13,7 +13,7 @@ use gentbox_core::message::Blocking;
 use gentbox_core::policy::{MacSurface, PhonePlan};
 use gentbox_core::rescind::{ChannelEffect, RescindReason};
 use gentbox_core::response::ResponseStatus;
-use gentbox_hub::{HubEvent, IngestStatus};
+use gentbox_hub::{HubEvent, IngestStatus, Requester};
 use gentbox_store::MessageFilter;
 use serde_json::json;
 use support::{TestHub, action_without_waiter, blocking_prompt, count, id_of};
@@ -206,7 +206,7 @@ async fn a_completion_rescinds_blocking_items_without_a_waiter_and_keeps_the_res
     assert_eq!(hub.status_of(&stale.id).await, ResponseStatus::Rescinded);
     assert_eq!(
         hub.poll(&stale.id, StdDuration::ZERO).await.rescind_reason,
-        Some(RescindReason::Obsolete)
+        Some(RescindReason::HandledInSession)
     );
     assert_eq!(hub.status_of(&waiting.id).await, ResponseStatus::Pending);
     assert_eq!(hub.status_of(&note.id).await, ResponseStatus::Pending);
@@ -228,7 +228,32 @@ async fn progress_rescinds_the_idle_item_and_blocking_items_without_a_waiter() {
         .unwrap();
     assert_eq!(rescinded.len(), 2);
     assert!(rescinded.contains(&idle.id) && rescinded.contains(&stale.id));
+    for id in [&idle.id, &stale.id] {
+        assert_eq!(
+            hub.poll(id, StdDuration::ZERO).await.rescind_reason,
+            Some(RescindReason::HandledInSession)
+        );
+    }
     assert_eq!(hub.status_of(&waiting.id).await, ResponseStatus::Pending);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn an_explicit_rescind_keeps_the_reason_the_agent_gave() {
+    let hub = TestHub::start();
+    for reason in RescindReason::EXPLICIT {
+        let posted = hub
+            .create(json!({ "type": "decision_required", "title": format!("Ship {reason:?}?"), "correlationKey": format!("k-{reason:?}") }))
+            .await;
+        hub.handle
+            .rescind(posted.id.clone(), reason, Requester::agent("claude-code"))
+            .await
+            .unwrap();
+        assert_eq!(
+            hub.poll(&posted.id, StdDuration::ZERO).await.rescind_reason,
+            Some(reason)
+        );
+    }
     hub.stop().await;
 }
 

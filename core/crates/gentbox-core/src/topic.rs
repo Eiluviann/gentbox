@@ -479,8 +479,12 @@ pub struct CloseRequest {
     /// Also withdraw the open messages.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rescind_open_messages: bool,
-    /// Why they are withdrawn.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Why they are withdrawn (a reason a sender may name).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::rescind::deserialize_explicit_reason_option"
+    )]
     pub reason: Option<RescindReason>,
 }
 

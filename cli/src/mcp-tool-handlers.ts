@@ -305,12 +305,14 @@ function closedStatus(
 	messageId: string,
 	response: ActionResponse,
 ): Record<string, unknown> {
+	const isHandledInSession = response.rescindReason === 'handled_in_session';
 	return {
 		status: response.status,
 		messageId,
 		rescindReason: response.rescindReason,
-		instruction:
-			'No answer will come (dismissed, withdrawn, expired or deleted). Ask the user in the conversation instead.',
+		instruction: isHandledInSession
+			? 'The message was handled in the session (a completion or progress report cleared it); it was not withdrawn. No answer will come: carry on from what was handled.'
+			: 'No answer will come (dismissed, withdrawn, expired or deleted). Ask the user in the conversation instead.',
 	};
 }
 

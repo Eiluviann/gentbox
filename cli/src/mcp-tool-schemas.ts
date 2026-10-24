@@ -392,7 +392,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'rescind',
 		description:
-			'Withdraw your own open message(s) because they no longer need the user. Withdrawn means you asked: Gentbox never withdraws a message on your behalf, not on a timeout, a cancel or a muted topic. Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
+			'Withdraw your own open message(s) because they no longer need the user. Withdrawn means you asked: Gentbox never withdraws a message on your behalf, not on a timeout, a cancel or a muted topic. (When the session moves on, Gentbox itself clears what you left open and marks it "handled in the session", which is not a withdrawal.) Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
 		schema: rescindInputSchema,
 		inputSchema: toInputSchema(rescindInputSchema),
 	},

@@ -160,7 +160,8 @@ pub fn coalesce(input: &CoalesceInput<'_>) -> CoalesceOutcome {
 
 /// Rule 6, progress: the conversation moved on, so its idle item and its
 /// `blocking` and `deferrable` items without a live waiter were handled in
-/// the session. They are rescinded as `resolved_elsewhere`.
+/// the session. They are rescinded as `handled_in_session`, not as a
+/// withdrawal: the agent did not ask.
 pub fn progress_rescissions(
     conversation: &ConversationKey,
     items: &[OpenItem],
@@ -176,7 +177,7 @@ pub fn progress_rescissions(
         .map(|item| {
             rescission_for(
                 item,
-                RescindReason::ResolvedElsewhere,
+                RescindReason::HandledInSession,
                 None,
                 has_phone_channel,
             )
@@ -234,7 +235,7 @@ fn explicit_rescissions(
     .unwrap_or_default()
 }
 
-/// Rule 5: a completion rescinds, as `obsolete`, the `blocking` and
+/// Rule 5: a completion rescinds, as `handled_in_session`, the `blocking` and
 /// `deferrable` items without a live waiter. An item with a live waiter stays
 /// open (the agent cannot have finished while it waits), and `non_blocking`
 /// items survive the end of the turn.
@@ -247,7 +248,14 @@ fn completion_rescissions(
         .iter()
         .filter(|item| item.is_waiting_on_you() && !item.has_live_waiter)
         .filter(|item| Some(&item.id) != already_rescinded)
-        .map(|item| rescission_for(item, RescindReason::Obsolete, None, has_phone_channel))
+        .map(|item| {
+            rescission_for(
+                item,
+                RescindReason::HandledInSession,
+                None,
+                has_phone_channel,
+            )
+        })
         .collect()
 }
 

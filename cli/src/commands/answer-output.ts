@@ -40,7 +40,10 @@ export function reportOutcome(
 				messageId,
 				status: outcome.response.status,
 				rescindReason: outcome.response.rescindReason,
-				note: 'No answer will come; fall back to your own prompt.',
+				note:
+					outcome.response.rescindReason === 'handled_in_session'
+						? 'The message was handled in the session (a completion or progress report cleared it); it was not withdrawn. No answer will come.'
+						: 'No answer will come; fall back to your own prompt.',
 			});
 			return EXIT.noAnswer;
 		case 'timed_out':

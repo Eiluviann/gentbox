@@ -10,6 +10,7 @@ use gentbox_core::rescind::{
     ChannelEffect, RescindError, RescindReason, RescindRequest, rescind_by_correlation_keys,
     rescind_by_id, rescission_for,
 };
+use gentbox_core::topic::CloseRequest;
 use serde_json::json;
 use support::{item_of, stored};
 
@@ -46,12 +47,56 @@ fn rescinding_by_id_works_for_each_reason() {
 fn reasons_are_worded_for_the_inbox() {
     assert_eq!(
         RescindReason::ResolvedElsewhere.in_words(),
+        "Resolved elsewhere"
+    );
+    assert_eq!(
+        RescindReason::HandledInSession.in_words(),
         "Handled in the session"
     );
     assert_eq!(RescindReason::Obsolete.in_words(), "No longer needed");
     assert_eq!(
         RescindReason::Superseded.in_words(),
         "Replaced by a newer message"
+    );
+}
+
+#[test]
+fn only_an_implicit_clean_up_shows_as_handled_in_the_session() {
+    // Withdrawn means the agent asked; the hub's own clean-ups get another label.
+    assert_eq!(
+        RescindReason::HandledInSession.label(),
+        "Handled in the session"
+    );
+    for reason in RescindReason::EXPLICIT {
+        assert_eq!(reason.label(), "Withdrawn", "{reason:?}");
+        assert!(reason.is_explicit());
+    }
+    assert!(!RescindReason::HandledInSession.is_explicit());
+    assert_eq!(RescindReason::ALL.len(), RescindReason::EXPLICIT.len() + 1);
+}
+
+#[test]
+fn a_sender_cannot_name_the_implicit_reason() {
+    for reason in ["resolved_elsewhere", "obsolete", "superseded"] {
+        let request: RescindRequest = serde_json::from_value(json!({ "reason": reason })).unwrap();
+        assert!(request.reason.is_explicit());
+    }
+    let refused =
+        serde_json::from_value::<RescindRequest>(json!({ "reason": "handled_in_session" }));
+    assert!(
+        refused
+            .unwrap_err()
+            .to_string()
+            .contains("handled_in_session")
+    );
+    let refused = serde_json::from_value::<CloseRequest>(
+        json!({ "rescindOpenMessages": true, "reason": "handled_in_session" }),
+    );
+    assert!(refused.is_err());
+    // The hub's own reason still serializes, for responses.
+    assert_eq!(
+        serde_json::to_value(RescindReason::HandledInSession).unwrap(),
+        json!("handled_in_session")
     );
 }
 
