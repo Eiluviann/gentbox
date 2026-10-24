@@ -26,7 +26,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		app.launchEnvironment["GENTBOX_SNAPSHOT_PATH"] = stateFolder.appendingPathComponent("snapshot.png").path
 		app.launchArguments += ["-GentboxSkipLoginItem", "YES"]
 		if Self.isMenuBarAutoHidden {
-			app.launchArguments += ["-GentboxInboxInWindow", "YES"]
+			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
 		}
 		let launchedAt = Date()
 		app.launch()
@@ -172,6 +172,34 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		attachSnapshot(named: "After Approve")
 	}
 
+	func testADeferredActionStaysAnswerableWithDone() throws {
+		let action = try post([
+			"type": "action_required", "blocking": "deferrable", "awaitsResponse": true,
+			"title": "Sign in to the payments sandbox",
+			"steps": [["text": "Sign in to the payments sandbox", "detail": "Use the team account"]],
+		])
+		let waiter = try longPoll(action)
+		defer { waiter.terminate() }
+		openInbox()
+		let card = element("next-up:Sign in to the payments sandbox")
+		XCTAssertTrue(card.waitForExistence(timeout: 10))
+		element("action:Defer").click()
+		waiter.waitUntilExit()
+		let deferred = String(decoding: (waiter.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(), as: UTF8.self)
+		XCTAssertTrue(deferred.contains("\"deferred\""), deferred)
+
+		// Deferred, it no longer blocks the agent and leaves the card, but it
+		// stays in the list and Done still finishes it.
+		let row = element("message:Sign in to the payments sandbox")
+		XCTAssertTrue(row.waitForExistence(timeout: 5))
+		row.click()
+		let done = element("action:Done")
+		XCTAssertTrue(done.waitForExistence(timeout: 5))
+		done.click()
+		XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
+	}
+
 	// MARK: Helpers
 
 	/// Waits for `API/port` and `API/token`: the hub is up and serving.
@@ -261,7 +289,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		return (try read("port"), try read("token"))
 	}
 
-	/// Keeps the app's own snapshot of the inbox (test-window mode only) in
+	/// Keeps the app's own snapshot of the inbox (open-at-launch mode only) in
 	/// the result bundle (`xcrun xcresulttool export attachments`), for the
 	/// PR and design review.
 	private func attachSnapshot(named name: String) {
@@ -285,9 +313,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		return URL(fileURLWithPath: NSHomeDirectory())
 	}
 
-	/// Opens the popover from the status item. With the menu bar hidden
-	/// automatically the item cannot be clicked, so the same inbox view is
-	/// already open in the app's test window; the item is still checked.
+	/// Opens the inbox panel from the status item. With the menu bar hidden
+	/// automatically the item cannot be clicked, so the app opened the panel
+	/// at launch (`-GentboxOpenInboxAtLaunch`); the item is still checked.
 	private func openInbox() {
 		let item = statusItem()
 		XCTAssertTrue(item.waitForExistence(timeout: 10), "no status item")

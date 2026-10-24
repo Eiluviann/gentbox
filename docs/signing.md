@@ -117,7 +117,7 @@ codesign -d --entitlements - --xml apps/apple/build/Build/Products/Debug/Gentbox
 - The UI smoke needs a signature to launch the app and its runner, so CI does not use `CODE_SIGNING_ALLOWED=NO`; ad hoc needs no certificate.
 - Xcode sandboxes the UI test runner with read-only access to the disk. The app keeps its state in `UITests/` and empties it at launch; the test only reads the discovery files and posts with `curl`.
 - The test targets build without the hardened runtime: an ad hoc runner has no team, and library validation would refuse to load the test bundle.
-- With "Automatically hide and show the menu bar" on, the status item sits above the screen and XCUITest's synthetic pointer never reveals it. The smoke then launches the app with `-GentboxInboxInWindow YES`, which shows the same inbox view in an ordinary window, and still checks the status item; with the menu bar visible (CI) it clicks the item and uses the popover.
+- With "Automatically hide and show the menu bar" on, the status item sits above the screen and XCUITest's synthetic pointer never reveals it. The smoke then launches the app with `-GentboxOpenInboxAtLaunch YES`, which opens the inbox panel at launch without taking the keyboard, and still checks the status item; with the menu bar visible (CI) it clicks the item.
 
 ## Login item
 

@@ -10,7 +10,7 @@ The macOS menu-bar app (v1). It is the hub (architecture §3): it runs the Rust 
 | `scripts/test.sh` | the Apple gate: unit tests, the XCUITest smoke and the package tests, signed ad hoc |
 | `scripts/render-app-icon.swift` | renders the app icon from the Gentbox mark |
 | `GentboxCore/` | Swift package: the generated bindings, `InboxModel`, `PresenceMonitor`, `StateFolder` |
-| `Gentbox/` | the app: status item and popover (`MenuBar/`, `MenuBarInbox/`, following the `mac-popover` boards), `LoginItem` |
+| `Gentbox/` | the app: status item and inbox panel (`MenuBar/`, `MenuBarInbox/`, following the `mac-popover` boards), `LoginItem` |
 | `GentboxTests/`, `GentboxUITests/` | entitlement and menu-bar mark tests; the UI smoke |
 
 ```bash
@@ -21,4 +21,6 @@ cd apps/apple && xcodegen generate && xcodebuild -project Gentbox.xcodeproj -sch
 **Threading.** The hub calls its delegate on the hub thread. `MainActorDelegate` hops every event to the main actor and returns at once; nothing there calls the hub synchronously, which would deadlock it. Every hub call from Swift is `async` and runs on the FFI crate's own Tokio runtime.
 
 **Agent marks.** `Gentbox/Assets.xcassets/AgentClaude` and `AgentCodex` are the Claude and Codex marks, as Zed's agent registry ships them (`~/Library/Application Support/Zed/external_agents/registry/icons`), recoloured to template images. They are their owners' trademarks and only name the agent on a row; any other agent gets a terminal symbol.
+
+**The inbox is a panel, not a window.** `InboxPanel` is borderless and non-activating, at the pop-up menu level, on every Space and outside the window cycle. It reports `AXSystemDialog`, never `AXStandardWindow`, so tiling window managers such as AeroSpace leave it alone (`InboxPanelTests`; checked against AeroSpace 0.20.2-Beta, which lists no Gentbox window). Popups and toasts (PR 4) follow the same rule.
 

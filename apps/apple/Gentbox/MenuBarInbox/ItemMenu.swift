@@ -70,7 +70,7 @@ struct ItemMenu: View {
 }
 
 extension View {
-	/// Close asks whether to withdraw the thread's open messages too; a
+	/// Close asks whether to dismiss the thread's open messages too; a
 	/// closed thread leaves the popover.
 	func closeConfirmation(_ closing: Binding<ItemMenu.Closing?>, inbox: InboxModel) -> some View {
 		alert(
@@ -79,14 +79,14 @@ extension View {
 			presenting: closing.wrappedValue,
 		) { thread in
 			Button("Close") {
-				Task { await inbox.closeThread(thread.threadId, withdrawingOpenMessages: false) }
+				Task { await inbox.closeThread(thread.threadId, dismissingOpenMessages: false) }
 			}
-			Button("Close and withdraw its messages", role: .destructive) {
-				Task { await inbox.closeThread(thread.threadId, withdrawingOpenMessages: true) }
+			Button("Close and dismiss its messages", role: .destructive) {
+				Task { await inbox.closeThread(thread.threadId, dismissingOpenMessages: true) }
 			}
 			Button("Cancel", role: .cancel) {}
 		} message: { _ in
-			Text("Agents still waiting on its open messages keep waiting unless you withdraw them")
+			Text("Agents still waiting on its open messages keep waiting unless you dismiss them")
 		}
 	}
 }
