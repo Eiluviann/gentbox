@@ -1263,3 +1263,8 @@ a.side-item { text-decoration: none; }
 .pp-line.pick > .i { margin-top: 1px; }
 .pp-line.picked { background: var(--accent-soft); }
 .pp-callout { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--track); }
+
+/* Popups: the header is symbol, title and menu; its tags run underneath at the panel's left edge. An urgent popup tags its title URGENT */
+.tags.bp-tags { margin-top: -4px; }
+.bp-title { display: flex; align-items: center; gap: 6px; }
+.tag.urgent-tag { background: var(--wait-soft); color: var(--wait-ink); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }

@@ -34,12 +34,10 @@ body{margin:0}
 		<div class="panel bp">
 			<div class="bp-head">
 				<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
-				<div>
-					<div class="headline">Action required</div>
-					<div class="tags" style="margin-top: 2px"><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Paused · can defer</span><span class="tag plain">Claude desktop · 9 min</span></div>
-				</div>
+				<div class="headline">Action required</div>
 				<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 			</div>
+			<div class="tags bp-tags"><span class="tag paused"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Paused · can defer</span><span class="tag plain">Claude desktop · 9 min</span></div>
 			<div class="title" style="font-size: 15px; line-height: 20px">Sign in to the payments sandbox so the end-to-end tests can run</div>
 			<div class="body">The checkout suite needs a sandbox session; run <span class="mono">pnpm sandbox:login</span> or sign in at the sandbox dashboard</div>
 			<div class="bp-acts">
@@ -56,12 +54,10 @@ body{margin:0}
 		<div class="panel bp" style="gap: 8px">
 			<div class="bp-head">
 				<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
-				<div>
-					<div class="headline">Deferred · Claude keeps working</div>
-					<div class="tags" style="margin-top: 2px"><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.play_circle}}"></path></svg>Agent working</span></div>
-				</div>
+				<div class="headline">Deferred · Claude keeps working</div>
 				<button class="btn plain sm icon" aria-label="Close"><svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></button>
 			</div>
+			<div class="tags bp-tags"><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.play_circle}}"></path></svg>Agent working</span></div>
 			<div class="progress"><span style="width: 40%; background: var(--ink-3)"></span></div>
 			<div class="caption">The item stays in the inbox as non-blocking until you sign in and press Done</div>
 		</div>

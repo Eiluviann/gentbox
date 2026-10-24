@@ -30,12 +30,10 @@ body{margin:0}
 	<div class="panel bp">
 		<div class="bp-head">
 			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
-			<div>
-				<div class="headline">Your input is needed</div>
-				<div class="tags" style="margin-top: 2px"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · Phase 3 · ingest</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain"><span class="i agent-mark" aria-hidden="true"></span>Claude Code · Ghostty</span><span class="tag plain">3 min</span></div>
-			</div>
+			<div class="headline">Your input is needed</div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
+		<div class="tags bp-tags"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · Phase 3 · ingest</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain"><span class="i agent-mark" aria-hidden="true"></span>Claude Code · Ghostty</span><span class="tag plain">3 min</span></div>
 		<div class="title" style="font-size: 15px; line-height: 20px">Allow Bash to run the ingest tests?</div>
 		<div class="code">cargo test -p ingest -- --nocapture</div>
 		<label class="caption" for="reply" style="color: var(--ink-2); font-weight: 500">Reply to Claude</label>
