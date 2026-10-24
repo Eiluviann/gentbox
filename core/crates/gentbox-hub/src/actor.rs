@@ -650,7 +650,9 @@ impl HubState {
     }
 
     /// The rescissions that withdraw a topic's or thread's live messages: the
-    /// requester's only, or all of them for the UI.
+    /// requester's own only. Withdrawing is the agent's word ("Withdrawn"),
+    /// so a withdrawal that names no requester is refused, never widened to
+    /// everyone's messages.
     fn group_rescissions(
         &self,
         filter: &MessageFilter,
@@ -658,10 +660,11 @@ impl HubState {
         requester: Option<&Requester>,
         now: OffsetDateTime,
     ) -> Result<Vec<Rescission>, HubError> {
+        let requester = requester.ok_or(HubError::NoRequester)?;
         let messages = self.store.repository().list_messages(filter)?;
         Ok(messages
             .iter()
-            .filter(|message| requester.is_none_or(|requester| requester.owns(message)))
+            .filter(|message| requester.owns(message))
             .filter_map(|message| {
                 let item = self.item_of(message, now);
                 rescind_by_id(&item, reason, self.dispatcher.has_phone_channel()).ok()
@@ -669,7 +672,6 @@ impl HubState {
             .collect())
     }
 
-    /// The withdrawals a close asks for, if any.
     /// A group closes only when nothing in it stays open: every live message
     /// (snoozed and deferred included) must be among those the close
     /// withdraws. Checked before anything is written, so a refused close
@@ -697,6 +699,7 @@ impl HubState {
         }
     }
 
+    /// The withdrawals a close asks for, if any.
     fn close_rescissions(
         &self,
         filter: MessageFilter,
@@ -1069,13 +1072,29 @@ impl HubState {
                 }
             },
         };
-        self.store.transaction(|repo| {
+        // Open items never sit in a closed group, where the inbox hides them:
+        // a thread with live messages reopens a closed target topic, as a
+        // message sent into a closed thread does.
+        let has_live_messages = !self
+            .store
+            .repository()
+            .list_messages(&MessageFilter {
+                thread_id: Some(id.clone()),
+                ..MessageFilter::default()
+            })?
+            .is_empty();
+        let reopened = self.store.transaction(|repo| {
             if let Some(topic) = &new_topic {
                 repo.insert_topic(topic)?;
             }
-            repo.move_thread(id, &target, now)
+            repo.move_thread(id, &target, now)?;
+            if has_live_messages {
+                Ok(repo.reopen_thread(id, now)?.topic)
+            } else {
+                Ok(false)
+            }
         })?;
-        if new_topic.is_some() {
+        if new_topic.is_some() || reopened {
             self.dispatcher.send(HubEvent::TopicChanged(target.clone()));
         }
         self.dispatcher.send(HubEvent::ThreadChanged(id.clone()));

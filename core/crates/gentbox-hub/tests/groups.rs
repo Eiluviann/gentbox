@@ -346,3 +346,58 @@ async fn moving_a_thread_into_a_topic_with_its_key_is_a_conflict() {
     assert_eq!(message.topic_id, moved.topic_id);
     hub.stop().await;
 }
+
+#[tokio::test]
+async fn moving_a_thread_with_open_items_into_a_closed_topic_reopens_it() {
+    let hub = TestHub::start();
+    let parked = hub
+        .create(json!({ "type": "generic", "title": "Release notes drafted", "topic": { "key": "archive", "title": "Archive" } }))
+        .await;
+    hub.handle.dismiss(parked.id.clone()).await.unwrap();
+    hub.handle
+        .close_topic(parked.topic_id.clone(), CloseRequest::default(), None)
+        .await
+        .unwrap();
+    let prompt = hub.create(blocking_prompt()).await;
+    let into_archive = ThreadMove {
+        topic: gentbox_core::topic::TopicRef::Id(gentbox_core::topic::TopicIdRef {
+            id: parked.topic_id.clone(),
+        }),
+    };
+    hub.handle
+        .move_thread_for_user(prompt.thread_id.clone(), into_archive)
+        .await
+        .unwrap();
+    // An open item never sits in a closed group, where the inbox would hide it.
+    let topic = hub.handle.topic(parked.topic_id.clone()).await.unwrap();
+    assert_eq!(topic.status, GroupStatus::Open);
+    hub.stop().await;
+}
+
+#[tokio::test]
+async fn nobody_withdraws_every_agents_messages_without_naming_who_asks() {
+    let hub = TestHub::start();
+    let prompt = hub
+        .create(json!({ "type": "decision_required", "title": "Ship 1.4?", "topic": { "key": "release-1.4" } }))
+        .await;
+    let withdraw = CloseRequest {
+        rescind_open_messages: true,
+        reason: None,
+    };
+    let refused = hub
+        .handle
+        .close_topic(prompt.topic_id.clone(), withdraw, None)
+        .await;
+    assert!(matches!(refused, Err(HubError::NoRequester)));
+    let refused = hub
+        .handle
+        .rescind_topic(
+            prompt.topic_id.clone(),
+            gentbox_core::rescind::RescindReason::Obsolete,
+            None,
+        )
+        .await;
+    assert!(matches!(refused, Err(HubError::NoRequester)));
+    assert_eq!(hub.status_of(&prompt.id).await, ResponseStatus::Pending);
+    hub.stop().await;
+}

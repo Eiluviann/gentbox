@@ -126,7 +126,9 @@ impl From<HubError> for ApiError {
             HubError::MessageNotFound(_)
             | HubError::TopicNotFound(_)
             | HubError::ThreadNotFound(_) => Self::not_found(message),
-            HubError::NotOwner => Self::new(StatusCode::FORBIDDEN, "not_owner", message),
+            HubError::NotOwner | HubError::NoRequester => {
+                Self::new(StatusCode::FORBIDDEN, "not_owner", message)
+            }
             HubError::MessageClosed { state, .. } => {
                 let mut error = Self::new(StatusCode::CONFLICT, "already_closed", message);
                 error.body.state = Some(state);

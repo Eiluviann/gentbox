@@ -93,6 +93,10 @@ pub enum HubError {
     /// closes; its threads do (409).
     #[error("the General topic cannot be closed; close its threads instead")]
     GeneralTopic,
+    /// A group withdrawal that names no requester would withdraw every
+    /// agent's messages; only an agent withdraws, and only its own.
+    #[error("only the agent that sent a message may withdraw it")]
+    NoRequester,
     /// A key or default-thread uniqueness rule (409).
     #[error(transparent)]
     Conflict(Conflict),
@@ -528,13 +532,17 @@ impl HubHandle {
         self.call(move |hub| hub.update_topic(&id, update)).await
     }
 
-    /// `POST /v1/topics/{id}/close`: closes the topic and its open threads;
-    /// with `rescindOpenMessages`, withdraws the open messages in it (only
-    /// the requester's, when there is one; all of them for the UI).
+    /// `POST /v1/topics/{id}/close`: closes the topic and its open threads,
+    /// once nothing in it is open. With `rescindOpenMessages`, the
+    /// requester's own open messages are withdrawn first; a close that names
+    /// no requester (the Mac) withdraws nothing.
     ///
     /// # Errors
     ///
-    /// [`HubError::TopicNotFound`].
+    /// [`HubError::TopicNotFound`], [`HubError::HasOpenMessages`] while
+    /// anything stays open (nothing is withdrawn then),
+    /// [`HubError::GeneralTopic`] for an agent's General topic,
+    /// [`HubError::NoRequester`] for a withdrawal that names no requester.
     pub async fn close_topic(
         &self,
         id: TopicId,
@@ -555,12 +563,13 @@ impl HubHandle {
         self.call(move |hub| hub.reopen_topic(&id)).await
     }
 
-    /// `POST /v1/topics/{id}/rescind`: withdraws the open messages in the
-    /// topic (only the requester's, when there is one) without closing it.
+    /// `POST /v1/topics/{id}/rescind`: withdraws the requester's own open
+    /// messages in the topic without closing it.
     ///
     /// # Errors
     ///
-    /// [`HubError::TopicNotFound`].
+    /// [`HubError::TopicNotFound`], [`HubError::NoRequester`] when no
+    /// requester is named.
     pub async fn rescind_topic(
         &self,
         id: TopicId,
@@ -623,11 +632,14 @@ impl HubHandle {
         self.call(move |hub| hub.update_thread(&id, update)).await
     }
 
-    /// `POST /v1/threads/{id}/close`.
+    /// `POST /v1/threads/{id}/close`: closes the thread once nothing in it is
+    /// open, withdrawing the requester's own open messages first when asked.
     ///
     /// # Errors
     ///
-    /// [`HubError::ThreadNotFound`].
+    /// [`HubError::ThreadNotFound`], [`HubError::HasOpenMessages`] while
+    /// anything stays open, [`HubError::NoRequester`] for a withdrawal that
+    /// names no requester.
     pub async fn close_thread(
         &self,
         id: ThreadId,
@@ -647,11 +659,13 @@ impl HubHandle {
         self.call(move |hub| hub.reopen_thread(&id)).await
     }
 
-    /// `POST /v1/threads/{id}/rescind`.
+    /// `POST /v1/threads/{id}/rescind`: withdraws the requester's own open
+    /// messages in the thread without closing it.
     ///
     /// # Errors
     ///
-    /// [`HubError::ThreadNotFound`].
+    /// [`HubError::ThreadNotFound`], [`HubError::NoRequester`] when no
+    /// requester is named.
     pub async fn rescind_thread(
         &self,
         id: ThreadId,
