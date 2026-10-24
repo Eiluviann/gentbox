@@ -9,6 +9,10 @@ use gentbox_core::message as core_message;
 use gentbox_core::{lifecycle, policy, rescind};
 use gentbox_hub::InboxEntry;
 
+/// At most this many superseded ids cross into Swift per item, whatever the
+/// hub read.
+const SUPERSEDES_LIMIT: usize = 32;
+
 /// The four message types (ADR 0007).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
 pub enum MessageType {
@@ -277,6 +281,7 @@ impl InboxMessage {
             supersedes: entry
                 .supersedes
                 .iter()
+                .take(SUPERSEDES_LIMIT)
                 .map(|id| id.as_str().to_owned())
                 .collect(),
             ..Self::new(
