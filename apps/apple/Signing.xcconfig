@@ -1,0 +1,26 @@
+// Signing for the Mac app (docs/signing.md). Without a local file this
+// signs ad hoc ("Sign to Run Locally") with the entitlements macOS honours
+// without a provisioning profile: state in ~/Library/Application Support/Gentbox,
+// no Time Sensitive notifications, no Focus status.
+//
+// Write the choice into Signing.local.xcconfig (gitignored), never here: the
+// repository is public and the team id stays out of it.
+//
+// Paid team (the shipped identifiers, Time Sensitive and Communication
+// Notifications):
+//   DEVELOPMENT_TEAM = <your team id>
+//   CODE_SIGN_IDENTITY = Apple Development
+//   GENTBOX_ENTITLEMENTS = Signing/Full.entitlements
+// Free Personal Team (identifiers of its own, without those two):
+//   DEVELOPMENT_TEAM = <your team id>
+//   #include "Signing.personal-team.xcconfig"
+
+// The identifiers the shipped app claims; they belong to the paid team. A
+// Personal Team replaces them with its own (Signing.personal-team.xcconfig).
+GENTBOX_BUNDLE_IDENTIFIER = com.eiluviann.gentbox
+GENTBOX_APP_GROUP = group.com.eiluviann.gentbox
+
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+GENTBOX_ENTITLEMENTS = Signing/AdHoc.entitlements
+#include? "Signing.local.xcconfig"

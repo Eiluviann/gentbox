@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+The full set, for the paid team with the shipped identifiers. It needs a
+provisioning profile: Time Sensitive and Communication Notifications are
+restricted, and claiming them without a profile gets the app killed at launch.
+PersonalTeam.entitlements and AdHoc.entitlements beside this file are subsets
+of it (GentboxTests/EntitlementVariantsTests checks it); the
+GENTBOX_ENTITLEMENTS build setting (Signing.xcconfig) picks one. See
+docs/signing.md.
+-->
+<plist version="1.0">
+<dict>
+	<!-- The app runs sandboxed. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- The local API on loopback (architecture §8). -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- The state folder: hub.db, hub.lock, rules.toml and the API folder. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(GENTBOX_APP_GROUP)</string>
+	</array>
+	<!-- Blocking native notifications break through Focus (PR 4). -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
+	<!-- INFocusStatusCenter, the Focus source (PR 4, Spike S3). -->
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
+</dict>
+</plist>
