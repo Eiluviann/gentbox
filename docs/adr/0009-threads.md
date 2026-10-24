@@ -114,6 +114,7 @@ topic = { key = "project:{project}", title = "{project}", kind = "project" }
 ## Amendments
 
 - **2026-10-24: a muted message reports the mute and stays open.** Senders of non-urgent messages in a muted topic or thread still get `shouldWait: false`, and now also the warning `muted` naming the topic or thread. The message stays open in the inbox; only an explicit rescind from the agent withdraws it (ADR 0007, amendments).
+- **2026-10-24: no close while items are open.** The user's decision during the PR 3 review. A topic or thread closes only when nothing in it is open (open, acknowledged, deferred or snoozed); otherwise the hub answers 409 `has_open_messages` with the count. `rescindOpenMessages: true` withdraws only the requester's own open messages first, and the close is refused, withdrawing nothing, when anything else stays open. An agent's General topic never closes (409 `general_topic`); its threads close under the same rule. On the Mac, nothing the user does withdraws a message: Close on a thread with open items shows them ("N items still open"), and items are answered, done or dismissed, several at once with bulk Dismiss, before the close. This replaces "open messages stay unless `rescindOpenMessages: true`" above.
 
 ## Sources
 

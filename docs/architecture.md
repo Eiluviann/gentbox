@@ -272,7 +272,7 @@ ADRs: [0008](adr/0008-topics.md) (topics), [0009](adr/0009-threads.md) (threads,
 - **Takeover:** an explicit thread created with `kind: "conversation"` and `conversation.id` takes over that conversation's implicit thread in its topic (messages and mute move in, the implicit thread goes, later default messages follow). Only the first; the inline `thread` form never takes over. Topics have no takeover.
 - **API:** topics as in ADR 0008; threads with `POST /v1/threads` (upsert by key within the topic), `GET`, `PATCH`, close, reopen, rescind-all, `PUT /v1/threads/{id}/topic` (move a thread), and `PUT /v1/messages/{id}/thread` (move a message, `null` to re-resolve). Implicit topics and threads answer 409 to agent PATCHes.
 - **Grouping only.** A message keeps its own `type`, `urgent` and `blocking`; coalescing and implicit rescinds stay per conversation (§7). The one delivery effect is mute (§6.2).
-- **Close:** closing a topic closes its open threads (and reopening it reopens those); open messages stay unless `rescindOpenMessages: true`. A message to a closed thread reopens it and its topic.
+- **Close:** a topic or thread closes only when nothing in it is open (open, acknowledged, deferred or snoozed); otherwise the hub answers 409 `has_open_messages` with the count, for the Mac and agents alike. An agent's `rescindOpenMessages: true` withdraws only its own messages first, and the close is refused (withdrawing nothing) if anything else stays open. An agent's General topic never closes (409 `general_topic`); its threads do. Closing a topic closes its threads (and reopening it reopens those). A message to a closed thread reopens it and its topic. On the Mac, Close on an item whose thread still has open items shows them ("N items still open") instead of closing; nothing the user does withdraws a message, so items are answered, done or dismissed (several at once with bulk Dismiss) before a close (2026-10-24, the user's decision).
 - **For you:** mute, mark read, close and reopen at both levels (a muted topic mutes its threads); move a thread or a message.
 - **Inbox:** topic → thread → messages; each message row shows its conversation. A simple conversation shows as General → its thread. Closed topics and threads move to a Closed section.
 
@@ -403,11 +403,11 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `POST /v1/topics` | Create a topic, upsert by `key` (§5.4) |
 | `GET /v1/topics?status=open` | List topics (no messages) |
 | `GET /v1/topics/{id}` · `PATCH /v1/topics/{id}` | Read one; rename or edit it |
-| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close (and its open threads; optionally withdrawing open messages), reopen, or withdraw its open messages |
+| `POST /v1/topics/{id}/close` · `/reopen` · `/rescind` | Close it and its threads once nothing in it is open (optionally withdrawing the requester's own open messages first; 409 `has_open_messages` with `openMessages`, 409 `general_topic` for a General topic), reopen, or withdraw its open messages |
 | `POST /v1/threads` | Create a thread, upsert by `key` within its topic (§5.4) |
 | `GET /v1/threads?topic={id}&status=open` | List threads (no messages) |
 | `GET /v1/threads/{id}` · `PATCH /v1/threads/{id}` | Read one; rename or edit it |
-| `POST /v1/threads/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
+| `POST /v1/threads/{id}/close` · `/reopen` · `/rescind` | Close once nothing in it is open (optionally withdrawing the requester's own open messages first; 409 `has_open_messages`), reopen, or withdraw its open messages |
 | `PUT /v1/threads/{id}/topic` | Move a thread with its messages to another topic |
 | `PUT /v1/messages/{id}/thread` | Move a message to another thread, or back to its default resolution with `null` |
 
@@ -419,7 +419,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 
 **Rate limits.** Token bucket per `source.agent`: burst 30, refill 1/s; per-conversation burst 10. Over the limit → 429 with `Retry-After`. Body limit 128 KiB.
 
-**Error codes.** 422 bodies carry a `code`: `schema_invalid` (with the JSON pointer), `invalid_combination`, `topic_conflict`, `title_looks_like_command` (strict mode, and explicit topic or thread creates).
+**Error codes.** 422 bodies carry a `code`: `schema_invalid` (with the JSON pointer), `invalid_combination`, `topic_conflict`, `title_looks_like_command` (strict mode, and explicit topic or thread creates). 409 bodies carry `implicit_group`, `conflict`, `already_closed` (with `state`), `has_open_messages` (with `openMessages`) or `general_topic`.
 
 **Versioning.** `/v1/` in the path and `"version": 1` in the body. Additive optional fields stay in v1; anything else is v2 on a new path, served alongside v1 for at least one release.
 
