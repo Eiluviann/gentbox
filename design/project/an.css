@@ -57,7 +57,6 @@
 	/* Accent (controls only) and the system red for Deny */
 	--accent: light-dark(#007aff, #0a84ff);
 	--accent-ink: light-dark(#0062cc, #409cff);
-	--accent-fill: light-dark(#0070eb, #0a6fdf);
 	--focus-ring: light-dark(rgba(0, 122, 255, 0.22), rgba(10, 132, 255, 0.4));
 	--danger: light-dark(#d70015, #ff453a);
 	--danger-ink: light-dark(#d70015, #ff7f77);
@@ -478,9 +477,10 @@ button {
 	border-radius: 6px;
 	gap: 4px;
 }
+/* The system accent, as .borderedProminent draws it: the fill follows the user's accent colour; the boards show the default blue */
 .btn.primary {
-	background: var(--accent-fill);
-	border-color: var(--accent-fill);
+	background: var(--accent);
+	border-color: var(--accent);
 	color: var(--on-fill);
 }
 .btn.danger {
@@ -1045,7 +1045,7 @@ a.side-item { text-decoration: none; }
 .matrix .na { color: var(--ink-3); }
 .chips { display: flex; gap: 4px; }
 .chip { width: 26px; height: 24px; border-radius: 6px; background: var(--track); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--ink-2); }
-.chip.on { background: var(--accent-fill); color: var(--on-fill); }
+.chip.on { background: var(--accent); color: var(--on-fill); }
 .steps { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 12px; line-height: 18px; }
 .sheet-scrim { position: absolute; inset: 0; background: var(--scrim); display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; }
 .sheet { width: 440px; background: var(--elevated); border-radius: 14px; box-shadow: var(--shadow-window); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
@@ -1117,7 +1117,7 @@ a.side-item { text-decoration: none; }
 .c-deps { color: var(--topic-deps); }
 .menu-pop { position: absolute; width: 220px; background: var(--menu); border: 1px solid var(--panel-line); border-radius: 10px; box-shadow: var(--shadow-panel); padding: 5px; font-size: 13px; }
 .menu-pop div { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 6px; }
-.menu-pop div.hl { background: var(--accent-fill); color: var(--on-fill); }
+.menu-pop div.hl { background: var(--accent); color: var(--on-fill); }
 .menu-pop hr { border: none; border-top: 1px solid var(--line); margin: 4px 6px; }
 
 /* Urgent: shown only by the red figure.walk.motion badge under the type icon (see .urgent-mark below) */

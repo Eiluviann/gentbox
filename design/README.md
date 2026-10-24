@@ -33,7 +33,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 - **Titles are descriptive summaries, never commands.** A title says in plain words what the agent asks or did ("Allow Bash to run the ingest tests?", "Ingest auth accepts rotated tokens; 12 tests pass"), short enough for one line in the popover; the command, path or raw input only appears in a code box in the body, never in a title, row or notification line.
 - **Action plans.** Every action_required message carries an action plan: numbered steps saying how to do it. Its card and popup offer **Do it**, Done and Defer; Do it turns the whole popover into the plan; steps can be ticked off (stored with the message, shared with the iPhone later, never sent to the agent), and Done, Reply and Defer sit at the bottom (through the 3 s undo). Settled in ADR 0011 (§5.6): 1 to 12 steps, each a plain instruction with optional markdown detail and a link opened only on tap; the hub supplies a one-step plan when the agent sends none.
 - Icons are outline SF Symbols by default, never the filled variants (the one exception is `checkmark.circle.fill` for a selected item in Select to dismiss, the system's own selection mark).
-- Accent `#007AFF` / `#0A84FF` is for controls only; a primary button fills with the slightly deeper `#0070EB` / `#0A6FDF` so its white label passes 4.5:1 (see Open design questions). Greys: `#F2F2F7` tracks, 1 px `#E0E0E0` borders, no box inside a box. Type is the system font.
+- Accent `#007AFF` / `#0A84FF` is for controls only. **Primary buttons are the native `.borderedProminent`:** their fill is the system accent and follows the user's accent colour (the user's choice, 2026-10-24); the boards show the default blue. The selected menu item and the selected day chips use the same accent. White on the default accent is 4.0:1 in light and 3.6:1 in dark, under AA; the user accepted that for consistency with macOS, and Increase Contrast darkens the accent. Greys: `#F2F2F7` tracks, 1 px `#E0E0E0` borders, no box inside a box. Type is the system font.
 - **Gentbox mark** (menu bar and app icon): a custom symbol, `bubble.left` with a `>_` prompt; red dot and count while agents wait, slash in quiet hours or Focus. An inbox-tray variant was tried for the rename and dropped at the user's request.
 - **Agent marks** are neutral placeholders on the boards (a rounded square for Claude Code, a circle for Codex); the app ships the real Claude and Codex marks as icons. No brand logos appear in the mockups.
 
@@ -50,82 +50,82 @@ The dark palette follows macOS conventions:
 
 ### Contrast
 
-`tools/contrast.py` checks every text and icon pair in `an.css`, laying translucent fills over the surface they sit on; it exits non-zero when a pair fails. It covers selection backgrounds (the selected sidebar row, a row picked to dismiss) and takes an opacity per pair, so a faded hint counts as faded. Every pair passes in both modes: text at 4.5:1 or more (lowest: Deny label on a dark button 4.62, white on a primary button and its shortcut hint 4.65 light), icons and other marks at 3:1 or more (lowest: paused orange on a picked row 3.08 light). Shortcut hints are full opacity: `--ink-3` on bordered buttons, `--on-fill` on primary ones. Rerun with `--markdown` to refresh this table.
+`tools/contrast.py` checks every text and icon pair in `an.css`, laying translucent fills over the surface they sit on; it exits non-zero when a pair fails. It covers selection backgrounds (the selected sidebar row, a row picked to dismiss) and takes an opacity per pair, so a faded hint counts as faded. Every pair passes in both modes except the one the user accepted, white on the system accent (primary buttons, their shortcut hints, the selected menu item and chips: 4.02 light, 3.65 dark), which the script marks accepted, not failing. Otherwise text is at 4.5:1 or more (lowest: Deny label on a dark button 4.62), icons and other marks at 3:1 or more (lowest: paused orange on a picked row 3.08 light). Shortcut hints are full opacity: `--ink-3` on bordered buttons, `--on-fill` on primary ones. Rerun with `--markdown` to refresh this table.
 
 <!-- contrast:start -->
-| Pair | Where | Opacity | Minimum | Light | Dark |
-| --- | --- | --- | --- | --- | --- |
-| `ink` on `surface` | Body text in the main window | 100% | 4.5:1 | 16.83 | 15.31 |
-| `ink` on `elevated` | Body text in the popover, popups and toasts | 100% | 4.5:1 | 16.83 | 12.80 |
-| `ink` on `sidebar` | Sidebar items | 100% | 4.5:1 | 15.46 | 13.51 |
-| `ink` on `card` | Settings tiles | 100% | 4.5:1 | 16.83 | 13.87 |
-| `ink` on `menu` | Menu items | 100% | 4.5:1 | 16.14 | 11.27 |
-| `ink` on `banner` | Native banner text | 100% | 4.5:1 | 15.45 | 12.55 |
-| `ink` on `control` | Button labels | 100% | 4.5:1 | 16.83 | 10.42 |
-| `ink` on `field` | Text fields | 100% | 4.5:1 | 16.83 | 15.31 |
-| `ink` on `seg-on` | Selected segment | 100% | 4.5:1 | 16.83 | 5.50 |
-| `ink` on `track` | Code boxes and grey tags | 100% | 4.5:1 | 15.08 | 9.97 |
-| `ink-2` on `surface` | Secondary text in the window | 100% | 4.5:1 | 9.12 | 9.90 |
-| `ink-2` on `elevated` | Secondary text in the popover | 100% | 4.5:1 | 9.12 | 8.28 |
-| `ink-2` on `card` | Secondary text on tiles | 100% | 4.5:1 | 9.12 | 8.97 |
-| `ink-2` on `track` | Tag text on a track | 100% | 4.5:1 | 8.18 | 6.45 |
-| `ink-2` on `wait-soft` | Body text on a red callout | 100% | 4.5:1 | 8.00 | 8.34 |
-| `ink-2` on `warn-soft` | Body text on a warning callout | 100% | 4.5:1 | 8.37 | 7.86 |
-| `ink-3` on `surface` | Captions and breadcrumbs in the window | 100% | 4.5:1 | 5.99 | 7.54 |
-| `ink-3` on `elevated` | Captions and breadcrumbs in the popover | 100% | 4.5:1 | 5.99 | 6.30 |
-| `ink-3` on `sidebar` | Sidebar headings | 100% | 4.5:1 | 5.50 | 6.65 |
-| `ink-3` on `card` | Captions on tiles | 100% | 4.5:1 | 5.99 | 6.83 |
-| `ink-3` on `track` | Agent working and Withdrawn tags | 100% | 4.5:1 | 5.37 | 4.91 |
-| `ink-3` on `track` | Grey tags in the window | 100% | 4.5:1 | 5.37 | 5.97 |
-| `ink-3` on `menu` | Disabled menu items | 100% | 4.5:1 | 5.74 | 5.55 |
-| `accent-ink` on `surface` | Links in the window | 100% | 4.5:1 | 5.80 | 5.89 |
-| `accent-ink` on `elevated` | Links in the popover | 100% | 4.5:1 | 5.80 | 4.92 |
-| `on-fill` on `accent-fill` | Primary button, selected menu item, chips | 100% | 4.5:1 | 4.65 | 4.83 |
-| `danger-ink` on `control` | Deny button label | 100% | 4.5:1 | 5.38 | 4.62 |
-| `on-fill` on `badge` | Count badge | 100% | 4.5:1 | 5.38 | 4.78 |
-| `dec-ink` on `dec-soft` | Decision tag | 100% | 4.5:1 | 6.63 | 7.18 |
-| `act-ink` on `act-soft` | Action tag | 100% | 4.5:1 | 5.66 | 8.08 |
-| `done-ink` on `done-soft` | Completed tag | 100% | 4.5:1 | 5.76 | 8.05 |
-| `info-ink` on `info-soft` | Generic tag | 100% | 4.5:1 | 5.37 | 6.74 |
-| `wait-ink` on `wait-soft` | Agent waiting tag | 100% | 4.5:1 | 6.89 | 7.45 |
-| `paused-ink` on `paused-soft` | Paused · can defer tag | 100% | 4.5:1 | 5.26 | 7.89 |
-| `wait-ink` on `elevated` | Urgent and waiting words on the popover | 100% | 4.5:1 | 7.86 | 7.39 |
-| `wait-ink` on `surface` | Urgent and waiting words in the window | 100% | 4.5:1 | 7.86 | 8.84 |
-| `paused-ink` on `elevated` | Paused words on the popover | 100% | 4.5:1 | 5.79 | 8.89 |
-| `done-ink` on `elevated` | Done words on the popover | 100% | 4.5:1 | 6.53 | 8.94 |
-| `act-ink` on `surface` | Done on Mac in the window | 100% | 4.5:1 | 6.43 | 10.97 |
-| `menubar-ink` on `menubar` | Menu-bar clock | 100% | 4.5:1 | 18.83 | 16.61 |
-| `ink-3` on `control` | Shortcut hint on a bordered button | 100% | 4.5:1 | 5.99 | 5.13 |
-| `on-fill` on `accent-fill` | Shortcut hint on a primary button | 100% | 4.5:1 | 4.65 | 4.83 |
-| `ink` on `sel` | Selected sidebar item | 100% | 4.5:1 | 13.23 | 10.90 |
-| `ink` on `accent-soft` | Row picked to dismiss | 100% | 4.5:1 | 15.38 | 10.42 |
-| `ink-3` on `accent-soft` | Breadcrumb on a picked row | 100% | 4.5:1 | 5.47 | 5.13 |
-| `dec` on `elevated` | Decision symbol | 100% | 3:1 | 5.65 | 4.05 |
-| `act` on `elevated` | Action symbol | 100% | 3:1 | 4.73 | 6.44 |
-| `done` on `elevated` | Completed symbol | 100% | 3:1 | 3.43 | 6.89 |
-| `info` on `elevated` | Generic symbol | 100% | 3:1 | 3.26 | 4.85 |
-| `wait` on `elevated` | Waiting pause and urgent figure | 100% | 3:1 | 5.38 | 4.09 |
-| `paused` on `elevated` | Paused pause symbol | 100% | 3:1 | 3.37 | 6.78 |
-| `dec` on `surface` | Decision symbol in the window | 100% | 3:1 | 5.65 | 4.84 |
-| `act` on `surface` | Action symbol in the window | 100% | 3:1 | 4.73 | 7.70 |
-| `done` on `surface` | Completed symbol in the window | 100% | 3:1 | 3.43 | 8.25 |
-| `wait` on `surface` | Waiting symbol in the window | 100% | 3:1 | 5.38 | 4.89 |
-| `paused` on `surface` | Paused symbol in the window | 100% | 3:1 | 3.37 | 8.11 |
-| `accent` on `sidebar` | Sidebar symbols | 100% | 3:1 | 3.69 | 4.03 |
-| `accent` on `elevated` | Toggle on, progress bar | 100% | 3:1 | 4.02 | 3.82 |
-| `danger` on `control` | Deny symbol | 100% | 3:1 | 5.38 | 3.33 |
-| `topic-release` on `elevated` | Topic symbol | 100% | 3:1 | 4.16 | 6.38 |
-| `topic-deps` on `sidebar` | Topic symbol in the sidebar | 100% | 3:1 | 4.79 | 5.73 |
-| `warn-ink` on `warn-soft` | Warning symbol | 100% | 3:1 | 5.44 | 8.44 |
-| `wait` on `menubar` | Menu-bar red dot | 100% | 3:1 | 4.83 | 4.87 |
-| `accent` on `sel` | Symbol on the selected sidebar item | 100% | 3:1 | 3.16 | 3.25 |
-| `topic-release` on `sel` | Topic symbol on the selected sidebar item | 100% | 3:1 | 3.27 | 5.44 |
-| `topic-deps` on `sel` | Topic symbol on the selected sidebar item | 100% | 3:1 | 4.10 | 4.62 |
-| `dec` on `accent-soft` | Decision symbol on a picked row | 100% | 3:1 | 5.16 | 3.29 |
-| `done` on `accent-soft` | Completed symbol on a picked row | 100% | 3:1 | 3.14 | 5.61 |
-| `paused` on `accent-soft` | Paused symbol on a picked row | 100% | 3:1 | 3.08 | 5.52 |
-| `wait` on `accent-soft` | Waiting symbol on a picked row | 100% | 3:1 | 4.92 | 3.33 |
-| `accent` on `accent-soft` | Selection circle on a picked row | 100% | 3:1 | 3.67 | 3.11 |
+| Pair | Where | Opacity | Minimum | Light | Dark | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ink` on `surface` | Body text in the main window | 100% | 4.5:1 | 16.83 | 15.31 | ok |
+| `ink` on `elevated` | Body text in the popover, popups and toasts | 100% | 4.5:1 | 16.83 | 12.80 | ok |
+| `ink` on `sidebar` | Sidebar items | 100% | 4.5:1 | 15.46 | 13.51 | ok |
+| `ink` on `card` | Settings tiles | 100% | 4.5:1 | 16.83 | 13.87 | ok |
+| `ink` on `menu` | Menu items | 100% | 4.5:1 | 16.14 | 11.27 | ok |
+| `ink` on `banner` | Native banner text | 100% | 4.5:1 | 15.45 | 12.55 | ok |
+| `ink` on `control` | Button labels | 100% | 4.5:1 | 16.83 | 10.42 | ok |
+| `ink` on `field` | Text fields | 100% | 4.5:1 | 16.83 | 15.31 | ok |
+| `ink` on `seg-on` | Selected segment | 100% | 4.5:1 | 16.83 | 5.50 | ok |
+| `ink` on `track` | Code boxes and grey tags | 100% | 4.5:1 | 15.08 | 9.97 | ok |
+| `ink-2` on `surface` | Secondary text in the window | 100% | 4.5:1 | 9.12 | 9.90 | ok |
+| `ink-2` on `elevated` | Secondary text in the popover | 100% | 4.5:1 | 9.12 | 8.28 | ok |
+| `ink-2` on `card` | Secondary text on tiles | 100% | 4.5:1 | 9.12 | 8.97 | ok |
+| `ink-2` on `track` | Tag text on a track | 100% | 4.5:1 | 8.18 | 6.45 | ok |
+| `ink-2` on `wait-soft` | Body text on a red callout | 100% | 4.5:1 | 8.00 | 8.34 | ok |
+| `ink-2` on `warn-soft` | Body text on a warning callout | 100% | 4.5:1 | 8.37 | 7.86 | ok |
+| `ink-3` on `surface` | Captions and breadcrumbs in the window | 100% | 4.5:1 | 5.99 | 7.54 | ok |
+| `ink-3` on `elevated` | Captions and breadcrumbs in the popover | 100% | 4.5:1 | 5.99 | 6.30 | ok |
+| `ink-3` on `sidebar` | Sidebar headings | 100% | 4.5:1 | 5.50 | 6.65 | ok |
+| `ink-3` on `card` | Captions on tiles | 100% | 4.5:1 | 5.99 | 6.83 | ok |
+| `ink-3` on `track` | Agent working and Withdrawn tags | 100% | 4.5:1 | 5.37 | 4.91 | ok |
+| `ink-3` on `track` | Grey tags in the window | 100% | 4.5:1 | 5.37 | 5.97 | ok |
+| `ink-3` on `menu` | Disabled menu items | 100% | 4.5:1 | 5.74 | 5.55 | ok |
+| `accent-ink` on `surface` | Links in the window | 100% | 4.5:1 | 5.80 | 5.89 | ok |
+| `accent-ink` on `elevated` | Links in the popover | 100% | 4.5:1 | 5.80 | 4.92 | ok |
+| `on-fill` on `accent` | Primary button, selected menu item, chips | 100% | 4.5:1 | 4.02 | 3.65 | accepted: system accent fill (.borderedProminent), for consistency with macOS; Increase Contrast darkens it |
+| `danger-ink` on `control` | Deny button label | 100% | 4.5:1 | 5.38 | 4.62 | ok |
+| `on-fill` on `badge` | Count badge | 100% | 4.5:1 | 5.38 | 4.78 | ok |
+| `dec-ink` on `dec-soft` | Decision tag | 100% | 4.5:1 | 6.63 | 7.18 | ok |
+| `act-ink` on `act-soft` | Action tag | 100% | 4.5:1 | 5.66 | 8.08 | ok |
+| `done-ink` on `done-soft` | Completed tag | 100% | 4.5:1 | 5.76 | 8.05 | ok |
+| `info-ink` on `info-soft` | Generic tag | 100% | 4.5:1 | 5.37 | 6.74 | ok |
+| `wait-ink` on `wait-soft` | Agent waiting tag | 100% | 4.5:1 | 6.89 | 7.45 | ok |
+| `paused-ink` on `paused-soft` | Paused · can defer tag | 100% | 4.5:1 | 5.26 | 7.89 | ok |
+| `wait-ink` on `elevated` | Urgent and waiting words on the popover | 100% | 4.5:1 | 7.86 | 7.39 | ok |
+| `wait-ink` on `surface` | Urgent and waiting words in the window | 100% | 4.5:1 | 7.86 | 8.84 | ok |
+| `paused-ink` on `elevated` | Paused words on the popover | 100% | 4.5:1 | 5.79 | 8.89 | ok |
+| `done-ink` on `elevated` | Done words on the popover | 100% | 4.5:1 | 6.53 | 8.94 | ok |
+| `act-ink` on `surface` | Done on Mac in the window | 100% | 4.5:1 | 6.43 | 10.97 | ok |
+| `menubar-ink` on `menubar` | Menu-bar clock | 100% | 4.5:1 | 18.83 | 16.61 | ok |
+| `ink-3` on `control` | Shortcut hint on a bordered button | 100% | 4.5:1 | 5.99 | 5.13 | ok |
+| `on-fill` on `accent` | Shortcut hint on a primary button | 100% | 4.5:1 | 4.02 | 3.65 | accepted: system accent fill (.borderedProminent), for consistency with macOS; Increase Contrast darkens it |
+| `ink` on `sel` | Selected sidebar item | 100% | 4.5:1 | 13.23 | 10.90 | ok |
+| `ink` on `accent-soft` | Row picked to dismiss | 100% | 4.5:1 | 15.38 | 10.42 | ok |
+| `ink-3` on `accent-soft` | Breadcrumb on a picked row | 100% | 4.5:1 | 5.47 | 5.13 | ok |
+| `dec` on `elevated` | Decision symbol | 100% | 3:1 | 5.65 | 4.05 | ok |
+| `act` on `elevated` | Action symbol | 100% | 3:1 | 4.73 | 6.44 | ok |
+| `done` on `elevated` | Completed symbol | 100% | 3:1 | 3.43 | 6.89 | ok |
+| `info` on `elevated` | Generic symbol | 100% | 3:1 | 3.26 | 4.85 | ok |
+| `wait` on `elevated` | Waiting pause and urgent figure | 100% | 3:1 | 5.38 | 4.09 | ok |
+| `paused` on `elevated` | Paused pause symbol | 100% | 3:1 | 3.37 | 6.78 | ok |
+| `dec` on `surface` | Decision symbol in the window | 100% | 3:1 | 5.65 | 4.84 | ok |
+| `act` on `surface` | Action symbol in the window | 100% | 3:1 | 4.73 | 7.70 | ok |
+| `done` on `surface` | Completed symbol in the window | 100% | 3:1 | 3.43 | 8.25 | ok |
+| `wait` on `surface` | Waiting symbol in the window | 100% | 3:1 | 5.38 | 4.89 | ok |
+| `paused` on `surface` | Paused symbol in the window | 100% | 3:1 | 3.37 | 8.11 | ok |
+| `accent` on `sidebar` | Sidebar symbols | 100% | 3:1 | 3.69 | 4.03 | ok |
+| `accent` on `elevated` | Toggle on, progress bar | 100% | 3:1 | 4.02 | 3.82 | ok |
+| `danger` on `control` | Deny symbol | 100% | 3:1 | 5.38 | 3.33 | ok |
+| `topic-release` on `elevated` | Topic symbol | 100% | 3:1 | 4.16 | 6.38 | ok |
+| `topic-deps` on `sidebar` | Topic symbol in the sidebar | 100% | 3:1 | 4.79 | 5.73 | ok |
+| `warn-ink` on `warn-soft` | Warning symbol | 100% | 3:1 | 5.44 | 8.44 | ok |
+| `wait` on `menubar` | Menu-bar red dot | 100% | 3:1 | 4.83 | 4.87 | ok |
+| `accent` on `sel` | Symbol on the selected sidebar item | 100% | 3:1 | 3.16 | 3.25 | ok |
+| `topic-release` on `sel` | Topic symbol on the selected sidebar item | 100% | 3:1 | 3.27 | 5.44 | ok |
+| `topic-deps` on `sel` | Topic symbol on the selected sidebar item | 100% | 3:1 | 4.10 | 4.62 | ok |
+| `dec` on `accent-soft` | Decision symbol on a picked row | 100% | 3:1 | 5.16 | 3.29 | ok |
+| `done` on `accent-soft` | Completed symbol on a picked row | 100% | 3:1 | 3.14 | 5.61 | ok |
+| `paused` on `accent-soft` | Paused symbol on a picked row | 100% | 3:1 | 3.08 | 5.52 | ok |
+| `wait` on `accent-soft` | Waiting symbol on a picked row | 100% | 3:1 | 4.92 | 3.33 | ok |
+| `accent` on `accent-soft` | Selection circle on a picked row | 100% | 3:1 | 3.67 | 3.11 | ok |
 <!-- contrast:end -->
 
 ### Hand-off to `Tokens.swift`
@@ -163,9 +163,8 @@ Checked against PR #5's `apps/apple/Gentbox/Tokens.swift` (branch `claude/pr3-ff
 | `--code-on-tint` | white 70 % | black 25 % | `Tokens.codeOnTint` (new) | | Pair (a code box on a warning callout) |
 | `--line-faint` | `#ECECEE` | white 7 % | `Tokens.faintLine` (new) | | Pair |
 | `--strike` | black 25 % | white 30 % | `Tokens.strike` (new) | | Pair (Withdrawn strike-through) |
-| `--accent` | `#007AFF` | `#0A84FF` | `Tokens.accent` (new) | | System: `Color.accentColor` / `controlAccentColor` |
+| `--accent` | `#007AFF` | `#0A84FF` | `Tokens.accent` (new) | | System: `Color.accentColor` / `controlAccentColor`; primary buttons are `.buttonStyle(.borderedProminent)` with no custom token |
 | `--accent-ink` | `#0062CC` | `#409CFF` | `Tokens.link` (new) | | System: `linkColor` |
-| `--accent-fill` | `#0070EB` | `#0A6FDF` | `Tokens.accentFill` (new) | | Pair, or the system prominent button (Open design questions) |
 | `--danger-ink` | `#D70015` | `#FF7F77` | `Tokens.dangerInk` (new) | | Pair (Deny label) |
 | `--badge`, `--badge-grey` | `#D70015`, `#D1D1D6` | `#E0201A`, `#48484A` | `Tokens.badge`, `Tokens.badgeGrey` (new) | | Pair (white or ink count on it) |
 | `--dec-ink`, `--dec-soft` | `#4644B8`, `#EFEFFD` | `#BDBCFF`, `#2F2E55` | `Tokens.decisionInk`, `Tokens.decisionSoft` (new) | | Pair |
@@ -245,8 +244,7 @@ Settled: descriptive titles (ADR 0010, architecture §5.5). The hub enforces the
 2. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
 3. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
 4. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?
-5. Primary buttons: white on the system accent is 4.0:1 in light and 3.6:1 in dark, under AA. The design fills them with a slightly deeper fixed blue (`--accent-fill`) that passes. Should the app do the same, or keep the system prominent button, which follows the user's accent colour? (Waiting on the user.)
-6. Differentiate Without Color: waiting and paused share `pause.circle` and differ only by red and orange, which predates the dark work. With the macOS setting on, should waiting switch to a distinct symbol (for example `pause.circle.fill`) or carry its label? Open.
+5. Differentiate Without Color: waiting and paused share `pause.circle` and differ only by red and orange, which predates the dark work. With the macOS setting on, should waiting switch to a distinct symbol (for example `pause.circle.fill`) or carry its label? Open.
 
 ## Tools
 
