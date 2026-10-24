@@ -1,4 +1,4 @@
-import type { AskOutcome } from '../ask-flow.ts';
+import { type AskOutcome, mutedCause } from '../ask-flow.ts';
 import {
 	type CommandContext,
 	EXIT,
@@ -12,7 +12,6 @@ export function reportOutcome(
 	context: CommandContext,
 	messageId: string,
 	outcome: AskOutcome,
-	extra: { didRescind?: boolean } = {},
 ): ExitCode {
 	switch (outcome.kind) {
 		case 'answered': {
@@ -41,7 +40,10 @@ export function reportOutcome(
 				messageId,
 				status: outcome.response.status,
 				rescindReason: outcome.response.rescindReason,
-				note: 'No answer will come; fall back to your own prompt.',
+				note:
+					outcome.response.rescindReason === 'handled_in_session'
+						? 'The message was handled in the session (a completion or progress report cleared it); it was not withdrawn. No answer will come.'
+						: 'No answer will come; fall back to your own prompt.',
 			});
 			return EXIT.noAnswer;
 		case 'timed_out':
@@ -49,7 +51,7 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'timed_out',
-				...withdrawn(extra),
+				note: 'No answer yet; the message stays open and the user may still answer it (Gentbox will not clear it when the session moves on). Run `gentbox wait` to collect the answer later. If you get the answer in the conversation instead, run `gentbox rescind` on the message.',
 			});
 			return EXIT.noAnswer;
 		case 'not_waiting':
@@ -57,7 +59,23 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'nobody_can_answer_now',
-				...withdrawn(extra),
+				note: 'No channel can take an answer right now; the message stays open in the inbox. Ask in the conversation and `gentbox rescind` the message once that is handled.',
+			});
+			return EXIT.noAnswer;
+		case 'muted':
+			printJson(context, {
+				messageId,
+				status: 'no_answer',
+				reason: 'muted',
+				note: `The message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open and Gentbox will not clear it when the session moves on. Run \`gentbox wait\` to collect the answer. If you get the answer in the conversation instead, run \`gentbox rescind\` on the message (--reason resolved_elsewhere).`,
+			});
+			return EXIT.noAnswer;
+		case 'merged':
+			printJson(context, {
+				messageId,
+				status: 'no_answer',
+				reason: 'merged',
+				note: 'Your ask was merged into an open message that already existed instead of being stored on its own, so nobody will answer it separately. That message may belong to a request someone is waiting on: do not rescind it. Ask in the conversation instead.',
 			});
 			return EXIT.noAnswer;
 		case 'cancelled':
@@ -65,17 +83,15 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'cancelled',
-				...withdrawn(extra),
+				note: 'The wait was cancelled; the message stays open.',
 			});
 			return EXIT.noAnswer;
 		case 'failed':
-			printJson(context, { messageId, status: 'unknown', ...withdrawn(extra) });
+			printJson(context, {
+				messageId,
+				status: 'unknown',
+				note: 'The answer is unknown; the message stays open.',
+			});
 			return hubError(context, outcome.failure);
 	}
-}
-
-function withdrawn(extra: { didRescind?: boolean }): {
-	messageWithdrawn: boolean;
-} {
-	return { messageWithdrawn: extra.didRescind === true };
 }

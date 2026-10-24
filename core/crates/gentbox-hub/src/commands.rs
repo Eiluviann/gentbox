@@ -384,6 +384,23 @@ impl HubHandle {
             .await
     }
 
+    /// `POST /v1/messages/{id}/park`: the sender of a message that timed out
+    /// was told to collect the answer later, so completion and progress leave
+    /// it open. The message closes only by an answer, a dismiss, the sender's
+    /// rescind, or expiry.
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::NotOwner`] for another sender's message,
+    /// [`HubError::MessageClosed`] when it is already closed.
+    pub async fn park(
+        &self,
+        id: MessageId,
+        requester: Requester,
+    ) -> Result<ActionResponse, HubError> {
+        self.call(move |hub| hub.park(&id, &requester)).await
+    }
+
     /// `POST /v1/conversations/{agent}/{id}/rescind`: withdraws the
     /// conversation's live messages with the listed correlation keys.
     ///

@@ -145,12 +145,22 @@
 			"enum": ["non_blocking", "deferrable", "blocking"]
 		},
 		"rescindReason": {
-			"description": "`resolved_elsewhere`: answered or handled in the session or another channel. `obsolete`: no longer needed. `superseded`: replaced by a newer message.",
+			"description": "Why a sender withdraws its own message (a rescind request). `resolved_elsewhere`: answered or handled in the session or another channel. `obsolete`: no longer needed. `superseded`: replaced by a newer message. Withdrawn means the agent asked: only a request with one of these withdraws a message.",
 			"type": "string",
 			"enum": ["resolved_elsewhere", "obsolete", "superseded"]
 		},
+		"recordedRescindReason": {
+			"description": "Why a message was rescinded, as the hub reports it: any `rescindReason`, or `handled_in_session`, the hub's own clean-up when a completion or progress call showed the item was handled in the session. A sender never sends `handled_in_session`; apps show it as \"Handled in the session\" and every other reason as \"Withdrawn\".",
+			"type": "string",
+			"enum": [
+				"resolved_elsewhere",
+				"obsolete",
+				"superseded",
+				"handled_in_session"
+			]
+		},
 		"rescindRequest": {
-			"description": "Body of DELETE /v1/messages/{id} (reason only) and of POST /v1/conversations/{agent}/{id}/rescind (reason and correlation keys); also the `rescinds` field of a message.",
+			"description": "Body of DELETE /v1/messages/{id} (reason only) and of POST /v1/conversations/{agent}/{id}/rescind (reason and correlation keys); also the `rescinds` field of a message. Withdrawn means the agent asked: only an explicit rescind from the sender withdraws a message, never a timeout, a cancel or a mute.",
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["reason"],
@@ -571,7 +581,7 @@
 					"pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
 				},
 				"status": {
-					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: cleared without an answer (never for `action_required`, which is closed with Done and reports `answered`). `rescinded`: withdrawn (see rescindReason). `expired`. `gone`: the message closed long ago and retention deleted it (30 days after closing), so its outcome is no longer known; an id the hub never issued answers 404 instead. On `dismissed`, `rescinded`, `expired` and `gone` the sender falls back to its own prompt.",
+					"description": "`pending`: open, poll again. `answered`: see actionKind and value. `deferred`: you chose Defer; keep working on what needs no input and poll again later, the message stays open as `non_blocking`. `dismissed`: cleared without an answer (never for `action_required`, which is closed with Done and reports `answered`). `rescinded`: withdrawn by the sender, or cleared by the hub as `handled_in_session` (see rescindReason). `expired`. `gone`: the message closed long ago and retention deleted it (30 days after closing), so its outcome is no longer known; an id the hub never issued answers 404 instead. On `dismissed`, `rescinded`, `expired` and `gone` the sender falls back to its own prompt.",
 					"type": "string",
 					"enum": [
 						"pending",
@@ -584,7 +594,7 @@
 					]
 				},
 				"rescindReason": {
-					"$ref": "#/$defs/rescindReason"
+					"$ref": "#/$defs/recordedRescindReason"
 				},
 				"actionId": {
 					"type": "string"
@@ -901,8 +911,12 @@
 				"shouldWait": {
 					"type": "boolean"
 				},
+				"parked": {
+					"description": "The hub parked the message: it was muted and awaits a response, so the sender was told to collect the answer later. A parked message is exempt from the implicit clean-ups of completion and progress and closes only by the user's answer or dismiss, the sender's own rescind, or expiry. Absent means false.",
+					"type": "boolean"
+				},
 				"warnings": {
-					"description": "Changes the hub made, for the sender to learn from (e.g. the title guard).",
+					"description": "Changes the hub made or things it held back, for the sender to learn from (e.g. the title guard, or `muted`: delivered to the inbox without a ping because the topic, thread or a rule mutes it; the message stays open).",
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -918,7 +932,8 @@
 									"normalized",
 									"steps_missing",
 									"step_rewritten",
-									"secret_redacted"
+									"secret_redacted",
+									"muted"
 								]
 							},
 							"field": {

@@ -51,6 +51,12 @@ function fakeClock() {
 	};
 }
 
+const MUTED_WARNING = {
+	code: 'muted',
+	message:
+		"Delivered to the inbox without a ping: topic 'Release 1.4' is muted",
+} as const;
+
 const WARNING = {
 	code: 'title_looks_like_command',
 	field: 'title',
@@ -110,6 +116,30 @@ describe('notify', () => {
 		);
 		expect(textOf(result)).toContain(WARNING.message);
 		expect(textOf(result)).toContain('[title_looks_like_command] title:');
+	});
+
+	it('tells the model its notification was delivered but muted', async () => {
+		const postMessage = async () =>
+			succeed({
+				wasCreated: true,
+				record: ingestResponse({
+					shouldWait: false,
+					warnings: [MUTED_WARNING],
+				}),
+			});
+		const result = await runTool(
+			'notify',
+			{ type: 'task_completed', title: 'Release notes are drafted' },
+			depsFor(stubHubClient({ postMessage })),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			messageId: MESSAGE_ID,
+			state: 'open',
+			muted: true,
+		});
+		expect(textOf(result)).toContain(MUTED_WARNING.message);
+		expect(textOf(result)).toContain('[muted]');
 	});
 
 	it('refuses action_required without steps and never contacts the hub', async () => {
@@ -193,6 +223,7 @@ describe('ask', () => {
 	function askingClient(
 		getResponse: HubClient['getResponse'],
 		ingest = ingestResponse(),
+		extra: Partial<HubClient> = {},
 	) {
 		const postMessage = vi.fn<HubClient['postMessage']>(async () =>
 			succeed({ wasCreated: true, record: ingest }),
@@ -201,7 +232,12 @@ describe('ask', () => {
 			succeed(actionResponse('rescinded')),
 		);
 		return {
-			client: stubHubClient({ postMessage, rescindMessage, getResponse }),
+			client: stubHubClient({
+				postMessage,
+				rescindMessage,
+				getResponse,
+				...extra,
+			}),
 			postMessage,
 			rescindMessage,
 		};
@@ -281,12 +317,16 @@ describe('ask', () => {
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
-	it('returns "no answer" and withdraws the message when the timeout passes', async () => {
+	it('returns "no answer yet" and leaves the message open when the timeout passes', async () => {
 		const clock = fakeClock();
-		const { client, rescindMessage } = askingClient(async (_id, seconds) => {
-			clock.advance(seconds);
-			return succeed(actionResponse('pending'));
-		});
+		const { client, rescindMessage } = askingClient(
+			async (_id, seconds) => {
+				clock.advance(seconds);
+				return succeed(actionResponse('pending'));
+			},
+			ingestResponse(),
+			{ parkMessage: async () => succeed(actionResponse('pending')) },
+		);
 		const result = await runTool(
 			'ask',
 			{ title: 'Allow Bash to run the tests?', timeoutSeconds: 60 },
@@ -297,12 +337,42 @@ describe('ask', () => {
 		expect(jsonOf(result)).toMatchObject({
 			status: 'no_answer',
 			reason: 'timed_out',
-			messageWithdrawn: true,
 		});
-		expect(rescindMessage).toHaveBeenCalledWith(
-			MESSAGE_ID,
-			'resolved_elsewhere',
+		expect(jsonOf(result)).not.toHaveProperty('messageWithdrawn');
+		expect(textOf(result)).toContain('the message stays open');
+		expect(textOf(result)).toContain('`wait`');
+		expect(textOf(result)).toContain('`rescind`');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('parks the message when the timeout passes, and says it can still be answered later', async () => {
+		const clock = fakeClock();
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
 		);
+		const postMessage = async () =>
+			succeed({ wasCreated: true, record: ingestResponse() });
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?', timeoutSeconds: 60 },
+			depsFor(
+				stubHubClient({
+					postMessage,
+					getResponse: async (_id, seconds) => {
+						clock.advance(seconds);
+						return succeed(actionResponse('pending'));
+					},
+					parkMessage,
+				}),
+				{ wait: clock },
+			),
+			undefined,
+		);
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+		const text = textOf(result);
+		expect(text).toContain('may still answer');
+		expect(text).toContain('answer in the conversation instead');
+		expect(text).toContain('`rescind`');
 	});
 
 	it('uses the default timeout when the agent gives none', async () => {
@@ -319,7 +389,7 @@ describe('ask', () => {
 		expect(getResponse.mock.calls[0]?.[1]).toBe(20);
 	});
 
-	it('withdraws the message when the call is cancelled', async () => {
+	it('leaves the message open when the call is cancelled', async () => {
 		const controller = new AbortController();
 		const { client, rescindMessage } = askingClient(async () => {
 			controller.abort();
@@ -334,14 +404,113 @@ describe('ask', () => {
 		expect(jsonOf(result)).toMatchObject({
 			status: 'no_answer',
 			reason: 'cancelled',
-			messageWithdrawn: true,
 		});
-		expect(rescindMessage).toHaveBeenCalledOnce();
+		expect(jsonOf(result)).not.toHaveProperty('messageWithdrawn');
+		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
-	it('does not wait when nobody can answer', async () => {
-		const getResponse = vi.fn<HubClient['getResponse']>();
+	it('leaves the message open when the wait fails', async () => {
+		const { client, rescindMessage } = askingClient(async () =>
+			fail({
+				kind: 'http',
+				status: 500,
+				code: 'internal',
+				message: 'boom',
+				pointer: undefined,
+			}),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		expect(result.isError).toBe(true);
+		expect(textOf(result)).toContain('still open');
+		expect(textOf(result)).not.toContain('withdrawn');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('names a rule as the source of a mute, not a topic or thread', async () => {
+		const ruleWarning = {
+			code: 'muted',
+			message:
+				"Delivered to the inbox without a ping: rule 'Mute prompts' mutes it",
+		} as const;
 		const { client } = askingClient(
+			vi.fn<HubClient['getResponse']>(),
+			ingestResponse({ shouldWait: false, warnings: [ruleWarning] }),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		const instruction = String(jsonOf(result).instruction);
+		expect(instruction).toContain("rule 'Mute prompts' mutes it");
+		expect(instruction).not.toContain('topic or thread');
+	});
+
+	it('tells the model its ask was merged into another open message, and not to rescind that one', async () => {
+		const postMessage = async () =>
+			succeed({
+				wasCreated: false,
+				record: ingestResponse({ shouldWait: false }),
+			});
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(stubHubClient({ postMessage, rescindMessage })),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'no_answer',
+			reason: 'merged',
+			messageId: MESSAGE_ID,
+		});
+		const instruction = String(jsonOf(result).instruction);
+		expect(instruction).toContain('merged into');
+		expect(instruction).toContain('do not rescind');
+		expect(instruction).not.toContain('`wait`');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('returns muted at once: delivered without a ping, still open, collect it with wait', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>();
+		const { client, rescindMessage } = askingClient(
+			getResponse,
+			ingestResponse({ shouldWait: false, warnings: [MUTED_WARNING] }),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		expect(result.isError).toBeUndefined();
+		expect(jsonOf(result)).toMatchObject({
+			status: 'no_answer',
+			reason: 'muted',
+			messageId: MESSAGE_ID,
+		});
+		expect(jsonOf(result)).not.toHaveProperty('messageWithdrawn');
+		const text = textOf(result);
+		expect(text).toContain('delivered to the inbox');
+		expect(text).toContain('muted');
+		expect(text).toContain("wasn't pinged");
+		expect(text).toContain('`wait`');
+		expect(text).toContain('`rescind`');
+		expect(text).toContain('resolved_elsewhere');
+		expect(text).toContain(MUTED_WARNING.message);
+		expect(getResponse).not.toHaveBeenCalled();
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('does not wait when nobody can answer, and leaves the message open', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>();
+		const { client, rescindMessage } = askingClient(
 			getResponse,
 			ingestResponse({ shouldWait: false }),
 		);
@@ -354,9 +523,10 @@ describe('ask', () => {
 		expect(jsonOf(result)).toMatchObject({
 			status: 'no_answer',
 			reason: 'nobody_can_answer_now',
-			messageWithdrawn: true,
 		});
+		expect(jsonOf(result)).not.toHaveProperty('messageWithdrawn');
 		expect(getResponse).not.toHaveBeenCalled();
+		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
 	it('explains a withdrawn or dismissed question', async () => {
@@ -373,6 +543,40 @@ describe('ask', () => {
 			status: 'rescinded',
 			rescindReason: 'superseded',
 		});
+	});
+
+	it('says an item the hub cleared was handled in the session, not withdrawn', async () => {
+		const { client } = askingClient(async () =>
+			succeed(
+				actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
+			),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		});
+		const text = textOf(result);
+		expect(text).toContain('handled in the session');
+		expect(text).toContain('not withdrawn');
+	});
+
+	it('says a withdrawal is a withdrawal', async () => {
+		const { client } = askingClient(async () =>
+			succeed(actionResponse('rescinded', { rescindReason: 'superseded' })),
+		);
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?' },
+			depsFor(client),
+			undefined,
+		);
+		expect(textOf(result)).not.toContain('handled in the session');
 	});
 
 	it('passes the hub warnings back verbatim, also on an answer', async () => {
@@ -455,6 +659,48 @@ describe('wait', () => {
 		expect(getResponse.mock.calls[0]?.[1]).toBe(30);
 	});
 
+	it('says a message the hub cleared was handled in the session, not withdrawn', async () => {
+		const getResponse = async () =>
+			succeed(
+				actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
+			);
+		const result = await runTool(
+			'wait',
+			{ messageId: MESSAGE_ID },
+			depsFor(stubHubClient({ getResponse })),
+			undefined,
+		);
+		expect(jsonOf(result)).toMatchObject({
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		});
+		expect(textOf(result)).toContain('handled in the session');
+		expect(textOf(result)).toContain('not withdrawn');
+	});
+
+	it('parks the message when a wait times out', async () => {
+		const clock = fakeClock();
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		await runTool(
+			'wait',
+			{ messageId: MESSAGE_ID, timeoutSeconds: 60 },
+			depsFor(
+				stubHubClient({
+					getResponse: async (_id, seconds) => {
+						clock.advance(seconds);
+						return succeed(actionResponse('pending'));
+					},
+					parkMessage,
+				}),
+				{ wait: clock },
+			),
+			undefined,
+		);
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+	});
+
 	it('leaves the message open when nothing arrives in time', async () => {
 		const clock = fakeClock();
 		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
@@ -465,15 +711,22 @@ describe('wait', () => {
 		const result = await runTool(
 			'wait',
 			{ messageId: MESSAGE_ID, timeoutSeconds: 60 },
-			depsFor(stubHubClient({ getResponse, rescindMessage }), { wait: clock }),
+			depsFor(
+				stubHubClient({
+					getResponse,
+					rescindMessage,
+					parkMessage: async () => succeed(actionResponse('pending')),
+				}),
+				{ wait: clock },
+			),
 			undefined,
 		);
 		expect(jsonOf(result)).toMatchObject({
 			status: 'no_answer',
 			reason: 'timed_out',
-			messageWithdrawn: false,
 		});
-		expect(textOf(result)).toContain('still open');
+		expect(jsonOf(result)).not.toHaveProperty('messageWithdrawn');
+		expect(textOf(result)).toContain('stays open');
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
@@ -528,7 +781,7 @@ describe('rescind', () => {
 	it('names the hub error when the message is already closed', async () => {
 		const rescindMessage = async () =>
 			fail({
-				kind: 'http',
+				kind: 'http' as const,
 				status: 409,
 				code: 'already_closed',
 				message: 'the message is already answered',
@@ -626,6 +879,57 @@ describe('topic and thread tools', () => {
 			rescindOpenMessages: true,
 			reason: 'obsolete',
 		});
+	});
+
+	it.each([
+		['close_topic', { topic: 'release-1.4' }, 'closeTopic', 'topic'],
+		['close_thread', { thread: THREAD_ID }, 'closeThread', 'thread'],
+	] as const)(
+		'%s turns a refused close into a clear message with the count',
+		async (name, input, method, entity) => {
+			const listTopics = async () => succeed([topic]);
+			const refused = vi.fn(async () =>
+				fail({
+					kind: 'http' as const,
+					status: 409,
+					code: 'has_open_messages',
+					message: 'still open',
+					pointer: undefined,
+					count: 4,
+				}),
+			);
+			const result = await runTool(
+				name,
+				input,
+				depsFor(stubHubClient({ listTopics, [method]: refused })),
+				undefined,
+			);
+			expect(result.isError).toBe(true);
+			const text = textOf(result);
+			expect(text).toContain(`${entity} was not closed`);
+			expect(text).toContain('4 open messages');
+			expect(text).toContain('only your own');
+		},
+	);
+
+	it('close_topic says the General topic cannot be closed', async () => {
+		const listTopics = async () => succeed([topic]);
+		const closeTopic = async () =>
+			fail({
+				kind: 'http' as const,
+				status: 409,
+				code: 'general_topic_cannot_close',
+				message: 'no',
+				pointer: undefined,
+			});
+		const result = await runTool(
+			'close_topic',
+			{ topic: 'release-1.4' },
+			depsFor(stubHubClient({ listTopics, closeTopic })),
+			undefined,
+		);
+		expect(result.isError).toBe(true);
+		expect(textOf(result)).toContain("General topic can't be closed");
 	});
 
 	it('create_thread can stand for the current conversation', async () => {

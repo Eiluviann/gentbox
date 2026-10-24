@@ -59,6 +59,10 @@ const EXAMPLE_KINDS: Record<string, ExampleKind> = {
 		definition: 'actionResponse',
 		schema: actionResponseSchema,
 	},
+	'handled-in-session-response': {
+		definition: 'actionResponse',
+		schema: actionResponseSchema,
+	},
 	'ingest-response': {
 		definition: 'ingestResponse',
 		schema: ingestResponseSchema,
@@ -144,6 +148,53 @@ describe('the schema rules that JSON Schema keeps in allOf', () => {
 		expect(createSchemaValidator(undefined)(base)).toBe(true);
 		expect(messageSchema.safeParse(base).success).toBe(true);
 	});
+});
+
+describe('the reasons a sender names and the one the hub records', () => {
+	it('lets a response carry handled_in_session, in the schema and in the types', () => {
+		const response = {
+			messageId: '01JBM3Z8Q7Y4K2N6P0R5T9VWXA',
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		};
+		expect(createSchemaValidator('actionResponse')(response)).toBe(true);
+		expect(actionResponseSchema.safeParse(response).success).toBe(true);
+	});
+
+	it('reads a rescind reason it has never seen, so a newer hub never breaks a poll', () => {
+		const parsed = actionResponseSchema.safeParse({
+			messageId: '01JBM3Z8Q7Y4K2N6P0R5T9VWXA',
+			status: 'rescinded',
+			rescindReason: 'from_the_future',
+		});
+		expect(parsed).toMatchObject({
+			success: true,
+			data: { rescindReason: 'from_the_future' },
+		});
+	});
+
+	it.each([
+		['rescindRequest', rescindRequestSchema, { reason: 'handled_in_session' }],
+		[
+			'closeRequest',
+			closeRequestSchema,
+			{ rescindOpenMessages: true, reason: 'handled_in_session' },
+		],
+	])(
+		'refuses handled_in_session in a %s: only the hub records it',
+		(definition, schema, request) => {
+			expect(createSchemaValidator(definition)(request)).toBe(false);
+			expect(schema.safeParse(request).success).toBe(false);
+		},
+	);
+
+	it.each(['resolved_elsewhere', 'obsolete', 'superseded'])(
+		'still accepts %s in a rescind request',
+		(reason) => {
+			expect(createSchemaValidator('rescindRequest')({ reason })).toBe(true);
+			expect(rescindRequestSchema.safeParse({ reason }).success).toBe(true);
+		},
+	);
 });
 
 describe('what is read from the hub is lenient, what is sent is strict', () => {

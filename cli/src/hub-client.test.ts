@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	computeHelloProof,
 	connectToHub,
+	describeCloseFailure,
 	describeHubFailure,
 	type HubClient,
+	type HubFailure,
 	isValidHelloProof,
 } from './hub-client.ts';
 import type { MessageV1 } from './message-types.ts';
@@ -320,6 +322,22 @@ describe('request building', () => {
 		expect(JSON.parse(request?.body ?? '')).toEqual({ reason: 'obsolete' });
 	});
 
+	it('parks a message with POST on its park route, as its owner', async () => {
+		const connection = await connect(() => ({
+			status: 200,
+			body: { messageId: MESSAGE_ID, status: 'pending' },
+		}));
+		const parked = await connection.client.parkMessage(MESSAGE_ID);
+		expect(parked).toMatchObject({ ok: true, value: { status: 'pending' } });
+		const request = connection.hub.requests.at(-1);
+		expect([request?.method, request?.url]).toEqual([
+			'POST',
+			`/v1/messages/${MESSAGE_ID}/park`,
+		]);
+		expect(request?.headers['gentbox-agent']).toBe('claude-code');
+		expect(request?.headers['gentbox-conversation']).toBe('conversation-1');
+	});
+
 	it('rescinds by correlation keys and reports progress on the conversation route', async () => {
 		const connection = await connect(() => ({
 			status: 200,
@@ -488,6 +506,95 @@ describe('failures', () => {
 			expect(describeHubFailure(posted.error)).toBe(
 				'schema_invalid at /title: title is too long',
 			);
+	});
+
+	it("keeps the open-message count of a refused close from the hub's openMessages field", async () => {
+		let calls = 0;
+		const connection = await connect(() => {
+			calls++;
+			return {
+				status: 409,
+				body:
+					calls === 1
+						? {
+								code: 'has_open_messages',
+								message: '3 items still open',
+								openMessages: 3,
+							}
+						: {
+								code: 'has_open_messages',
+								message: 'still open',
+								count: 2,
+							},
+			};
+		});
+		expect(await connection.client.closeTopic(TOPIC_ID, {})).toMatchObject({
+			ok: false,
+			error: { status: 409, code: 'has_open_messages', count: 3 },
+		});
+		expect(await connection.client.closeTopic(TOPIC_ID, {})).toMatchObject({
+			ok: false,
+			error: { code: 'has_open_messages', count: 2 },
+		});
+	});
+
+	it('never reads a count out of the message text', async () => {
+		const connection = await connect(() => ({
+			status: 409,
+			body: {
+				code: 'has_open_messages',
+				message: '"Release 1.4 phase 3" still has open items',
+			},
+		}));
+		const refused = await connection.client.closeTopic(TOPIC_ID, {});
+		expect(refused.ok).toBe(false);
+		if (!refused.ok && refused.error.kind === 'http')
+			expect(refused.error.count).toBeUndefined();
+	});
+
+	describe('describeCloseFailure', () => {
+		const refused = (code: string, count?: number): HubFailure => ({
+			kind: 'http',
+			status: 409,
+			code,
+			message: 'refused',
+			pointer: undefined,
+			count,
+		});
+
+		it('names the count and what the sender can do', () => {
+			const text = describeCloseFailure(
+				refused('has_open_messages', 3),
+				'topic',
+			);
+			expect(text).toContain('not closed');
+			expect(text).toContain('3 open messages');
+			expect(text).toContain('rescindOpenMessages');
+			expect(text).toContain('only your own');
+			expect(text).toContain('user');
+		});
+
+		it('says one message in the singular and copes with no count', () => {
+			expect(
+				describeCloseFailure(refused('has_open_messages', 1), 'thread'),
+			).toContain('1 open message ');
+			expect(
+				describeCloseFailure(refused('has_open_messages'), 'thread'),
+			).toContain('open messages');
+		});
+
+		it('says the General topic cannot be closed, matching any General code', () => {
+			expect(
+				describeCloseFailure(refused('general_topic_cannot_close'), 'topic'),
+			).toContain("General topic can't be closed");
+		});
+
+		it('leaves every other failure as the hub worded it', () => {
+			const other = refused('not_found');
+			expect(describeCloseFailure(other, 'topic')).toBe(
+				describeHubFailure(other),
+			);
+		});
 	});
 
 	it('retries a 429 a bounded number of times', async () => {

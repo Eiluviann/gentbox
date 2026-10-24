@@ -3,6 +3,7 @@ import { toTopicReference } from '../build-message.ts';
 import { isUlid } from '../message-types.ts';
 import {
 	type CommandContext,
+	closeError,
 	EXIT,
 	type ExitCode,
 	hubError,
@@ -148,7 +149,7 @@ async function closeThread(
 	if (!request.ok) return usageError(context, request.error);
 	return withHub(context, async (client) => {
 		const closed = await client.closeThread(threadId, request.value);
-		if (!closed.ok) return hubError(context, closed.error);
+		if (!closed.ok) return closeError(context, closed.error, 'thread');
 		printJson(context, closed.value);
 		return EXIT.ok;
 	});

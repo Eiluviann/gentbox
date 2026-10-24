@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { topicStyleSchema } from '../message-types.ts';
 import {
 	type CommandContext,
+	closeError,
 	EXIT,
 	type ExitCode,
 	hubError,
@@ -75,7 +76,7 @@ export async function runTopic(
 				const topicId = await resolveTopicId(client, reference);
 				if (!topicId.ok) return usageError(context, topicId.error);
 				const closed = await client.closeTopic(topicId.value, request.value);
-				if (!closed.ok) return hubError(context, closed.error);
+				if (!closed.ok) return closeError(context, closed.error, 'topic');
 				printJson(context, closed.value);
 				return EXIT.ok;
 			});

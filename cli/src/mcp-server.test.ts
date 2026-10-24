@@ -87,7 +87,7 @@ describe('the MCP server over a real protocol session', () => {
 		expect(result.isError).toBe(true);
 	});
 
-	it('cancels the wait when the client cancels the request', async () => {
+	it('cancels the wait without withdrawing the message when the client cancels the request', async () => {
 		const rescindMessage = vi.fn<HubClient['rescindMessage']>(async () =>
 			succeed(actionResponse('rescinded')),
 		);
@@ -118,7 +118,8 @@ describe('the MCP server over a real protocol session', () => {
 		await polling;
 		controller.abort();
 		await expect(call).rejects.toThrow();
-		await vi.waitFor(() => expect(rescindMessage).toHaveBeenCalledOnce());
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 });
 

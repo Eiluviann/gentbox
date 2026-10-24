@@ -178,7 +178,7 @@ export const askInputSchema = z
 			.max(3600)
 			.optional()
 			.describe(
-				'How long to wait for the answer (default 300). On expiry the message is withdrawn.',
+				'How long to wait for the answer (default 300). On expiry the message stays open: collect the answer with `wait` later.',
 			),
 		steps: stepsSchema,
 		correlationKey: correlationKeySchema,
@@ -266,7 +266,9 @@ export const closeTopicInputSchema = z.strictObject({
 	rescindOpenMessages: z
 		.boolean()
 		.optional()
-		.describe('Also withdraw every open message in it.'),
+		.describe(
+			"Withdraw your own open messages in it first (only your own: if other senders' messages stay open, the close is refused and the user has to handle them).",
+		),
 	reason: rescindReasonSchema
 		.optional()
 		.describe('With rescindOpenMessages; default obsolete.'),
@@ -323,7 +325,9 @@ export const closeThreadInputSchema = z.strictObject({
 	rescindOpenMessages: z
 		.boolean()
 		.optional()
-		.describe('Also withdraw every open message in it.'),
+		.describe(
+			"Withdraw your own open messages in it first (only your own: if other senders' messages stay open, the close is refused and the user has to handle them).",
+		),
 	reason: rescindReasonSchema
 		.optional()
 		.describe('With rescindOpenMessages; default obsolete.'),
@@ -359,7 +363,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'notify',
 		description: [
-			"Send a notification to the user's Gentbox inbox and return at once. It does not wait for an answer; use `ask` when you need one.",
+			"Send a notification to the user's Gentbox inbox and return at once. It does not wait for an answer; use `ask` when you need one. If its topic or thread is muted, the notification still reaches the inbox but without a ping, and the result says so (`muted` warning).",
 			'Pick `type` deliberately: action_required when the user must do something themselves, task_completed when work finished, generic for anything worth keeping for reference.',
 			TITLE_RULE,
 			STEPS_RULE,
@@ -372,7 +376,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'ask',
 		description: [
-			'Ask the user something in Gentbox and wait for the answer: an approval, a choice between options, or free text. It returns the answer, `deferred` (the user chose Defer: carry on with work that needs no input, then collect the answer with `wait`), or "no answer" (nothing arrived in time: the message is withdrawn, so ask in the conversation instead).',
+			'Ask the user something in Gentbox and wait for the answer: an approval, a choice between options, or free text. It returns the answer, `deferred` (the user chose Defer: carry on with work that needs no input, then collect the answer with `wait`), or "no answer". "No answer" never withdraws the message: it stays open in the inbox. It comes back as `timed_out` (nothing arrived in time), `muted` (the message was delivered, but its topic, thread or a rule mutes it, so the user was not pinged and may answer later), `merged` (your ask was folded into an open message that already existed: do not rescind that one) or `nobody_can_answer_now`. After `timed_out` and `muted` the user may still answer later, and Gentbox keeps the message open when the session moves on: collect the answer with `wait`. If you get the answer in the conversation instead, `rescind` the message (reason resolved_elsewhere). After `nobody_can_answer_now` ask in the conversation and `rescind` it once handled; if you do not, a completion or progress report clears it as handled in the session.',
 			'Use `blocking` when you cannot continue and `deferrable` when you can do other work if the user defers. Offer `choices` for options, `allowReply` for free text; with neither the user sees Approve and Deny.',
 			TITLE_RULE,
 			STEPS_RULE,
@@ -385,14 +389,14 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'wait',
 		description:
-			'Wait for the answer to a message you sent earlier, typically after `ask` returned `deferred` and you finished the work that needed no input. Returns the answer, `deferred` again, a closed status (dismissed, withdrawn, expired), or "no answer yet": the message is not withdrawn, so you can call `wait` again or ask in the conversation.',
+			'Wait for the answer to a message you sent earlier, typically after `ask` returned `deferred` and you finished the work that needed no input. Returns the answer, `deferred` again, a closed status (dismissed, withdrawn, expired), or "no answer yet": the message stays open, so you can call `wait` again, or ask in the conversation and `rescind` it once that is handled.',
 		schema: waitInputSchema,
 		inputSchema: toInputSchema(waitInputSchema),
 	},
 	{
 		name: 'rescind',
 		description:
-			'Withdraw your own open message(s) because they no longer need the user. Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
+			'Withdraw your own open message(s) because they no longer need the user. Withdrawn means you asked: Gentbox never withdraws a message on your behalf, not on a timeout, a cancel or a muted topic. (When the session moves on, Gentbox itself clears what you left open and marks it "handled in the session", which is not a withdrawal.) Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
 		schema: rescindInputSchema,
 		inputSchema: toInputSchema(rescindInputSchema),
 	},
@@ -408,7 +412,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'close_topic',
 		description:
-			'Close a topic (and its open threads) when the undertaking is over. Open messages stay unless `rescindOpenMessages` is true. A later message to a closed topic reopens it.',
+			"Close a topic (and its open threads) when the undertaking is over. Closing succeeds only when nothing stays open: `rescindOpenMessages` withdraws only your own open messages first, so if other senders' messages remain, the close is refused and the user has to handle them. The General topic can't be closed. A later message to a closed topic reopens it.",
 		schema: closeTopicInputSchema,
 		inputSchema: toInputSchema(closeTopicInputSchema),
 	},
@@ -424,7 +428,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'close_thread',
 		description:
-			'Close a thread when its phase or version is over. Open messages stay unless `rescindOpenMessages` is true. A later message to a closed thread reopens it.',
+			"Close a thread when its phase or version is over. Closing succeeds only when nothing stays open: `rescindOpenMessages` withdraws only your own open messages first, so if other senders' messages remain, the close is refused and the user has to handle them. A later message to a closed thread reopens it.",
 		schema: closeThreadInputSchema,
 		inputSchema: toInputSchema(closeThreadInputSchema),
 	},

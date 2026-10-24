@@ -93,3 +93,7 @@ The list is code with table tests, like the guard's.
 ### Amendment (2026-10-24): the MCP tools enforce `steps` in validation, not in the advertised schema
 
 The Claude API rejects `allOf`, `anyOf` and `oneOf` at the root of a tool's input schema (HTTP 400), so the root of `notify` and `ask` stays a plain `{ "type": "object" }`. The decision above is unchanged: `steps` is required whenever `type` is `action_required`. The MCP server enforces it with zod, which answers a call without `steps` with an error at path `steps` ("`steps` is required when `type` is `action_required`"), and the tool and `steps` descriptions state the rule with an example. Status stays Accepted.
+
+### Amendment (2026-10-24): an `action_required` ask in a muted topic stays open
+
+`action_required` messages follow the general rule that withdrawn means the agent asked (ADR 0007, amendments). An `ask` with steps in a muted topic or thread reaches the inbox without a ping and the sender is told so by the warning `muted`; the item stays open, you can tick the steps and tap Done at any time, and the sender collects `done` with a later poll. A sender that gives up waiting does not rescind the plan. Status stays Accepted.

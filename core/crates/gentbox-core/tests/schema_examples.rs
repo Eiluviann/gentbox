@@ -57,6 +57,7 @@ const ACTION_RESPONSES: &[&str] = &[
     "answered-response.json",
     "deferred-response.json",
     "gone-response.json",
+    "handled-in-session-response.json",
     "rescinded-response.json",
 ];
 const THREAD_RECORDS: &[&str] = &["thread-record.json", "thread-record-implicit.json"];
@@ -85,7 +86,7 @@ fn every_example_file_is_covered_by_a_type() {
         .collect();
     let on_disk: BTreeSet<&str> = on_disk.iter().map(String::as_str).collect();
     assert_eq!(on_disk, known, "a new example needs a type in this test");
-    assert_eq!(known.len(), 22);
+    assert_eq!(known.len(), 23);
 }
 
 #[test]
@@ -222,6 +223,42 @@ fn unknown_fields_are_rejected_like_the_schema_does() {
     let mut json = read("generic.json");
     json["typo"] = Value::Bool(true);
     assert!(serde_json::from_value::<MessageInput>(json).is_err());
+}
+
+#[test]
+fn the_schema_separates_the_reasons_a_sender_names_from_the_ones_the_hub_records() {
+    use gentbox_core::rescind::RescindReason;
+    let schema: Value = serde_json::from_str(
+        &fs::read_to_string(examples_dir().join("../message-v1.json")).unwrap(),
+    )
+    .unwrap();
+    let names = |reasons: &[RescindReason]| -> BTreeSet<String> {
+        reasons
+            .iter()
+            .map(|reason| {
+                serde_json::to_value(reason)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect()
+    };
+    let enum_of = |definition: &str| -> BTreeSet<String> {
+        schema["$defs"][definition]["enum"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|reason| reason.as_str().unwrap().to_owned())
+            .collect()
+    };
+    // Requests take what a sender may name; responses can also carry the hub's own.
+    assert_eq!(enum_of("rescindReason"), names(&RescindReason::EXPLICIT));
+    assert_eq!(enum_of("recordedRescindReason"), names(&RescindReason::ALL));
+    assert_eq!(
+        schema["$defs"]["actionResponse"]["properties"]["rescindReason"]["$ref"],
+        "#/$defs/recordedRescindReason"
+    );
 }
 
 #[test]

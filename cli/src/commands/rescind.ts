@@ -15,7 +15,10 @@ gentbox rescind --key <correlation-key>... [--reason <reason>]
 
 Withdraws your own open message(s): a message by id, or every open message of this conversation
 with the given correlation keys. Reasons: resolved_elsewhere (default for an id), obsolete,
-superseded (default for keys).`;
+superseded (default for keys).
+
+Withdrawn means you asked: gentbox never withdraws a message for you, not on a timeout, a cancel or a
+muted topic.`;
 
 export async function runRescind(
 	args: string[],

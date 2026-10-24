@@ -196,6 +196,7 @@ impl PreparedMessage {
             metadata: input.metadata.unwrap_or_default(),
             lifecycle: Lifecycle::born(message_type),
             repeat_count: 0,
+            parked_at: None,
         }
     }
 }

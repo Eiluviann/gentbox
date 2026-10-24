@@ -9,6 +9,7 @@ export function stubHubClient(overrides: Partial<HubClient> = {}): HubClient {
 		postMessage: unexpected('postMessage'),
 		getResponse: unexpected('getResponse'),
 		rescindMessage: unexpected('rescindMessage'),
+		parkMessage: unexpected('parkMessage'),
 		rescindByCorrelationKeys: unexpected('rescindByCorrelationKeys'),
 		reportProgress: unexpected('reportProgress'),
 		setFocus: unexpected('setFocus'),

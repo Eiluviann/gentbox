@@ -207,7 +207,7 @@ Runs as its own phase after PRs 1–6, as the plan set out; these are its inputs
 - **Spike S1** (first task of Phase 4): in a terminal CLI session, does Claude Code show its permission prompt while a `PermissionRequest` hook is still running? It decides whether the hook may wait long when you are at the terminal (architecture §11).
 - Fixed action plans for the adapter's `action_required` events (`elicitation_url_dialog`, `quota_auto_resume_stale`, `StopFailure`; architecture §5.3), with Vitest checks that each passes the guard.
 - Title builders per hook event (architecture §5.3, ADR 0010), with Vitest tables: Bash with and without `description`, a `description` that itself fails the guard, Edit/Write paths reduced to file names, WebFetch hosts, MCP tool names in words, `Stop` titles from `last_assistant_message`; no raw `tool_input` ever in a title or summary, always in the body.
-- Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook resolving its own message whenever it stops waiting.
+- Hook mapping is fixed in architecture §5.3, including the async `UserPromptSubmit`/`PostToolUse`/`PostToolUseFailure` progress calls and the hook leaving its message open whenever it stops waiting (amended 2026-10-24: only an explicit rescind from the agent withdraws a message).
 - Packaging as a Claude Code plugin (hooks + MCP), merged with the existing user hooks, never replacing them.
 
 ## Later · mobile release

@@ -46,6 +46,8 @@ export type HubFailure =
 			message: string;
 			/** JSON pointer of the failing field, for `schema_invalid`. */
 			pointer: string | undefined;
+			/** For `has_open_messages`: how many open messages stop a close. */
+			count?: number | undefined;
 	  }
 	| { kind: 'transport'; message: string }
 	| { kind: 'protocol'; message: string };
@@ -75,6 +77,13 @@ export type HubClient = {
 		messageId: string,
 		reason: RescindReason,
 	): Promise<Result<ActionResponse, HubFailure>>;
+	/**
+	 * Tells the hub this sender stopped waiting after a timeout and told its
+	 * agent to collect the answer later: completion and progress then leave the
+	 * message open. Only for a timeout; a cancelled, failed or killed wait stays
+	 * eligible for the clean-up.
+	 */
+	parkMessage(messageId: string): Promise<Result<ActionResponse, HubFailure>>;
 	rescindByCorrelationKeys(
 		request: RescindRequest,
 	): Promise<Result<string[], HubFailure>>;
@@ -169,6 +178,33 @@ export function describeHubFailure(failure: HubFailure): string {
 		case 'protocol':
 			return `unexpected answer from the hub: ${failure.message}`;
 	}
+}
+
+/**
+ * A refused close in words the sender can act on. The codes are matched as
+ * open strings because the hub words them (`has_open_messages`, and a
+ * General-specific code); any other failure reads as the hub worded it.
+ *
+ * @param rescindOption how the caller spells the option that withdraws its own
+ *   open messages first (`rescindOpenMessages` in a tool, `--rescind-open` in the CLI)
+ */
+export function describeCloseFailure(
+	failure: HubFailure,
+	entity: 'topic' | 'thread',
+	rescindOption = 'rescindOpenMessages',
+): string {
+	if (failure.kind !== 'http' || failure.status !== 409)
+		return describeHubFailure(failure);
+	if (failure.code === 'has_open_messages') {
+		const open =
+			failure.count === undefined
+				? 'open messages'
+				: `${failure.count} open ${failure.count === 1 ? 'message' : 'messages'}`;
+		return `The ${entity} was not closed: it still has ${open} (closing succeeds only when nothing stays open). ${rescindOption} withdraws only your own messages first, so what other senders left open stays and the user has to handle it in Gentbox.`;
+	}
+	if (failure.code.includes('general'))
+		return "The General topic can't be closed.";
+	return describeHubFailure(failure);
 }
 
 export type ConnectOptions = {
@@ -344,6 +380,16 @@ export function createHubClient(session: HubSession): HubClient {
 					method: 'DELETE',
 					path: `/v1/messages/${encodeURIComponent(messageId)}`,
 					body: { reason },
+				},
+				actionResponseSchema,
+			),
+		parkMessage: (messageId) =>
+			callValue(
+				session,
+				{
+					method: 'POST',
+					path: `/v1/messages/${encodeURIComponent(messageId)}/park`,
+					body: {},
 				},
 				actionResponseSchema,
 			),
@@ -571,6 +617,7 @@ function httpFailure(status: number, body: string): HubFailure {
 		code: parsed.value.code,
 		message: parsed.value.message,
 		pointer: parsed.value.pointer,
+		count: parsed.value.openMessages ?? parsed.value.count,
 	};
 }
 

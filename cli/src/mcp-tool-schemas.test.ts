@@ -33,6 +33,55 @@ describe('the tool list', () => {
 		for (const spec of TOOL_SPECS) expect(spec.inputSchema.type).toBe('object');
 	});
 
+	it("never promises to withdraw a message on the model's behalf", () => {
+		const askText = specOf('ask').description;
+		expect(askText).not.toContain('is withdrawn');
+		expect(askText).not.toContain('the message is withdrawn');
+		expect(askText).toContain('stays open');
+		expect(askText).toContain('muted');
+		expect(askText).toContain('`wait`');
+		expect(askText).toContain('`rescind`');
+		const timeoutText = descriptionOf(
+			specOf('ask').inputSchema.properties?.timeoutSeconds,
+		);
+		expect(timeoutText).toContain('stays open');
+		expect(timeoutText).not.toContain('withdrawn');
+	});
+
+	it('tells the model a muted notification still arrives, silently', () => {
+		const notifyText = specOf('notify').description;
+		expect(notifyText).toContain('muted');
+		expect(notifyText).toContain('inbox');
+	});
+
+	it.each(['close_topic', 'close_thread'])(
+		'%s says a close needs nothing left open and rescindOpenMessages withdraws only your own',
+		(name) => {
+			const text = specOf(name).description;
+			expect(text).toContain('only when nothing stays open');
+			expect(text).toContain('only your own');
+			expect(text).toContain('refused');
+			const field = descriptionOf(
+				specOf(name).inputSchema.properties?.rescindOpenMessages,
+			);
+			expect(field).toContain('only your own');
+			expect(field).toContain('refused');
+		},
+	);
+
+	it('says the General topic cannot be closed', () => {
+		expect(specOf('close_topic').description).toContain(
+			"General topic can't be closed",
+		);
+	});
+
+	it('states that withdrawn means the agent asked', () => {
+		expect(specOf('rescind').description).toContain(
+			'Withdrawn means you asked',
+		);
+		expect(specOf('wait').description).not.toContain('is withdrawn');
+	});
+
 	it.each(['notify', 'ask', 'create_topic', 'create_thread'])(
 		'%s states the title rule with a good and a bad example',
 		(name) => {

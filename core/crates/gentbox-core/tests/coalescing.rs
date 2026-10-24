@@ -409,7 +409,7 @@ fn a_repeat_of_a_different_field_is_not_a_duplicate() {
 }
 
 #[test]
-fn completion_rescinds_waiting_items_without_a_live_waiter_as_obsolete() {
+fn completion_rescinds_waiting_items_without_a_live_waiter_as_handled_in_the_session() {
     let blocking = message(
         "BLOCKING",
         DecisionRequired,
@@ -435,8 +435,8 @@ fn completion_rescinds_waiting_items_without_a_live_waiter_as_obsolete() {
     assert_eq!(
         rescinded_ids(&outcome),
         vec![
-            ("BLOCKING".to_owned(), RescindReason::Obsolete),
-            ("DEFERRABLE".to_owned(), RescindReason::Obsolete),
+            ("BLOCKING".to_owned(), RescindReason::HandledInSession),
+            ("DEFERRABLE".to_owned(), RescindReason::HandledInSession),
         ],
         "a live waiter and non_blocking items survive the end of the turn"
     );
@@ -455,7 +455,7 @@ fn only_a_completion_rescinds_by_completion() {
 }
 
 #[test]
-fn progress_rescinds_idle_and_waiting_items_without_a_live_waiter_as_resolved_elsewhere() {
+fn progress_rescinds_idle_and_waiting_items_without_a_live_waiter_as_handled_in_the_session() {
     let conversation = ConversationKey::new("claude-code", "conversation-1");
     let idle = message(
         "IDLE",
@@ -487,9 +487,9 @@ fn progress_rescinds_idle_and_waiting_items_without_a_live_waiter_as_resolved_el
     assert_eq!(
         ids,
         vec![
-            ("IDLE", RescindReason::ResolvedElsewhere),
-            ("BLOCKING", RescindReason::ResolvedElsewhere),
-            ("DEFERRABLE", RescindReason::ResolvedElsewhere),
+            ("IDLE", RescindReason::HandledInSession),
+            ("BLOCKING", RescindReason::HandledInSession),
+            ("DEFERRABLE", RescindReason::HandledInSession),
         ]
     );
 }
@@ -870,4 +870,65 @@ fn an_idempotent_retry_changes_nothing_not_even_through_rescinds() {
             rescissions: vec![]
         }
     );
+}
+
+fn parked(mut message: Message) -> Message {
+    message.parked_at = Some(NOW);
+    message
+}
+
+#[test]
+fn a_parked_item_is_exempt_from_the_completion_clean_up() {
+    let free = message("FREE", DecisionRequired, Blocks, json!({}));
+    let held = parked(message("HELD", DecisionRequired, Blocks, json!({})));
+    let completed = message("DONE", TaskCompleted, NonBlocking, json!({}));
+    let outcome = run(&completed, &[item_of(&free, false), item_of(&held, false)]);
+    assert_eq!(
+        rescinded_ids(&outcome),
+        vec![("FREE".to_owned(), RescindReason::HandledInSession)]
+    );
+}
+
+#[test]
+fn a_parked_item_is_exempt_from_the_progress_clean_up() {
+    let conversation = ConversationKey::new("claude-code", "conversation-1");
+    let free = message("FREE", DecisionRequired, Blocks, json!({}));
+    let held = parked(message("HELD", DecisionRequired, Deferrable, json!({})));
+    let held_idle = parked(message(
+        "IDLE",
+        Generic,
+        NonBlocking,
+        json!({ "correlationKey": IDLE_CORRELATION_KEY }),
+    ));
+    let rescissions = progress_rescissions(
+        &conversation,
+        &[
+            item_of(&free, false),
+            item_of(&held, false),
+            item_of(&held_idle, false),
+        ],
+        false,
+    );
+    let ids: Vec<_> = rescissions.iter().map(|r| r.message_id.as_str()).collect();
+    assert_eq!(ids, vec!["FREE"]);
+}
+
+#[test]
+fn a_superseding_message_still_replaces_a_parked_one() {
+    let held = parked(message(
+        "HELD",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "ask-1" }),
+    ));
+    let newer = message(
+        "NEW",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "ask-1", "title": "Allow Bash to run all tests?" }),
+    );
+    match run(&newer, &[item_of(&held, false)]) {
+        CoalesceOutcome::Superseded { replaces, .. } => assert_eq!(replaces.as_str(), "HELD"),
+        other => panic!("expected a supersede, got {other:?}"),
+    }
 }

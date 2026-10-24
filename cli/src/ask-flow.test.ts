@@ -179,7 +179,7 @@ describe('askAndWait', () => {
 		});
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'answered' }, didRescind: false },
+			value: { outcome: { kind: 'answered' } },
 		});
 		expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
 			awaitsResponse: true,
@@ -187,13 +187,14 @@ describe('askAndWait', () => {
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
-	it('withdraws the message when the deadline passes: the no-answer path', async () => {
+	it('leaves the message open when the deadline passes', async () => {
 		const clock = fakeClock();
 		const { client, rescindMessage } = clientWith({
 			getResponse: async (_id, seconds) => {
 				clock.advance(seconds);
 				return succeed(actionResponse('pending'));
 			},
+			parkMessage: async () => succeed(actionResponse('pending')),
 		});
 		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
 			timeoutSeconds: 60,
@@ -201,12 +202,138 @@ describe('askAndWait', () => {
 		});
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'timed_out' }, didRescind: true },
+			value: { outcome: { kind: 'timed_out' } },
 		});
-		expect(rescindMessage).toHaveBeenCalledWith(
-			MESSAGE_ID,
-			'resolved_elsewhere',
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('parks the message when the deadline passes, so a progress report cannot clear it', async () => {
+		const clock = fakeClock();
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
 		);
+		const { client } = clientWith({
+			getResponse: async (_id, seconds) => {
+				clock.advance(seconds);
+				return succeed(actionResponse('pending'));
+			},
+			parkMessage,
+		});
+		await askAndWait(client, SAMPLE_MESSAGE, { timeoutSeconds: 60, ...clock });
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+	});
+
+	it('still reports the timeout when parking fails', async () => {
+		const clock = fakeClock();
+		const { client } = clientWith({
+			getResponse: async (_id, seconds) => {
+				clock.advance(seconds);
+				return succeed(actionResponse('pending'));
+			},
+			parkMessage: async () =>
+				fail({ kind: 'transport', message: 'ECONNRESET' }),
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+			...clock,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'timed_out' } },
+		});
+	});
+
+	it('does not park a cancelled or failed wait, or an answered, deferred or muted ask', async () => {
+		const parkMessage = vi.fn<HubClient['parkMessage']>();
+		const controller = new AbortController();
+		const outcomes = [
+			clientWith({
+				getResponse: async () => {
+					controller.abort();
+					return succeed(actionResponse('pending'));
+				},
+				parkMessage,
+			}),
+			clientWith({
+				getResponse: async () =>
+					fail({
+						kind: 'http',
+						status: 500,
+						code: 'internal',
+						message: 'boom',
+						pointer: undefined,
+					}),
+				parkMessage,
+			}),
+			clientWith({
+				getResponse: async () =>
+					succeed(actionResponse('answered', { actionKind: 'approve' })),
+				parkMessage,
+			}),
+			clientWith({
+				getResponse: async () => succeed(actionResponse('deferred')),
+				parkMessage,
+			}),
+			clientWith({
+				postMessage: async () =>
+					succeed({
+						wasCreated: true,
+						record: ingestResponse({
+							shouldWait: false,
+							parked: true,
+							warnings: [{ code: 'muted', message: 'Delivered … muted' }],
+						}),
+					}),
+				parkMessage,
+			}),
+		];
+		for (const { client } of outcomes) {
+			await askAndWait(client, SAMPLE_MESSAGE, {
+				timeoutSeconds: 60,
+				signal: controller.signal,
+			});
+		}
+		expect(parkMessage).not.toHaveBeenCalled();
+	});
+
+	it('leaves the message open when the wait is cancelled', async () => {
+		const controller = new AbortController();
+		const { client, rescindMessage } = clientWith({
+			getResponse: async () => {
+				controller.abort();
+				return succeed(actionResponse('pending'));
+			},
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+			signal: controller.signal,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'cancelled' } },
+		});
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('leaves the message open when the wait fails', async () => {
+		const { client, rescindMessage } = clientWith({
+			getResponse: async () =>
+				fail({
+					kind: 'http',
+					status: 500,
+					code: 'internal',
+					message: 'boom',
+					pointer: undefined,
+				}),
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'failed' } },
+		});
+		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
 	it('leaves a deferred message open', async () => {
@@ -218,17 +345,99 @@ describe('askAndWait', () => {
 		});
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'deferred' }, didRescind: false },
+			value: { outcome: { kind: 'deferred' } },
 		});
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
-	it('does not wait when the hub says nobody can answer, and withdraws the message', async () => {
+	it('does not wait when the hub says nobody can answer, and leaves the message open', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>();
 		const { client, rescindMessage } = clientWith({
 			postMessage: async () =>
 				succeed({
 					wasCreated: true,
 					record: ingestResponse({ shouldWait: false }),
+				}),
+			getResponse,
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'not_waiting' } },
+		});
+		expect(getResponse).not.toHaveBeenCalled();
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('returns muted at once when the hub reports a mute, and never withdraws the message', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>();
+		const { client, rescindMessage } = clientWith({
+			postMessage: async () =>
+				succeed({
+					wasCreated: true,
+					record: ingestResponse({
+						shouldWait: false,
+						warnings: [
+							{
+								code: 'muted',
+								message:
+									"Delivered to the inbox without a ping: topic 'Release 1.4' is muted",
+							},
+						],
+					}),
+				}),
+			getResponse,
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: {
+				outcome: {
+					kind: 'muted',
+					messageId: MESSAGE_ID,
+					detail:
+						"Delivered to the inbox without a ping: topic 'Release 1.4' is muted",
+				},
+			},
+		});
+		expect(getResponse).not.toHaveBeenCalled();
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('returns merged, naming the other message, when the ask was folded into one that is already open', async () => {
+		const getResponse = vi.fn<HubClient['getResponse']>();
+		const { client, rescindMessage } = clientWith({
+			postMessage: async () =>
+				succeed({
+					wasCreated: false,
+					record: ingestResponse({ shouldWait: false }),
+				}),
+			getResponse,
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'merged', messageId: MESSAGE_ID } },
+		});
+		expect(getResponse).not.toHaveBeenCalled();
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('still returns muted for a retry that carries the mute warning', async () => {
+		const { client } = clientWith({
+			postMessage: async () =>
+				succeed({
+					wasCreated: false,
+					record: ingestResponse({
+						shouldWait: false,
+						warnings: [{ code: 'muted', message: 'Delivered … muted' }],
+					}),
 				}),
 		});
 		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
@@ -236,9 +445,8 @@ describe('askAndWait', () => {
 		});
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'not_waiting' }, didRescind: true },
+			value: { outcome: { kind: 'muted' } },
 		});
-		expect(rescindMessage).toHaveBeenCalledOnce();
 	});
 
 	it('reports the real outcome of an idempotent retry that hit a closed message', async () => {
@@ -256,7 +464,7 @@ describe('askAndWait', () => {
 		});
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'answered' }, didRescind: false },
+			value: { outcome: { kind: 'answered' } },
 		});
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});

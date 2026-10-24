@@ -23,7 +23,9 @@ export const ASK_HELP = `gentbox ask --title <text> [options]
 
 Sends a message that awaits a response and waits for the answer.
 Prints the answer as JSON. Exit codes: 0 answered, 3 deferred, 4 no answer
-(timed out, dismissed, withdrawn, expired), 1 error. On a timeout the message is withdrawn.
+(timed out, muted, dismissed, withdrawn, expired), 1 error. gentbox never withdraws a message for
+you: after a timeout, or when the topic or thread is muted, the message stays open; collect the answer
+with 'gentbox wait', or ask in the conversation and 'gentbox rescind' it.
 
   --choice <label>          A choice button; repeatable (up to 4). Without any, a decision
                             offers Approve and Deny.
@@ -79,9 +81,7 @@ export async function runAsk(
 		const asked = await askAndWait(client, message.value, { timeoutSeconds });
 		if (!asked.ok) return hubError(context, asked.error);
 		printWarnings(context, asked.value.ingest.warnings);
-		return reportOutcome(context, asked.value.ingest.id, asked.value.outcome, {
-			didRescind: asked.value.didRescind,
-		});
+		return reportOutcome(context, asked.value.ingest.id, asked.value.outcome);
 	});
 }
 

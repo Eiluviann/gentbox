@@ -670,3 +670,70 @@ async fn an_idempotent_retry_of_a_closed_message_reports_its_real_state() {
     }
     server.stop().await;
 }
+
+#[tokio::test]
+async fn a_sender_cannot_name_the_hubs_own_reason_but_a_completion_records_it() {
+    let server = Server::start().await;
+    // Posted before the waiting prompt: afterwards it would fold into it.
+    let stale = id_of(
+        &server
+            .post_message(json!({ "type": "decision_required", "blocking": "deferrable", "title": "Pick the next phase" }))
+            .await,
+    );
+    let id = id_of(&server.post_message(blocking_prompt()).await);
+    let refused = server
+        .send_for(
+            "DELETE",
+            &format!("/v1/messages/{id}"),
+            Some(json!({ "reason": "handled_in_session" })),
+        )
+        .await;
+    assert_eq!(refused.status, 422);
+    assert_eq!(refused.body["code"], "schema_invalid");
+
+    // The agent finished: the hub itself clears what nobody waits on, as handled in the session.
+    let completed = server
+        .post_message(json!({ "type": "task_completed", "title": "Phase 3 is done" }))
+        .await;
+    assert_eq!(completed.status, 201);
+    let polled = spawn_poll(&server, &stale, 0).await.unwrap();
+    assert_eq!(polled["status"], "rescinded");
+    assert_eq!(polled["rescindReason"], "handled_in_session");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn park_needs_the_owners_token_and_keeps_the_ask_through_a_completion() {
+    let server = Server::start().await;
+    let id = id_of(&server.post_message(blocking_prompt()).await);
+    let path = format!("/v1/messages/{id}/park");
+
+    let anonymous =
+        support::reply(server.client.post(server.url(&path)).send().await.unwrap()).await;
+    assert_eq!(anonymous.status, 401);
+
+    let stranger = server
+        .send_as("POST", &path, None, &[("Gentbox-Agent", "codex")])
+        .await;
+    assert_eq!(stranger.status, 403);
+    assert_eq!(stranger.body["code"], "not_owner");
+
+    let parked = server.send_for("POST", &path, None).await;
+    assert_eq!(parked.status, 200);
+    assert_eq!(parked.body["status"], "pending");
+
+    // The session moves on, and the parked ask stays open.
+    server
+        .post_message(json!({ "type": "task_completed", "title": "Phase 3 is done" }))
+        .await;
+    let polled = spawn_poll(&server, &id, 0).await.unwrap();
+    assert_eq!(polled["status"], "pending");
+
+    let closed = server
+        .send_for("DELETE", &format!("/v1/messages/{id}"), None)
+        .await;
+    assert_eq!(closed.status, 200);
+    let again = server.send_for("POST", &path, None).await;
+    assert_eq!(again.status, 409);
+    server.stop().await;
+}

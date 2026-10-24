@@ -95,6 +95,7 @@ pub fn local_router(state: ApiState, transport: Transport) -> Router {
         .route("/v1/messages", post(post_message))
         .route("/v1/messages/{id}", axum::routing::delete(delete_message))
         .route("/v1/messages/{id}/response", get(long_poll::response))
+        .route("/v1/messages/{id}/park", post(park_message))
         .route("/v1/messages/{id}/thread", put(move_message))
         .route("/v1/conversations/{agent}/{id}", put(put_conversation))
         .route(
@@ -467,6 +468,20 @@ async fn post_message(State(state): State<ApiState>, body: JsonBody) -> Result<R
         IngestStatus::Existing => StatusCode::OK,
     };
     Ok((status, Json(outcome.response)).into_response())
+}
+
+/// `POST /v1/messages/{id}/park`: the sender stopped waiting after a timeout
+/// and was told to collect the answer later. Needs the sender's agent (and
+/// conversation) like a rescind.
+async fn park_message(
+    State(state): State<ApiState>,
+    ApiPath(id): ApiPath<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let id = message_id_from_path(&id)?;
+    let requester = requester(&headers)?;
+    let response = state.hub.park(id, requester).await?;
+    Ok(Json(response).into_response())
 }
 
 async fn delete_message(

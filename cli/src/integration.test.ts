@@ -17,6 +17,7 @@ import { readDiscoveryEnvironment } from './discovery.ts';
 import { connectToHub, type HubClient } from './hub-client.ts';
 import { runCli } from './main.ts';
 import { runTool } from './mcp-tool-handlers.ts';
+import { succeed } from './result.ts';
 import { TEST_SENDER } from './test-support/command-fixture.ts';
 import { environmentOf } from './test-support/environment-of.ts';
 
@@ -37,6 +38,10 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 
 	beforeAll(async () => {
 		stateDirectory = mkdtempSync(join(tmpdir(), 'gentbox-it-'));
+		writeFileSync(
+			join(stateDirectory, 'rules.toml'),
+			'[[rule]]\nname = "Mute integration asks"\nmatch = { event = "integration.muted" }\nmute = true\n',
+		);
 		apiDirectory = join(stateDirectory, 'API');
 		daemon = spawn(
 			GENTBOXD,
@@ -55,7 +60,12 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		rmSync(stateDirectory, { recursive: true, force: true });
 	});
 
+	// One connection serves the tests that do not care about the transport: every
+	// `hello` draws on the hub's shared, rate-limited bucket.
+	let sharedClient: HubClient | undefined;
+
 	async function connect(): Promise<HubClient> {
+		if (sharedClient !== undefined) return sharedClient;
 		const connected = await connectToHub({
 			environment: readDiscoveryEnvironment(
 				environmentOf(['GENTBOX_API_DIR', apiDirectory]),
@@ -63,6 +73,7 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 			identity: IDENTITY,
 		});
 		if (!connected.ok) throw new Error(connected.error);
+		sharedClient = connected.value;
 		return connected.value;
 	}
 
@@ -109,6 +120,7 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 
 	it('proves the hub over TCP when the socket is gone: the Rust and TypeScript hello proofs agree', async () => {
 		rmSync(join(apiDirectory, 'hub.sock'));
+		sharedClient = undefined;
 		const client = await connect();
 		const posted = await client.postMessage(
 			message('Release notes drafted', { type: 'generic' }),
@@ -173,7 +185,7 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		expect(closed).toMatchObject({ ok: true, value: { status: 'closed' } });
 	});
 
-	it('ask returns "no answer" at once and withdraws the message when no UI can answer', async () => {
+	it('ask returns "no answer" at once and leaves the message open when no UI can answer', async () => {
 		const client = await connect();
 		const asked = await askAndWait(
 			client,
@@ -185,14 +197,151 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		);
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'not_waiting' }, didRescind: true },
+			value: { outcome: { kind: 'not_waiting' } },
 		});
 		if (!asked.ok) return;
 		const polled = await client.getResponse(asked.value.ingest.id, 0);
-		expect(polled).toMatchObject({
+		expect(polled).toMatchObject({ ok: true, value: { status: 'pending' } });
+		// Clean up: the poll above gives the item a live waiter for a while, and
+		// the next test's asks would fold into it.
+		await client.rescindMessage(asked.value.ingest.id, 'resolved_elsewhere');
+	});
+
+	it('a muted ask returns muted at once, names the mute, and stays open until the model rescinds it', async () => {
+		const client = await connect();
+		const asked = await askAndWait(
+			client,
+			message('Allow Bash to run the ingest tests?', {
+				type: 'decision_required',
+				blocking: 'blocking',
+				event: 'integration.muted',
+			}),
+			{ timeoutSeconds: 5 },
+		);
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'muted' } },
+		});
+		if (!asked.ok) return;
+		expect(asked.value.ingest.warnings).toContainEqual({
+			code: 'muted',
+			message:
+				"Delivered to the inbox without a ping: rule 'Mute integration asks' mutes it",
+		});
+		expect(asked.value.ingest.parked).toBe(true);
+		// The session moves on: a progress report and a completion leave a parked ask alone.
+		expect(await client.reportProgress()).toMatchObject({ ok: true });
+		const done = await client.postMessage(
+			message('Phase 4 is done', { type: 'task_completed' }),
+		);
+		expect(done.ok).toBe(true);
+		const stillOpen = await client.getResponse(asked.value.ingest.id, 0);
+		expect(stillOpen).toMatchObject({ ok: true, value: { status: 'pending' } });
+		// Only an explicit rescind from the agent withdraws it.
+		const rescinded = await client.rescindMessage(
+			asked.value.ingest.id,
+			'resolved_elsewhere',
+		);
+		expect(rescinded).toMatchObject({
 			ok: true,
 			value: { status: 'rescinded', rescindReason: 'resolved_elsewhere' },
 		});
+	});
+
+	it('a completion clears an earlier ask as handled in the session, an explicit rescind keeps its reason', async () => {
+		const client = await connect();
+		const stale = await client.postMessage(
+			message('Pick the next phase', {
+				type: 'decision_required',
+				blocking: 'deferrable',
+				correlationKey: 'handled-1',
+			}),
+		);
+		if (!stale.ok) throw new Error('post failed');
+		const done = await client.postMessage(
+			message('Phase 3 is done', { type: 'task_completed' }),
+		);
+		expect(done.ok).toBe(true);
+		const cleared = await client.getResponse(stale.value.record.id, 0);
+		expect(cleared).toMatchObject({
+			ok: true,
+			value: { status: 'rescinded', rescindReason: 'handled_in_session' },
+		});
+		const result = await runTool(
+			'wait',
+			{ messageId: stale.value.record.id },
+			{
+				getClient: async () => succeed(client),
+				sender: { ...TEST_SENDER, conversationId: IDENTITY.conversationId },
+				defaultTimeoutSeconds: 5,
+			},
+			undefined,
+		);
+		expect(JSON.stringify(result)).toContain('not withdrawn');
+
+		const explicit = await client.postMessage(
+			message('Plan is ready', {
+				type: 'generic',
+				correlationKey: 'explicit-1',
+			}),
+		);
+		if (!explicit.ok) throw new Error('post failed');
+		const withdrawn = await client.rescindMessage(
+			explicit.value.record.id,
+			'resolved_elsewhere',
+		);
+		expect(withdrawn).toMatchObject({
+			ok: true,
+			value: { status: 'rescinded', rescindReason: 'resolved_elsewhere' },
+		});
+	});
+
+	it('a timed-out ask the sender parked survives progress, one nobody parked does not', async () => {
+		const client = await connect();
+		const lapsed = await client.postMessage(
+			message('Pick the next phase', {
+				type: 'decision_required',
+				blocking: 'deferrable',
+				correlationKey: 'lapsed-1',
+			}),
+		);
+		const timedOut = await client.postMessage(
+			message('Pick the release name', {
+				type: 'decision_required',
+				blocking: 'deferrable',
+				correlationKey: 'timed-out-1',
+			}),
+		);
+		if (!lapsed.ok || !timedOut.ok) throw new Error('post failed');
+		expect(await client.parkMessage(timedOut.value.record.id)).toMatchObject({
+			ok: true,
+			value: { status: 'pending' },
+		});
+		expect(await client.reportProgress()).toMatchObject({ ok: true });
+		expect(await client.getResponse(lapsed.value.record.id, 0)).toMatchObject({
+			ok: true,
+			value: { status: 'rescinded', rescindReason: 'handled_in_session' },
+		});
+		expect(await client.getResponse(timedOut.value.record.id, 0)).toMatchObject(
+			{
+				ok: true,
+				value: { status: 'pending' },
+			},
+		);
+		await client.rescindMessage(timedOut.value.record.id, 'resolved_elsewhere');
+	});
+
+	it('notify reports the mute to the model', async () => {
+		const client = await connect();
+		const posted = await client.postMessage(
+			message('Release notes are drafted', {
+				type: 'task_completed',
+				event: 'integration.muted',
+			}),
+		);
+		expect(
+			posted.ok && posted.value.record.warnings?.map((warning) => warning.code),
+		).toContain('muted');
 	});
 
 	it('rescinds by id and by correlation key', async () => {

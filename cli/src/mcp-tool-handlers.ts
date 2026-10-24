@@ -3,6 +3,8 @@ import type { z } from 'zod';
 import {
 	type AskOutcome,
 	askAndWait,
+	mutedCause,
+	parkAfterTimeout,
 	type WaitOptions,
 	waitForAnswer,
 } from './ask-flow.ts';
@@ -16,6 +18,7 @@ import {
 } from './build-message.ts';
 import { resolveThreadId, resolveTopicId } from './commands/group-options.ts';
 import {
+	describeCloseFailure,
 	describeHubFailure,
 	type HubClient,
 	type HubFailure,
@@ -152,8 +155,18 @@ async function notify(
 	if (!posted.ok) return failureResult(posted.error);
 	const { id, type, urgent, blocking, state, topicId, threadId, warnings } =
 		posted.value.record;
+	const isMuted = warnings?.some((warning) => warning.code === 'muted');
 	return jsonResult(
-		{ messageId: id, type, urgent, blocking, state, topicId, threadId },
+		{
+			messageId: id,
+			type,
+			urgent,
+			blocking,
+			state,
+			topicId,
+			threadId,
+			...(isMuted === true ? { muted: true } : {}),
+		},
 		warnings,
 	);
 }
@@ -184,11 +197,11 @@ async function ask(
 		...deps.wait,
 	});
 	if (!asked.ok) return failureResult(asked.error);
-	const { ingest, outcome, didRescind } = asked.value;
-	return describeAskOutcome(ingest.id, outcome, didRescind, ingest.warnings);
+	const { ingest, outcome } = asked.value;
+	return describeAskOutcome(ingest.id, outcome, ingest.warnings);
 }
 
-/** Collects the answer to a message sent earlier; unlike `ask` it never withdraws the message. */
+/** Collects the answer to a message sent earlier. Like `ask`, it never withdraws the message. */
 async function wait(
 	input: WaitInput,
 	client: HubClient,
@@ -200,13 +213,16 @@ async function wait(
 		signal,
 		...deps.wait,
 	});
-	return describeAskOutcome(input.messageId, outcome, false, undefined);
+	await parkAfterTimeout(client, input.messageId, outcome);
+	return describeAskOutcome(input.messageId, outcome, undefined);
 }
+
+const KEEP_OPEN_ADVICE =
+	'Call `wait` with this messageId to collect the answer later. If you get the answer in the conversation instead, `rescind` the message (reason resolved_elsewhere) so it does not linger in the inbox.';
 
 function describeAskOutcome(
 	messageId: string,
 	outcome: AskOutcome,
-	didRescind: boolean,
 	warnings: IngestWarning[] | undefined,
 ): CallToolResult {
 	switch (outcome.kind) {
@@ -236,16 +252,33 @@ function describeAskOutcome(
 			);
 		case 'closed':
 			return jsonResult(closedStatus(messageId, outcome.response), warnings);
+		case 'muted':
+			return jsonResult(
+				{
+					status: 'no_answer',
+					messageId,
+					reason: 'muted',
+					instruction: `Your message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open and Gentbox will not clear it when the session moves on. ${KEEP_OPEN_ADVICE}`,
+				},
+				warnings,
+			);
+		case 'merged':
+			return jsonResult(
+				{
+					status: 'no_answer',
+					messageId,
+					reason: 'merged',
+					instruction: `Your ask was merged into an open message that already existed (${messageId}) instead of being stored on its own, so nobody will answer it separately. That message may belong to a request someone is waiting on: do not rescind it. Ask the user in the conversation instead.`,
+				},
+				warnings,
+			);
 		case 'timed_out':
 			return jsonResult(
 				{
 					status: 'no_answer',
 					messageId,
 					reason: 'timed_out',
-					messageWithdrawn: didRescind,
-					instruction: didRescind
-						? 'No answer arrived in time and the message was withdrawn. Ask the user in the conversation instead.'
-						: 'No answer yet; the message is still open. Call `wait` again later, or ask the user in the conversation.',
+					instruction: `No answer yet; the message stays open in the user's inbox and the user may still answer it: Gentbox will not clear it when the session moves on. ${KEEP_OPEN_ADVICE}`,
 				},
 				warnings,
 			);
@@ -255,9 +288,7 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'nobody_can_answer_now',
-					messageWithdrawn: didRescind,
-					instruction:
-						'Gentbox has no channel that can take an answer right now (the user may be in the very app you run in). Ask in the conversation instead.',
+					instruction: `Gentbox has no channel that can take an answer right now (the user may be in the very app you run in). The message stays open in the inbox. Ask the user in the conversation and \`rescind\` the message (reason resolved_elsewhere) once that is handled.`,
 				},
 				warnings,
 			);
@@ -267,7 +298,7 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'cancelled',
-					messageWithdrawn: didRescind,
+					instruction: `The wait was cancelled; the message stays open. ${KEEP_OPEN_ADVICE}`,
 				},
 				warnings,
 			);
@@ -277,7 +308,7 @@ function describeAskOutcome(
 				content: [
 					{
 						type: 'text',
-						text: `${describeHubFailure(outcome.failure)}\nThe answer is unknown (message ${messageId}${didRescind ? ', withdrawn' : ''}). Ask the user in the conversation instead.`,
+						text: `${describeHubFailure(outcome.failure)}\nThe answer is unknown (message ${messageId} is still open). ${KEEP_OPEN_ADVICE}`,
 					},
 				],
 			};
@@ -288,12 +319,14 @@ function closedStatus(
 	messageId: string,
 	response: ActionResponse,
 ): Record<string, unknown> {
+	const isHandledInSession = response.rescindReason === 'handled_in_session';
 	return {
 		status: response.status,
 		messageId,
 		rescindReason: response.rescindReason,
-		instruction:
-			'No answer will come (dismissed, withdrawn, expired or deleted). Ask the user in the conversation instead.',
+		instruction: isHandledInSession
+			? 'The message was handled in the session (a completion or progress report cleared it); it was not withdrawn. No answer will come: carry on from what was handled.'
+			: 'No answer will come (dismissed, withdrawn, expired or deleted). Ask the user in the conversation instead.',
 	};
 }
 
@@ -355,7 +388,7 @@ async function closeTopic(
 	});
 	return closed.ok
 		? jsonResult({ topic: closed.value }, undefined)
-		: failureResult(closed.error);
+		: errorResult(describeCloseFailure(closed.error, 'topic'));
 }
 
 async function createThread(
@@ -395,7 +428,7 @@ async function closeThread(
 	});
 	return closed.ok
 		? jsonResult({ thread: closed.value }, undefined)
-		: failureResult(closed.error);
+		: errorResult(describeCloseFailure(closed.error, 'thread'));
 }
 
 function draftFrom(input: NotifyInput | AskInput, event: string): MessageDraft {
@@ -426,7 +459,7 @@ export function formatWarnings(
 		(warning) =>
 			`- [${warning.code}]${warning.field === undefined ? '' : ` ${warning.field}`}: ${warning.message}`,
 	);
-	return `Gentbox warnings (what the hub changed; fix this next time):\n${lines.join('\n')}`;
+	return `Gentbox warnings (what the hub changed or held back; heed them):\n${lines.join('\n')}`;
 }
 
 function jsonResult(

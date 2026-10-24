@@ -242,9 +242,10 @@ impl HubState {
         let now = self.now();
         if let Some(stored) = self.idempotent_match(&input)? {
             let should_wait = self.current_should_wait(&stored)?;
+            let warnings = self.muted_warning_for_stored(&stored)?;
             return Ok(IngestOutcome {
                 status: IngestStatus::Existing,
-                response: ingest_response(&stored, should_wait, Vec::new()),
+                response: ingest_response(&stored, should_wait, warnings),
             });
         }
         let settings = source_settings(&self.sources, &input.source.agent);
@@ -260,13 +261,25 @@ impl HubState {
             conversation_id: Some(prepared.message.conversation.id.clone()),
         };
         let groups = PlannedGroups::new(&snapshot, resolution, &created_by, now);
-        let message = prepared.into_message(
+        let mut message = prepared.into_message(
             new_message_id(now),
             now,
             groups.topic_id.clone(),
             groups.thread_id.clone(),
         );
         let plan = self.plan_for(&message, groups.is_muted);
+        // Only a message stored as its own item reports a mute. One folded into
+        // or dropped as a repeat of another message answers with that message's
+        // id, and a `muted` warning there would send the sender to rescind it.
+        let mut warnings_if_stored = warnings.clone();
+        let muted = muted_warning(&message, groups.muted_group.as_deref());
+        // A muted ask goes to the inbox without a ping and its sender is told
+        // to collect the answer later: park it, so the clean-ups of completion
+        // and progress leave it for the user.
+        if muted.is_some() && message.awaits_response {
+            message.parked_at = Some(now);
+        }
+        warnings_if_stored.extend(muted);
         let items = self.open_items(&message.conversation_key(), now)?;
         let outcome = coalesce(&CoalesceInput {
             incoming: &message,
@@ -293,12 +306,18 @@ impl HubState {
                 &groups,
                 Some(Supersede { replaces, pings }),
                 rescissions,
-                warnings,
+                warnings_if_stored,
                 now,
             ),
-            CoalesceOutcome::New { rescissions } => {
-                self.store_new(message, plan, &groups, None, rescissions, warnings, now)
-            }
+            CoalesceOutcome::New { rescissions } => self.store_new(
+                message,
+                plan,
+                &groups,
+                None,
+                rescissions,
+                warnings_if_stored,
+                now,
+            ),
         }
     }
 
@@ -516,6 +535,32 @@ impl HubState {
         let closed = self.withdraw(vec![rescission], now)?;
         let message = closed.first().unwrap_or(&message);
         Ok(ActionResponse::for_message(message, false))
+    }
+
+    /// Parks a live message of the requester: its sender was told to collect
+    /// the answer later (its wait timed out), so the clean-ups of completion
+    /// and progress leave it open. Parking again keeps the first time.
+    pub(crate) fn park(
+        &mut self,
+        id: &MessageId,
+        requester: &Requester,
+    ) -> Result<ActionResponse, HubError> {
+        let now = self.now();
+        let mut message = self.store.repository().message(id)?;
+        if !requester.owns(&message) {
+            return Err(HubError::NotOwner);
+        }
+        if !message.is_live() {
+            return Err(HubError::MessageClosed {
+                state: message.lifecycle.state,
+                resolution: message.lifecycle.resolution,
+            });
+        }
+        if !message.is_parked() {
+            message.parked_at = Some(now);
+            self.store.repository().update_message(&message, now)?;
+        }
+        Ok(ActionResponse::for_message(&message, false))
     }
 
     pub(crate) fn rescind_by_correlation_keys(
@@ -1493,6 +1538,21 @@ impl HubState {
         Ok(self.plan_for(message, is_effectively_muted(&topic, &thread)))
     }
 
+    /// The `muted` warning of a stored, still live message, for an idempotent
+    /// retry: the mute is looked up again, so a lifted mute reports nothing.
+    fn muted_warning_for_stored(&self, message: &Message) -> Result<Vec<IngestWarning>, HubError> {
+        if !message.is_live() {
+            return Ok(Vec::new());
+        }
+        let repo = self.store.repository();
+        let topic = repo.topic(&message.topic_id)?;
+        let thread = repo.thread(&message.thread_id)?;
+        let muted_group = muted_group_name(Some(&topic), Some(&thread));
+        Ok(muted_warning(message, muted_group.as_deref())
+            .into_iter()
+            .collect())
+    }
+
     fn current_should_wait(&self, message: &Message) -> Result<bool, HubError> {
         if !message.is_live() {
             return Ok(false);
@@ -1562,6 +1622,8 @@ struct PlannedGroups {
     reopens_thread: Option<ThreadId>,
     uses_default_thread: bool,
     is_muted: bool,
+    /// What the topic or thread mute is called, for the sender's warning.
+    muted_group: Option<String>,
 }
 
 impl PlannedGroups {
@@ -1585,16 +1647,13 @@ impl PlannedGroups {
                 (thread.id.clone(), Some(thread))
             }
         };
-        let topic_muted = snapshot
-            .topics
-            .iter()
-            .find(|topic| topic.id == topic_id)
-            .is_some_and(|topic| topic.muted);
-        let thread_muted = snapshot
-            .threads
-            .iter()
-            .find(|thread| thread.id == thread_id)
-            .is_some_and(|thread| thread.muted);
+        let muted_group = muted_group_name(
+            snapshot.topics.iter().find(|topic| topic.id == topic_id),
+            snapshot
+                .threads
+                .iter()
+                .find(|thread| thread.id == thread_id),
+        );
         Self {
             topic_id,
             thread_id,
@@ -1603,7 +1662,8 @@ impl PlannedGroups {
             reopens_topic: resolution.reopens_topic,
             reopens_thread: resolution.reopens_thread,
             uses_default_thread: resolution.uses_default_thread,
-            is_muted: topic_muted || thread_muted,
+            is_muted: muted_group.is_some(),
+            muted_group,
         }
     }
 
@@ -1662,7 +1722,7 @@ fn close_withdrawn(
             recorded_at: now,
             event: DeliveryEvent::Withdrawn,
             surface: None,
-            detail: Some(rescission.reason.in_words().to_owned()),
+            detail: Some(rescission.reason.log_text()),
         })?;
         closed.push((message, rescission.clone()));
     }
@@ -1730,6 +1790,37 @@ fn rename_implicit_threads(
     Ok(renamed)
 }
 
+/// What holds a message back, named for the sender: the muted topic, else
+/// the muted thread.
+fn muted_group_name(topic: Option<&Topic>, thread: Option<&Thread>) -> Option<String> {
+    topic
+        .filter(|topic| topic.muted)
+        .map(|topic| format!("topic '{}'", topic.title))
+        .or_else(|| {
+            thread
+                .filter(|thread| thread.muted)
+                .map(|thread| format!("thread '{}'", thread.title))
+        })
+}
+
+/// Tells the sender its message went to the inbox without a ping because a
+/// mute holds it back (urgent messages break through and get no warning).
+fn muted_warning(message: &Message, muted_group: Option<&str>) -> Option<IngestWarning> {
+    if message.urgent {
+        return None;
+    }
+    let cause = match (muted_group, &message.muted_by_rule) {
+        (Some(group), _) => format!("{group} is muted"),
+        (None, Some(rule)) => format!("rule '{rule}' mutes it"),
+        (None, None) => return None,
+    };
+    Some(IngestWarning {
+        code: WarningCode::Muted,
+        field: None,
+        message: format!("Delivered to the inbox without a ping: {cause}"),
+    })
+}
+
 fn ingest_response(
     message: &Message,
     should_wait: bool,
@@ -1746,6 +1837,7 @@ fn ingest_response(
         state: message.lifecycle.state,
         should_wait,
         warnings,
+        parked: message.is_parked(),
     }
 }
 

@@ -61,7 +61,7 @@ override = true
 
 ### Rescind
 
-An agent withdraws its own messages:
+An agent withdraws its own messages. Withdrawn means the agent asked: nothing else withdraws a message on its behalf, not a timeout, a cancel, a muted topic or a missing answer channel (amended 2026-10-24).
 
 - `DELETE /v1/messages/{id}` with `{ "reason": … }`. With no body the reason is `resolved_elsewhere`.
 - `POST /v1/conversations/{agent}/{id}/rescind` with `{ "reason": …, "correlationKeys": [ … ] }`.
@@ -89,7 +89,7 @@ Effects:
 - **Supersede** (same correlation key) rescinds the old message with reason `superseded`, replacing it in place.
 - **A `task_completed` message** rescinds the conversation's open `blocking` and `deferrable` messages that have no live waiter, with reason `obsolete`. `non_blocking` ones survive.
 - **Conversation progress** (`POST …/progress`) rescinds the conversation's `blocking` and `deferrable` messages without a live waiter, and its `idle` item, with reason `resolved_elsewhere`.
-- **A hook that stops waiting** deletes its own message with reason `resolved_elsewhere`. This replaces `POST /v1/messages/{id}/resolve`.
+- **A hook that stops waiting** deletes its own message with reason `resolved_elsewhere`. This replaces `POST /v1/messages/{id}/resolve`. (Amended 2026-10-24, see Amendments: a sender that stops waiting no longer rescinds.)
 
 ### Policy key
 
@@ -137,3 +137,16 @@ Permission prompts become `decision_required` + `blocking` + not urgent. That se
   - sorting above non-urgent items.
 
   Native notifications, which have no badge slot, lead the subtitle with "Urgent ·", before the blocking badge ("Urgent · Waiting on you · topic · thread"). The type's title phrase is never changed by urgency.
+- **2026-10-24: withdrawn means the agent asked.** The user decided: "Withdrawn is only to be used when the model asks to withdraw the notification. The model should be notified that their notification came through but it is muted." This supersedes the line above that had a hook delete its own message when it stops waiting (kept for history):
+  - A sender that stops waiting (deadline, cancel, error, no answer channel) does **not** rescind. The waiter lapses after 10 s and the message becomes an ordinary inbox item (architecture §5.2).
+  - A message delivered into a muted topic or thread (or muted by a rule) stays open, and the ingest response carries the warning `muted` so the sender knows it arrived without a ping. `shouldWait` stays `false`.
+  - The rescind rules above and the implicit rescinds are otherwise unchanged; the label of the implicit ones is decided next.
+- **2026-10-24: implicit clean-ups show as "Handled in the session", never "Withdrawn".** Asked whether the clean-ups from completion and progress should keep marking rows "Withdrawn", the user answered: "Keep the clean-up, new label." The implicit rescinds stay, with a new rescind reason, `handled_in_session`, that only the hub records:
+  - A `task_completed` message and a progress call rescind the items described in §Implicit rescinds as `handled_in_session` (they were `obsolete` and `resolved_elsewhere`). Supersede keeps `superseded` and folds into its successor.
+  - A sender cannot name `handled_in_session`: the rescind request, the `rescinds` field and the close request accept only `resolved_elsewhere`, `obsolete` and `superseded` (422 otherwise). An explicit rescind keeps exactly the reason it was given.
+  - Labels: `handled_in_session` reads "Handled in the session", every other reason reads "Withdrawn". Withdrawn means the agent asked.
+  - The store keeps `resolved_elsewhere` plus a marker column (migration 3), because the CHECK on `rescind_reason` cannot change without rebuilding the table. Rows closed before the migration keep their reason and read as withdrawn.
+- **2026-10-24: a parked message is exempt from the implicit clean-ups.** The clean-up rule above (completion and progress clear items without a live waiter) would clear a muted ask the sender was told to collect later, or an ask that timed out, as "Handled in the session" although nobody handled it. The user decided: "a muted or timed-out ask the agent was told to collect later is exempt from the implicit clean-up; it closes only by my answer, dismiss, the agent's rescind or expiry."
+  - The hub *parks* a message (`parked_at` on the message, `parked` in the ingest response): at ingest when it returns the `muted` warning for a message that awaits a response, and when the sender calls `POST /v1/messages/{id}/park` after a timeout (sender token, owner check).
+  - A cancel, a failure, or a lapsed waiter does not park, so the stale prompt of a killed hook still clears.
+  - Supersede by the same sender with the same correlation key is unchanged.

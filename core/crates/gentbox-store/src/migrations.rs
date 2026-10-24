@@ -10,6 +10,10 @@ use crate::error::StoreError;
 const MIGRATIONS: &[(u32, &str)] = &[
     (1, include_str!("migrations/0001_init.sql")),
     (2, include_str!("migrations/0002_swept_messages.sql")),
+    (
+        3,
+        include_str!("migrations/0003_rescind_handled_in_session.sql"),
+    ),
 ];
 
 /// The newest schema version this build knows.

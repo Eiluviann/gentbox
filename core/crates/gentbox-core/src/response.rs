@@ -161,6 +161,9 @@ pub enum WarningCode {
     StepRewritten,
     /// A secret was redacted.
     SecretRedacted,
+    /// The message was delivered to the inbox without a ping because its
+    /// topic, thread or a rule mutes it.
+    Muted,
 }
 
 /// One entry of `ingestResponse.warnings`.
@@ -215,4 +218,9 @@ pub struct IngestResponse {
     /// What the hub changed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<IngestWarning>,
+    /// The hub parked the message: it was muted and awaits a response, so the
+    /// completion and progress clean-ups leave it open for the user to answer
+    /// later.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub parked: bool,
 }

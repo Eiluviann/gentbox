@@ -136,7 +136,68 @@ describe('gentbox ask', () => {
 		},
 	);
 
-	it('exits 4 and withdraws the message when nobody can answer now', async () => {
+	it('exits 4 with reason merged when the ask was folded into another open message', async () => {
+		const postMessage = vi.fn<HubClient['postMessage']>(async () =>
+			succeed({
+				wasCreated: false,
+				record: ingestResponse({ shouldWait: false }),
+			}),
+		);
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const fixture = createCommandFixture(
+			stubHubClient({ postMessage, rescindMessage }),
+		);
+		expect(await runAsk(['--title', 'Allow it?'], fixture.context)).toBe(
+			EXIT.noAnswer,
+		);
+		expect(fixture.stdoutJson()).toMatchObject({
+			status: 'no_answer',
+			reason: 'merged',
+		});
+		expect(JSON.stringify(fixture.stdoutJson())).toContain('do not rescind');
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('parks the message when the ask times out', async () => {
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const fixture = createCommandFixture(
+			stubHubClient({
+				postMessage: async () =>
+					succeed({ wasCreated: true, record: ingestResponse() }),
+				getResponse: async () => succeed(actionResponse('pending')),
+				parkMessage,
+				rescindMessage,
+			}),
+		);
+		expect(
+			await runAsk(['--title', 'Allow it?', '--timeout', '1'], fixture.context),
+		).toBe(EXIT.noAnswer);
+		expect(fixture.stdoutJson()).toMatchObject({ reason: 'timed_out' });
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('exits 4 and says a message the hub cleared was handled in the session, not withdrawn', async () => {
+		const { client } = askingClient(
+			actionResponse('rescinded', { rescindReason: 'handled_in_session' }),
+		);
+		const fixture = createCommandFixture(client);
+		expect(await runAsk(['--title', 'Allow it?'], fixture.context)).toBe(
+			EXIT.noAnswer,
+		);
+		expect(fixture.stdoutJson()).toMatchObject({
+			status: 'rescinded',
+			rescindReason: 'handled_in_session',
+		});
+		const note = JSON.stringify(fixture.stdoutJson());
+		expect(note).toContain('handled in the session');
+		expect(note).toContain('not withdrawn');
+	});
+
+	it('exits 4 and leaves the message open when nobody can answer now', async () => {
 		const { client, rescindMessage, getResponse } = askingClient(
 			actionResponse('pending'),
 			ingestResponse({ shouldWait: false }),
@@ -148,12 +209,38 @@ describe('gentbox ask', () => {
 		expect(fixture.stdoutJson()).toMatchObject({
 			status: 'no_answer',
 			reason: 'nobody_can_answer_now',
-			messageWithdrawn: true,
 		});
-		expect(rescindMessage).toHaveBeenCalledWith(
-			MESSAGE_ID,
-			'resolved_elsewhere',
+		expect(fixture.stdoutJson()).not.toHaveProperty('messageWithdrawn');
+		expect(rescindMessage).not.toHaveBeenCalled();
+		expect(getResponse).not.toHaveBeenCalled();
+	});
+
+	it('exits 4 with reason muted, shows the warning, and leaves the message open', async () => {
+		const warning = {
+			code: 'muted',
+			message:
+				"Delivered to the inbox without a ping: topic 'Release 1.4' is muted",
+		} as const;
+		const { client, rescindMessage, getResponse } = askingClient(
+			actionResponse('pending'),
+			ingestResponse({ shouldWait: false, warnings: [warning] }),
 		);
+		const fixture = createCommandFixture(client);
+		expect(await runAsk(['--title', 'Allow it?'], fixture.context)).toBe(
+			EXIT.noAnswer,
+		);
+		expect(fixture.stdoutJson()).toMatchObject({
+			messageId: MESSAGE_ID,
+			status: 'no_answer',
+			reason: 'muted',
+		});
+		expect(fixture.stdoutJson()).not.toHaveProperty('messageWithdrawn');
+		expect(fixture.stderr()).toContain(`warning [muted]: ${warning.message}`);
+		// The note names the cause the hub reported, whatever it is.
+		expect(JSON.stringify(fixture.stdoutJson())).toContain(
+			"topic 'Release 1.4' is muted",
+		);
+		expect(rescindMessage).not.toHaveBeenCalled();
 		expect(getResponse).not.toHaveBeenCalled();
 	});
 

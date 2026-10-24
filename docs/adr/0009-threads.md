@@ -111,6 +111,10 @@ topic = { key = "project:{project}", title = "{project}", kind = "project" }
 - **Arbitrary nesting:** two levels match the user's rule of thumb; deeper trees complicate mute, close and the phone.
 - **A per-conversation implicit topic (0008's default):** in the two-level model the conversation is a thread, and simple conversations share a General topic, as the user described.
 
+## Amendments
+
+- **2026-10-24: a muted message reports the mute and stays open.** Senders of non-urgent messages in a muted topic or thread still get `shouldWait: false`, and now also the warning `muted` naming the topic or thread. The message stays open in the inbox; only an explicit rescind from the agent withdraws it (ADR 0007, amendments).
+
 ## Sources
 
 - [Apple-summaryArgument] UNNotificationContent.summaryArgument (deprecated iOS 15.0, "summaryArgument is ignored"): https://developer.apple.com/documentation/usernotifications/unnotificationcontent/summaryargument

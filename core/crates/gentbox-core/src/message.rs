@@ -452,6 +452,17 @@ pub struct Message {
     pub lifecycle: Lifecycle,
     /// How many identical or folded messages this one absorbed.
     pub repeat_count: u32,
+    /// When the hub parked the message: its sender was told to collect the
+    /// answer later (it was muted when it arrived, or its sender stopped
+    /// waiting after a timeout), so the implicit clean-ups of completion and
+    /// progress leave it alone. It closes only by the user's answer or
+    /// dismiss, the sender's own rescind, or expiry.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::rfc3339::option"
+    )]
+    pub parked_at: Option<OffsetDateTime>,
 }
 
 impl Message {
@@ -463,6 +474,11 @@ impl Message {
     /// Whether the message is still open or acknowledged.
     pub fn is_live(&self) -> bool {
         self.lifecycle.state.is_live()
+    }
+
+    /// Whether the hub parked it (see [`Message::parked_at`]).
+    pub fn is_parked(&self) -> bool {
+        self.parked_at.is_some()
     }
 }
 

@@ -2,6 +2,7 @@
 //! messages. Rescinding never answers; the sender token can rescind but not
 //! approve.
 
+use serde::de::{Deserializer, Error as _};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -9,7 +10,14 @@ use crate::ids::{ConversationKey, MessageId};
 use crate::item::OpenItem;
 use crate::lifecycle::LifecycleState;
 
-/// Why a message was withdrawn.
+/// Why a message was rescinded.
+///
+/// The first three are the sender's own words: a sender may name only those
+/// ([`RescindReason::EXPLICIT`]), and a row rescinded with one is shown as
+/// "Withdrawn". `HandledInSession` is the hub's own: it records an implicit
+/// clean-up (a completion or progress call cleared an item that was handled in
+/// the session) and is shown as "Handled in the session", never as
+/// "Withdrawn" (architecture §7; withdrawn means the agent asked).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RescindReason {
@@ -19,20 +27,96 @@ pub enum RescindReason {
     Obsolete,
     /// Replaced by a newer message.
     Superseded,
+    /// Cleared by the hub because a completion or progress call showed that
+    /// it was handled in the session. A sender never names this one.
+    HandledInSession,
 }
 
 impl RescindReason {
     /// Every reason.
-    pub const ALL: [Self; 3] = [Self::ResolvedElsewhere, Self::Obsolete, Self::Superseded];
+    pub const ALL: [Self; 4] = [
+        Self::ResolvedElsewhere,
+        Self::Obsolete,
+        Self::Superseded,
+        Self::HandledInSession,
+    ];
 
-    /// The reason in words, for the inbox's "Withdrawn" row.
+    /// The reasons a sender may name in a rescind request.
+    pub const EXPLICIT: [Self; 3] = [Self::ResolvedElsewhere, Self::Obsolete, Self::Superseded];
+
+    /// Whether a sender may name this reason (it asked for the withdrawal).
+    pub fn is_explicit(self) -> bool {
+        !matches!(self, Self::HandledInSession)
+    }
+
+    /// The reason in words, shown next to the row's label.
     pub fn in_words(self) -> &'static str {
         match self {
-            Self::ResolvedElsewhere => "Handled in the session",
+            Self::ResolvedElsewhere => "Resolved elsewhere",
             Self::Obsolete => "No longer needed",
             Self::Superseded => "Replaced by a newer message",
+            Self::HandledInSession => "Handled in the session",
         }
     }
+
+    /// The delivery log's text for a rescission: only a sender's own reasons
+    /// read as a withdrawal.
+    pub fn log_text(self) -> String {
+        if self.is_explicit() {
+            format!("{}: {}", self.label(), self.in_words())
+        } else {
+            self.in_words().to_owned()
+        }
+    }
+
+    /// The label of the inbox row: "Withdrawn" only when the agent asked, and
+    /// "Handled in the session" for the hub's own clean-up.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::HandledInSession => "Handled in the session",
+            Self::ResolvedElsewhere | Self::Obsolete | Self::Superseded => "Withdrawn",
+        }
+    }
+}
+
+/// Deserializes a reason a sender names. `handled_in_session` is the hub's
+/// own and is refused as an unknown variant.
+pub(crate) fn deserialize_explicit_reason<'de, D>(
+    deserializer: D,
+) -> Result<RescindReason, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let reason = RescindReason::deserialize(deserializer)?;
+    if reason.is_explicit() {
+        Ok(reason)
+    } else {
+        Err(D::Error::unknown_variant(
+            "handled_in_session",
+            &["resolved_elsewhere", "obsolete", "superseded"],
+        ))
+    }
+}
+
+/// [`deserialize_explicit_reason`] for an optional field.
+pub(crate) fn deserialize_explicit_reason_option<'de, D>(
+    deserializer: D,
+) -> Result<Option<RescindReason>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<RescindReason>::deserialize(deserializer)?
+        .map(|reason| {
+            if reason.is_explicit() {
+                Ok(reason)
+            } else {
+                Err(D::Error::unknown_variant(
+                    "handled_in_session",
+                    &["resolved_elsewhere", "obsolete", "superseded"],
+                ))
+            }
+        })
+        .transpose()
 }
 
 /// Body of `DELETE /v1/messages/{id}` (reason only), of
@@ -41,7 +125,8 @@ impl RescindReason {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RescindRequest {
-    /// Why the messages are withdrawn.
+    /// Why the messages are withdrawn (a reason a sender may name).
+    #[serde(deserialize_with = "deserialize_explicit_reason")]
     pub reason: RescindReason,
     /// The slots to withdraw, within the conversation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -57,7 +142,10 @@ pub enum ChannelEffect {
     RemoveToast,
     /// Remove the Mac native notification (`removeDeliveredNotifications`).
     RemoveNativeNotification,
-    /// Keep the inbox row, marked "Withdrawn" with the reason in words.
+    /// Keep the inbox row, labelled by [`RescindReason::label`] ("Withdrawn"
+    /// for a sender's own reasons, "Handled in the session" for the hub's
+    /// clean-ups) with the reason in words. Apps key on the reason's label,
+    /// never on this effect's name.
     MarkWithdrawn(RescindReason),
     /// Fold the inbox row into the message that replaced it.
     FoldIntoSuccessor(MessageId),
@@ -98,9 +186,9 @@ pub enum RescindError {
 ///   are removed, whatever its state: acknowledging (opening the inbox,
 ///   bringing the conversation forward) does not close a persistent popup, so
 ///   the hub keeps [`OpenItem::delivered`] current and removal is idempotent;
-/// - the inbox row is kept as "Withdrawn".
+/// - the inbox row is kept, labelled by [`RescindReason::label`];
 /// - **superseded:** the inbox row folds into `successor` instead of staying
-///   as "Withdrawn".
+///   as a row of its own.
 /// - a waiter with a live long-poll is woken with `rescinded`.
 /// - phone entries appear only when `has_phone_channel`.
 pub fn rescission_for(

@@ -11,7 +11,8 @@ export const CLOSE_OPTIONS = {
 	reason: { type: 'string' },
 } as const;
 
-export const CLOSE_OPTIONS_HELP = `  --rescind-open            Also withdraw every open message in it.
+export const CLOSE_OPTIONS_HELP = `  --rescind-open            Withdraw your own open messages first. The close is refused (and prints the count)
+                            if other senders' messages stay open; the user has to handle those.
   --reason <reason>         With --rescind-open: resolved_elsewhere | obsolete (default) | superseded.`;
 
 /** `--rescind-open` and `--reason` as the hub's close request. */

@@ -30,12 +30,28 @@ export const blockingLevelSchema = z.enum([
 ]);
 export type BlockingLevel = z.infer<typeof blockingLevelSchema>;
 
+/** The reasons a sender names when it withdraws its own message. */
 export const rescindReasonSchema = z.enum([
 	'resolved_elsewhere',
 	'obsolete',
 	'superseded',
 ]);
 export type RescindReason = z.infer<typeof rescindReasonSchema>;
+
+/**
+ * The reasons the hub reports on a closed message: a sender's own, or
+ * `handled_in_session`, the hub's clean-up when a completion or progress call
+ * showed the item was handled in the session. A sender never sends the latter,
+ * and it is not a withdrawal.
+ */
+export const KNOWN_RECORDED_RESCIND_REASONS = [
+	...rescindReasonSchema.options,
+	'handled_in_session',
+] as const;
+
+/** Read from the hub, so an open string: a newer hub's reason still parses. */
+export const recordedRescindReasonSchema = z.string();
+export type RecordedRescindReason = string;
 
 export const rescindRequestSchema = z.strictObject({
 	reason: rescindReasonSchema,
@@ -361,6 +377,7 @@ export const KNOWN_WARNING_CODES = [
 	'steps_missing',
 	'step_rewritten',
 	'secret_redacted',
+	'muted',
 ] as const;
 
 export const ingestWarningSchema = z.object({
@@ -388,6 +405,8 @@ export const ingestResponseSchema = z.object({
 	]),
 	shouldWait: z.boolean(),
 	warnings: z.array(ingestWarningSchema).optional(),
+	/** Muted and awaiting a response: the hub parked it, so completion and progress leave it open. */
+	parked: z.boolean().optional(),
 });
 export type IngestResponse = z.infer<typeof ingestResponseSchema>;
 
@@ -405,7 +424,7 @@ export type ResponseStatus = z.infer<typeof responseStatusSchema>;
 export const actionResponseSchema = z.object({
 	messageId: ulidSchema,
 	status: responseStatusSchema,
-	rescindReason: rescindReasonSchema.optional(),
+	rescindReason: recordedRescindReasonSchema.optional(),
 	actionId: z.string().optional(),
 	actionKind: z.enum(['approve', 'deny', 'choice', 'reply', 'done']).optional(),
 	value: z.string().max(8192).optional(),
@@ -429,6 +448,10 @@ export const errorBodySchema = z.object({
 	message: z.string(),
 	pointer: z.string().optional(),
 	state: z.string().optional(),
+	/** With `has_open_messages`: how many open messages stop a close. */
+	openMessages: z.number().int().min(0).optional(),
+	/** An older spelling of `openMessages`. */
+	count: z.number().int().min(0).optional(),
 });
 export type ErrorBody = z.infer<typeof errorBodySchema>;
 
