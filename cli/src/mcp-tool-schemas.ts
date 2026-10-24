@@ -29,6 +29,7 @@ export const STEPS_RULE =
 const GROUPING_RULE =
 	"`topic` and `thread` file the message under a project or phase: pass a key you choose (created on first use, named by `topicTitle` / `threadTitle`) or an id from create_topic / create_thread. Without them it lands in this conversation's default place.";
 
+const ulidSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 const titleSchema = z
 	.string()
 	.min(1)
@@ -188,7 +189,7 @@ export type AskInput = z.infer<typeof askInputSchema>;
 
 export const rescindInputSchema = z
 	.strictObject({
-		messageId: z.string().optional().describe('The id notify or ask returned.'),
+		messageId: ulidSchema.optional().describe('The id notify or ask returned.'),
 		correlationKeys: z
 			.array(z.string())
 			.min(1)

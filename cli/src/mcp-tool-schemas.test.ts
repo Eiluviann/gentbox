@@ -109,9 +109,18 @@ describe('argument validation', () => {
 		const spec = specOf('rescind');
 		expect(spec.schema.safeParse({}).success).toBe(false);
 		expect(
-			spec.schema.safeParse({ messageId: 'a', correlationKeys: ['b'] }).success,
+			spec.schema.safeParse({
+				messageId: '01JBMA2W8R6T4Y2V0P8N6M4K2H',
+				correlationKeys: ['b'],
+			}).success,
 		).toBe(false);
-		expect(spec.schema.safeParse({ messageId: 'a' }).success).toBe(true);
+		expect(spec.schema.safeParse({ messageId: '../topics' }).success).toBe(
+			false,
+		);
+		expect(
+			spec.schema.safeParse({ messageId: '01JBMA2W8R6T4Y2V0P8N6M4K2H' })
+				.success,
+		).toBe(true);
 		expect(jsonSchemaAccepts(spec, {})).toBe(false);
 		expect(jsonSchemaAccepts(spec, { correlationKeys: ['b'] })).toBe(true);
 	});

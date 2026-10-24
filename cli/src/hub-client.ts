@@ -294,7 +294,7 @@ export function createHubClient(session: HubSession): HubClient {
 				session,
 				{
 					method: 'GET',
-					path: `/v1/messages/${messageId}/response?wait=${Math.max(0, Math.floor(waitSeconds))}`,
+					path: `/v1/messages/${encodeURIComponent(messageId)}/response?wait=${Math.max(0, Math.floor(waitSeconds))}`,
 					timeoutMilliseconds:
 						waitSeconds * 1000 + LONG_POLL_MARGIN_MILLISECONDS,
 					signal,
@@ -306,7 +306,7 @@ export function createHubClient(session: HubSession): HubClient {
 				session,
 				{
 					method: 'DELETE',
-					path: `/v1/messages/${messageId}`,
+					path: `/v1/messages/${encodeURIComponent(messageId)}`,
 					body: { reason },
 				},
 				actionResponseSchema,
@@ -360,13 +360,21 @@ export function createHubClient(session: HubSession): HubClient {
 		closeTopic: (topicId, request) =>
 			callValue(
 				session,
-				{ method: 'POST', path: `/v1/topics/${topicId}/close`, body: request },
+				{
+					method: 'POST',
+					path: `/v1/topics/${encodeURIComponent(topicId)}/close`,
+					body: request,
+				},
 				topicRecordSchema,
 			),
 		reopenTopic: (topicId) =>
 			callValue(
 				session,
-				{ method: 'POST', path: `/v1/topics/${topicId}/reopen`, body: {} },
+				{
+					method: 'POST',
+					path: `/v1/topics/${encodeURIComponent(topicId)}/reopen`,
+					body: {},
+				},
 				topicRecordSchema,
 			),
 		createThread: async (request) => {
@@ -397,7 +405,7 @@ export function createHubClient(session: HubSession): HubClient {
 				session,
 				{
 					method: 'POST',
-					path: `/v1/threads/${threadId}/close`,
+					path: `/v1/threads/${encodeURIComponent(threadId)}/close`,
 					body: request,
 				},
 				threadRecordSchema,
@@ -405,13 +413,21 @@ export function createHubClient(session: HubSession): HubClient {
 		reopenThread: (threadId) =>
 			callValue(
 				session,
-				{ method: 'POST', path: `/v1/threads/${threadId}/reopen`, body: {} },
+				{
+					method: 'POST',
+					path: `/v1/threads/${encodeURIComponent(threadId)}/reopen`,
+					body: {},
+				},
 				threadRecordSchema,
 			),
 		moveThread: (threadId, request) =>
 			callValue(
 				session,
-				{ method: 'PUT', path: `/v1/threads/${threadId}/topic`, body: request },
+				{
+					method: 'PUT',
+					path: `/v1/threads/${encodeURIComponent(threadId)}/topic`,
+					body: request,
+				},
 				threadRecordSchema,
 			),
 	};

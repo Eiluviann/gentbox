@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { toTopicReference } from '../build-message.ts';
+import { isUlid } from '../message-types.ts';
 import {
 	type CommandContext,
 	EXIT,
@@ -141,7 +142,7 @@ async function closeThread(
 	values: ThreadValues,
 	context: CommandContext,
 ): Promise<ExitCode> {
-	if (threadId === undefined)
+	if (threadId === undefined || !isUlid(threadId))
 		return usageError(context, 'thread close needs a thread id');
 	const request = readCloseRequest(values);
 	if (!request.ok) return usageError(context, request.error);
@@ -157,7 +158,7 @@ async function reopenThread(
 	threadId: string | undefined,
 	context: CommandContext,
 ): Promise<ExitCode> {
-	if (threadId === undefined)
+	if (threadId === undefined || !isUlid(threadId))
 		return usageError(context, 'thread reopen needs a thread id');
 	return withHub(context, async (client) => {
 		const reopened = await client.reopenThread(threadId);
@@ -173,7 +174,7 @@ async function moveThread(
 	context: CommandContext,
 ): Promise<ExitCode> {
 	const topic = toTopicReference(values.topic, values['topic-title']);
-	if (threadId === undefined || topic === undefined)
+	if (threadId === undefined || !isUlid(threadId) || topic === undefined)
 		return usageError(context, 'thread move needs a thread id and --topic');
 	return withHub(context, async (client) => {
 		const moved = await client.moveThread(threadId, { topic });
