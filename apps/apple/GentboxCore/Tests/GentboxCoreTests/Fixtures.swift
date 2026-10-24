@@ -15,12 +15,13 @@ func message(
 	),
 	conversationTitle: String? = "gentbox",
 	receivedAt: Date = Date(timeIntervalSince1970: 1_000_000),
+	threadId: String = "th1",
 ) -> InboxMessage {
 	InboxMessage(
 		id: id, title: title, summary: nil, body: nil, messageType: type, isUrgent: false,
 		blocking: blocking, state: .open, agent: "claude-code", agentName: "Claude Code",
 		conversationId: "session-1", conversationTitle: conversationTitle, topicId: "t1",
-		threadId: "th1", receivedAt: receivedAt, hasLiveWaiter: false, offeredActions: actions,
+		threadId: threadId, receivedAt: receivedAt, hasLiveWaiter: false, offeredActions: actions,
 		asksPermission: asksPermission, repeatCount: 0, stepCount: 0, group: group,
 	)
 }

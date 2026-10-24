@@ -277,14 +277,15 @@ struct InboxItem: View {
 					.accessibilityLabel("Send")
 					.keyboardShortcut(.defaultAction)
 					.disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty)
-				Button("Cancel") { isReplying = false }
+				Button("Cancel") { withAnimation(Tokens.motion) { isReplying = false } }
 					.buttonStyle(DesignButtonStyle())
 					.keyboardShortcut(.cancelAction)
 			}
 		} else if !answers.isEmpty {
 			AnswerButtons(actions: answers) { action in
 				if action.kind == .reply {
-					isReplying = true
+					// Local state, outside the list's animation: animate it here.
+					withAnimation(Tokens.motion) { isReplying = true }
 				} else {
 					Task { await inbox.press(action, on: message) }
 				}
@@ -304,7 +305,7 @@ struct InboxItem: View {
 	private func send(_ action: InboxAction) {
 		let text = reply.trimmingCharacters(in: .whitespaces)
 		guard !text.isEmpty else { return }
-		isReplying = false
+		withAnimation(Tokens.motion) { isReplying = false }
 		reply = ""
 		Task { await inbox.press(action, on: message, reply: text) }
 	}

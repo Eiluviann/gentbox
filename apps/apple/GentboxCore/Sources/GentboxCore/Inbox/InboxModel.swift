@@ -167,24 +167,32 @@ public final class InboxModel {
 	}
 
 	private func pinDefaultExpansion() {
-		guard isPresented, expansion == .followNextUp, let next = inbox?.nextUp else { return }
+		guard isPresented, expansion == .followNextUp, let next = nextUpInView else { return }
 		expansion = .chosen(.card(next.id))
 	}
 
 	/// After a read: an expanded item that left the list (answered,
 	/// dismissed, withdrawn) hands over to the next-up item, or, when nothing
-	/// waits, to the first row, so you can keep going.
+	/// waits, to the first row, so you can keep going. Under a filter both
+	/// come from the filtered thread.
 	private func keepExpansionCurrent() {
 		if case .chosen(let chosen) = expansion,
 			!(inbox?.items.contains { $0.id == chosen.messageId } ?? false)
 		{
-			if isPresented, let next = inbox?.nextUp ?? visibleItems.first {
+			if isPresented, let next = nextUpInView ?? visibleItems.first {
 				expansion = .chosen(.card(next.id))
 			} else {
 				expansion = .followNextUp
 			}
 		}
 		pinDefaultExpansion()
+	}
+
+	/// The next-up item if the list shows it; under a filter, the filtered
+	/// thread's most pressing item instead (the list's first).
+	private var nextUpInView: InboxMessage? {
+		guard let next = inbox?.nextUp else { return filter == nil ? nil : visibleItems.first }
+		return filter == nil || visibleItems.contains { $0.id == next.id } ? next : visibleItems.first
 	}
 
 	// MARK: Filter and selection

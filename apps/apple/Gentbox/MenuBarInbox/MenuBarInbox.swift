@@ -74,7 +74,10 @@ private struct LayoutKey: Equatable {
 	let phase: String
 	let isRead: Bool
 	let expanded: InboxModel.Expanded?
-	let items: [String]
+	/// The visible messages whole, not their ids: a waiter coming or going
+	/// (answers or Snooze), a superseding summary or body, all change the
+	/// height and must animate.
+	let items: [InboxMessage]
 	let filter: String?
 	let filterOpenCount: Int
 	let hasSelection: Bool
@@ -90,7 +93,7 @@ private struct LayoutKey: Equatable {
 		}
 		isRead = inbox?.inbox != nil
 		expanded = inbox?.expanded
-		items = inbox?.visibleItems.map(\.id) ?? []
+		items = inbox?.visibleItems ?? []
 		filter = inbox?.filter?.threadId
 		filterOpenCount = inbox?.filterOpenCount ?? 0
 		hasSelection = !(inbox?.selection.isEmpty ?? true)
@@ -148,6 +151,12 @@ private struct InboxContent: View {
 
 	var body: some View {
 		if let snapshot = inbox.inbox {
+			// Above the list, and above the empty notice when the filtered
+			// thread held the last open items: Close stays in reach.
+			if let filter = inbox.filter {
+				FilterBanner(filter: filter, inbox: inbox)
+				Divider()
+			}
 			if inbox.isEmpty {
 				InboxNotice(symbol: "tray", title: "No agent needs you", caption: nil)
 			} else if scrolls {
@@ -174,17 +183,13 @@ private struct InboxContent: View {
 	}
 }
 
-/// The filter banner and the items, a rule between them.
+/// The items, a rule between them.
 private struct InboxList: View {
 	let inbox: InboxModel
 	let moveTargets: [TopicChoice]
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
-			if let filter = inbox.filter {
-				FilterBanner(filter: filter, inbox: inbox)
-				Divider()
-			}
 			ForEach(Array(inbox.visibleItems.enumerated()), id: \.element.id) { index, message in
 				if index > 0 {
 					// `.pp-line + .pp-line` (an.css:1140): a rule between items.

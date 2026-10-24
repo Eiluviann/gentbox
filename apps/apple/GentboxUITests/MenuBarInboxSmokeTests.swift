@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import XCTest
 
@@ -245,31 +246,32 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// content would drift further. Settled, they agree.
 	func testThePanelsHeightMovesWithTheContent() throws {
 		let frames = try traceFrames()
+		defer { attachTraceOnFailure(frames) }
 		let steps = Dictionary(grouping: frames) { $0.step }
 		XCTAssertEqual(
 			Set(steps.keys),
-			["expand-row", "collapse", "expand-another", "expand-then-refresh", "removal", "arrival"],
+			[
+				"expand-row", "collapse", "expand-another", "expand-then-refresh", "removal", "arrival", "update",
+				"expand-prompt", "waiter",
+			],
 		)
 		for (step, frames) in steps {
 			XCTAssertGreaterThan(frames.count, 5, step)
-			if step != "expand-then-refresh" {
-				// That one swaps two cards of one height.
+			if ["expand-row", "collapse", "removal", "arrival"].contains(step) {
 				XCTAssertGreaterThan(Set(frames.map(\.panelHeight)).count, 3, "the panel did not move in \(step)")
 			}
-			// A capture taken while SwiftUI redraws can miss the marker (-99);
-			// CI's screen recording showed the marker on the panel's edge at
-			// such a frame. One per step is a capture glitch, more is a gap.
-			let unreadable = frames.filter { $0.gap <= -99 }
-			XCTAssertLessThanOrEqual(unreadable.count, 1, "\(step): the content's bottom is cut off at \(unreadable.map(\.ms)) ms")
-			for (previous, frame) in zip(frames, frames.dropFirst()) where frame.gap > -99 {
+			let missing = frames.filter { $0.gap == nil }.map(\.ms)
+			XCTAssertEqual(missing, [], "\(step): no content bottom marker in the frames at these ms")
+			for (previous, frame) in zip(frames, frames.dropFirst()) {
+				guard let gap = frame.gap else { continue }
 				let sampleMotion = Double(abs(frame.panelHeight - previous.panelHeight))
 				XCTAssertLessThanOrEqual(
-					abs(frame.gap), sampleMotion + 1.5,
-					"\(step) at \(frame.ms) ms: the content's bottom is \(frame.gap) pt from the panel's, which moved \(sampleMotion) pt since the last sample",
+					abs(gap), sampleMotion + 1.5,
+					"\(step) at \(frame.ms) ms: the content's bottom is \(gap) pt from the panel's, which moved \(sampleMotion) pt since the last frame",
 				)
 			}
 			for frame in frames.suffix(3) {
-				XCTAssertTrue((0...1).contains(frame.gap), "\(step) settled \(frame.gap) pt from the panel's bottom")
+				XCTAssertTrue((0...1).contains(frame.gap ?? -1), "\(step) settled \(String(describing: frame.gap)) pt from the panel's bottom")
 			}
 		}
 	}
@@ -278,6 +280,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// edge stay where they were set, and only the bottom edge moves.
 	func testThePanelsTopEdgeNeverMoves() throws {
 		let frames = try traceFrames()
+		defer { attachTraceOnFailure(frames) }
 		XCTAssertGreaterThan(frames.count, 30)
 		XCTAssertEqual(Set(frames.map(\.panelTop)).count, 1, "the top edge moved: \(Set(frames.map(\.panelTop)))")
 		XCTAssertEqual(Set(frames.map(\.panelX)).count, 1, "the panel slid: \(Set(frames.map(\.panelX)))")
@@ -345,19 +348,27 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	// MARK: Helpers
 
 	private struct TraceFrame {
+		let number: Int
 		let step: String
 		let ms: Int
 		let panelX: Int
 		let panelTop: Int
 		let panelHeight: Int
-		let gap: Double
+		/// Nil when the frame shows no content bottom marker.
+		let gap: Double?
 	}
 
-	/// Launches the app with `AnimationTrace` over five items, posts one more
-	/// when the trace waits for an arrival, and reads its record.
+	private var traceFolder: URL {
+		stateFolder.appendingPathComponent("trace", isDirectory: true)
+	}
+
+	/// Launches the app with `AnimationTrace` over five items, answers each
+	/// `awaiting-<step>` it writes (a prompt arrives, the expanded item is
+	/// superseded with a shorter body, a waiter starts on the prompt), and
+	/// reads its record.
 	private func traceFrames() throws -> [TraceFrame] {
 		app.terminate()
-		let trace = stateFolder.appendingPathComponent("trace", isDirectory: true)
+		let trace = traceFolder
 		app.launchEnvironment["GENTBOX_TRACE_DIR"] = trace.path
 		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
 			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
@@ -365,22 +376,25 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let launchedAt = Date()
 		app.launch()
 		try waitForTheHub(startedAfter: launchedAt)
-		for index in 1...6 {
-			if index == 6 {
-				let awaiting = trace.appendingPathComponent("awaiting-arrival")
-				let deadline = Date().addingTimeInterval(40)
-				while !FileManager.default.fileExists(atPath: awaiting.path), Date() < deadline {
-					Thread.sleep(forTimeInterval: 0.2)
-				}
-			}
-			try post([
-				"type": "task_completed", "title": "Completed task number \(index)",
-				"body": "line one\nline two\nline three",
-				"conversation": ["id": "session-\(index)"],
-				"topic": ["key": "web", "title": "Web"],
-				"thread": ["key": "t\(index)", "title": "Thread \(index)"],
-			])
+		for index in 1...5 {
+			try post(completedTask(index, body: "line one\nline two\nline three"))
 		}
+		try awaitTrace("arrival")
+		let prompt = try post([
+			"type": "decision_required", "blocking": "blocking", "awaitsResponse": true,
+			"title": "Allow the deploy?", "body": "make deploy",
+			"conversation": ["id": "session-7"],
+			"topic": ["key": "web", "title": "Web"],
+			"thread": ["key": "t7", "title": "Thread 7"],
+			"actions": [["id": "allow", "label": "Approve", "kind": "approve"], ["id": "deny", "label": "Deny", "kind": "deny"]],
+		])
+		let expanded = try awaitTrace("update")
+		if let index = Int(expanded.split(separator: " ").last ?? "") {
+			try post(completedTask(index, body: "line one"), expecting: "200")
+		}
+		try awaitTrace("waiter")
+		let waiter = try longPoll(prompt)
+		defer { waiter.terminate() }
 		let csv = trace.appendingPathComponent("frames.csv")
 		let deadline = Date().addingTimeInterval(30)
 		while !FileManager.default.fileExists(atPath: csv.path), Date() < deadline {
@@ -390,11 +404,53 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			.split(separator: "\n").dropFirst()
 			.map { $0.split(separator: ",").map(String.init) }
 			.compactMap { fields in
-				guard fields.count == 8, let ms = Int(fields[2]), let x = Int(fields[3]), let top = Int(fields[4]),
-					let height = Int(fields[5]), let gap = Double(fields[7])
+				guard fields.count == 8, let number = Int(fields[0]), let ms = Int(fields[2]), let x = Int(fields[3]),
+					let top = Int(fields[4]), let height = Int(fields[5])
 				else { return nil }
-				return TraceFrame(step: fields[1], ms: ms, panelX: x, panelTop: top, panelHeight: height, gap: gap)
+				return TraceFrame(
+					number: number, step: fields[1], ms: ms, panelX: x, panelTop: top, panelHeight: height,
+					gap: Double(fields[7]),
+				)
 			}
+	}
+
+	/// One of the trace's items; posted again, it supersedes the first.
+	private func completedTask(_ index: Int, body: String) -> [String: Any] {
+		[
+			"type": "task_completed", "title": "Completed task number \(index)", "body": body,
+			"conversation": ["id": "session-\(index)"], "correlationKey": "task-\(index)",
+			"topic": ["key": "web", "title": "Web"],
+			"thread": ["key": "t\(index)", "title": "Thread \(index)"],
+		]
+	}
+
+	/// Waits for the trace's `awaiting-<step>` and returns what it holds.
+	@discardableResult
+	private func awaitTrace(_ step: String) throws -> String {
+		let file = traceFolder.appendingPathComponent("awaiting-\(step)")
+		let deadline = Date().addingTimeInterval(40)
+		while !FileManager.default.fileExists(atPath: file.path), Date() < deadline {
+			Thread.sleep(forTimeInterval: 0.1)
+		}
+		return try String(contentsOf: file, encoding: .utf8)
+	}
+
+	/// Keeps `frames.csv` and the frames of every failing step in the result
+	/// bundle.
+	private func attachTraceOnFailure(_ frames: [TraceFrame]) {
+		guard (testRun?.failureCount ?? 0) > 0 else { return }
+		let csv = XCTAttachment(contentsOfFile: traceFolder.appendingPathComponent("frames.csv"))
+		csv.name = "frames.csv"
+		csv.lifetime = .keepAlways
+		add(csv)
+		for frame in frames {
+			let png = traceFolder.appendingPathComponent(String(format: "%04d-%@.png", frame.number, frame.step))
+			guard let image = NSImage(contentsOf: png) else { continue }
+			let attachment = XCTAttachment(image: image)
+			attachment.name = png.lastPathComponent
+			attachment.lifetime = .keepAlways
+			add(attachment)
+		}
 	}
 
 	private func assertValue(_ value: String, of element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
@@ -426,9 +482,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	}
 
 	/// `curl -X POST /v1/messages` over loopback with the sender token, as an
-	/// agent would.
+	/// agent would: 201 for a new message, 200 when it supersedes one.
 	@discardableResult
-	private func post(_ fields: [String: Any]) throws -> String {
+	private func post(_ fields: [String: Any], expecting status: String = "201") throws -> String {
 		let (port, token) = try discovery()
 		var message: [String: Any] = [
 			"version": 1,
@@ -459,8 +515,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		curl.waitUntilExit()
 		let printed = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
 		let lines = printed.split(separator: "\n", omittingEmptySubsequences: false)
-		let status = lines.last.map(String.init) ?? ""
-		XCTAssertEqual(status, "201", "POST /v1/messages answered \(printed)")
+		XCTAssertEqual(lines.last.map(String.init), status, "POST /v1/messages answered \(printed)")
 		let response = lines.dropLast().joined(separator: "\n")
 		let json = try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
 		return json?["id"] as? String ?? ""

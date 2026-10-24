@@ -213,6 +213,24 @@ struct InboxModelTests {
 		#expect(model.filter == nil)
 	}
 
+	@Test func underAFilterTheHandOverStaysInTheFilteredThread() async {
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking, threadId: "th2")
+		let first = message(id: "first")
+		let second = message(id: "second")
+		let service = FakeService()
+		service.next = makeInbox(nextUp: prompt, items: [prompt, first, second])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		model.presentationChanged(isPresented: true)
+		_ = await model.closeThread(of: first)
+		#expect(model.filter?.threadId == "th1")
+		model.toggleExpansion(of: "first")
+
+		service.next = makeInbox(nextUp: prompt, items: [prompt, second])
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("second"))
+	}
+
 	@Test func bulkDismissDismissesEachItemAndSkipsActionRequired() async {
 		let (model, service) = await accordion()
 		let task = message(id: "task", type: .actionRequired)

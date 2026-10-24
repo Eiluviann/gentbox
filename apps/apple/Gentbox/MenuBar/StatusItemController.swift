@@ -31,6 +31,8 @@ final class StatusItemController: NSObject {
 	/// opening to closing. Only the height changes while it shows.
 	private var placement: (x: CGFloat, top: CGFloat, maxHeight: CGFloat)?
 	private var height = PanelHeightMotion(height: 0)
+	/// A new height, waiting for the next display frame to start from.
+	private var pendingHeight: CGFloat?
 	private var heightLink: CADisplayLink?
 	private var outsideClicks: Any?
 	#if DEBUG
@@ -49,6 +51,10 @@ final class StatusItemController: NSObject {
 		panel = InboxPanel(content: host.view)
 		super.init()
 		layout.onNaturalHeightChange = { [weak self] natural in self?.fitPanel(natural: natural) }
+		NotificationCenter.default.addObserver(
+			self, selector: #selector(screensChanged(_:)),
+			name: NSApplication.didChangeScreenParametersNotification, object: nil,
+		)
 		panel.onClose = { [weak self] in self?.closePanel() }
 		configureButton()
 		updateButton()
@@ -119,6 +125,7 @@ final class StatusItemController: NSObject {
 		panel.orderOut(nil)
 		heightLink?.invalidate()
 		heightLink = nil
+		pendingHeight = nil
 		placement = nil
 		if let outsideClicks {
 			NSEvent.removeMonitor(outsideClicks)
@@ -145,6 +152,15 @@ final class StatusItemController: NSObject {
 		layout.isCapped = natural > maxHeight
 		height.reset(to: frame.height)
 		panel.setFrame(frame, display: false, animate: false)
+	}
+
+	/// A display was added, removed or rearranged while the panel shows: the
+	/// cap follows the screen the panel is on. Its place stays.
+	@objc private func screensChanged(_: Notification) {
+		guard panel.isVisible, let placement, let screen = panel.screen ?? NSScreen.main else { return }
+		let maxHeight = placement.top - screen.visibleFrame.minY - InboxPanel.gap
+		self.placement = (placement.x, placement.top, maxHeight)
+		fitPanel(natural: layout.isCapped ? naturalHeight() : layout.naturalHeight)
 	}
 
 	/// The content's natural height, header and foot included, measured off
@@ -179,27 +195,34 @@ final class StatusItemController: NSObject {
 	}
 
 	/// The content's natural height changed, in the layout pass that starts
-	/// its animation: the panel's height starts towards it at once, on the
-	/// same curve, so the two move together. Taller than the screen, the
-	/// panel stops there and the content scrolls.
+	/// its animation: the panel's height starts towards it at the next
+	/// display frame, the first the animated content can be drawn in, on the
+	/// same curve, so the two move together (a stalled main thread delays
+	/// both alike). Taller than the screen, the panel stops there and the
+	/// content scrolls.
 	private func fitPanel(natural: CGFloat) {
 		guard panel.isVisible, let placement else { return }
 		let natural = ceil(natural)
 		layout.isCapped = natural > placement.maxHeight
-		height.retarget(to: min(natural, placement.maxHeight), at: CACurrentMediaTime())
-		guard heightLink == nil, height.isMoving(at: CACurrentMediaTime()) else { return }
+		let target = min(natural, placement.maxHeight)
+		guard target != height.target || pendingHeight != nil else { return }
+		pendingHeight = target
+		guard heightLink == nil else { return }
 		let link = panel.displayLink(target: self, selector: #selector(stepHeight(_:)))
 		link.add(to: .main, forMode: .common)
 		heightLink = link
 	}
 
 	/// One display frame of the height motion: the top edge and the left edge
-	/// stay; only the bottom edge moves.
+	/// stay; only the bottom edge moves. Retargets and frames share one
+	/// clock, the time of the frame.
 	@objc private func stepHeight(_ link: CADisplayLink) {
 		guard let placement else { return }
-		// The frame's own time, the clock SwiftUI animates the content on
-		// (`targetTimestamp`, a frame ahead, measured a frame's lead).
-		let time = link.timestamp
+		let time = CACurrentMediaTime()
+		if let pendingHeight {
+			height.retarget(to: pendingHeight, at: time)
+			self.pendingHeight = nil
+		}
 		let current = height.height(at: time)
 		panel.setFrame(
 			NSRect(x: placement.x, y: placement.top - current, width: Tokens.popoverWidth, height: current),
