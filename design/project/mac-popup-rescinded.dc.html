@@ -24,7 +24,8 @@ body{margin:0}
 <div data-theme="light" class="board rs-board">
 	<div class="frame" style="left: 28px">
 		<div class="panel bp">
-			<div class="bp-head"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg><div><div class="headline">Your input is needed</div><div class="tags" style="margin-top: 2px"><span class="tag paused">Paused · can defer</span></div></div></div>
+			<div class="bp-head"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg><div class="headline">Your input is needed</div></div>
+			<div class="tags bp-tags"><span class="tag paused">Paused · can defer</span></div>
 			<div class="headline">Which cluster gets the new certificates first?</div>
 			<div style="display: flex; gap: 6px"><button class="btn sm">staging-eu</button><button class="btn sm">staging-us</button><button class="btn sm">Defer</button></div>
 		</div>
@@ -34,7 +35,8 @@ body{margin:0}
 
 	<div class="frame" style="left: 370px">
 		<div class="panel bp" style="opacity: 0.45; transform: translateX(24px)">
-			<div class="bp-head"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><div><div class="headline">Withdrawn by agent</div><div class="caption">No longer needed</div></div></div>
+			<div class="bp-head"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><div class="headline">Withdrawn by agent</div></div>
+			<div class="caption" style="margin-top: -4px">No longer needed</div>
 			<div class="headline" style="color: var(--ink-3)">Which cluster gets the new certificates first?</div>
 		</div>
 	</div>
