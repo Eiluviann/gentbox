@@ -454,26 +454,29 @@ final class InboxContentView: FlippedView {
 			}
 			let wasShown = rows[id] === row
 			guard wasShown else {
-				// Parked under a filter and closed meanwhile: it goes.
-				if !isOpen { row.removeFromSuperview() }
+				// Parked under a filter and closed meanwhile: it goes. One
+				// still leaving (taken out ahead of the hub, which has now
+				// closed it) fades out first.
+				if !isOpen, !row.isLeaving { row.removeFromSuperview() }
 				continue
 			}
-			send(row, away: !isOpen, isAnimated: isAnimated)
+			send(row, isAnimated: isAnimated)
 		}
 		rows = kept
 		parkedRows = parked
 	}
 
-	/// A row leaves: it fades out where it was, then goes for good or parks.
-	private func send(_ row: InboxRowView, away isGone: Bool, isAnimated: Bool) {
+	/// A row leaves: it fades out where it was, then goes for good or, while
+	/// its item is still open then, parks.
+	private func send(_ row: InboxRowView, isAnimated: Bool) {
 		row.isLeaving = true
 		row.setAccessibilityElement(false)
 		let finish = { [weak self, weak row] in
 			guard let self, let row, row.isLeaving else { return }
-			if isGone {
-				row.removeFromSuperview()
-			} else {
+			if self.snapshot.openIds.contains(row.content.message.id) {
 				self.parkRow(row)
+			} else {
+				row.removeFromSuperview()
 			}
 		}
 		guard isAnimated else {

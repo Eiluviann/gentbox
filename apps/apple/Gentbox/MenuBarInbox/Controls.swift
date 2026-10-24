@@ -247,11 +247,16 @@ extension NSView {
 		setAccessible(!isConcealed)
 	}
 
-	/// In or out of VoiceOver's reach. A control's cell is an element of
-	/// its own on macOS 15, so it goes in or out with the control.
+	/// In or out of VoiceOver's reach. A control's element is its cell (a
+	/// button's role and actions are the cell's); the control view stays
+	/// out, or it would be a second element, of no role, over the cell.
 	func setAccessible(_ isAccessible: Bool) {
-		setAccessibilityElement(isAccessible)
-		(self as? NSControl)?.cell?.setAccessibilityElement(isAccessible)
+		guard let cell = (self as? NSControl)?.cell else {
+			setAccessibilityElement(isAccessible)
+			return
+		}
+		setAccessibilityElement(false)
+		cell.setAccessibilityElement(isAccessible)
 	}
 
 	/// Moves the view only when it isn't there already: AppKit redoes its

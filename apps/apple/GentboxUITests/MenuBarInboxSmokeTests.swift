@@ -192,6 +192,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(picked.waitForExistence(timeout: 5))
 		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
 		XCTAssertTrue(element("message:Allow Bash to run the ingest tests?").exists)
+		// The list got shorter under the pointer, which may now be below the
+		// card, where the panel lets the mouse through (and is hit by nothing).
+		element("action:Dismiss").hover()
 		XCTAssertTrue(element("action:Dismiss").isHittable)
 		attachSnapshot(named: "Expanded row")
 		// Its header (here, the breadcrumb in it) collapses it, leaving

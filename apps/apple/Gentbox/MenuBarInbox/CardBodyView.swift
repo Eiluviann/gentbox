@@ -193,20 +193,22 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 
 	/// The controls shown take clicks; the concealed ones never do, even
 	/// where one lies over a shown one (the reply field over the answers).
+	/// `FlippedView` answers a concealed part with the body itself, so a hit
+	/// on the body is looked at again too.
 	override func hitTest(_ point: NSPoint) -> NSView? {
 		guard isActive, let hit = super.hitTest(point) else { return nil }
-		let barViews = [controls, nextControls].compactMap { $0 }.flatMap(\.allViews)
-		guard barViews.contains(where: { hit === $0 || hit.isDescendant(of: $0) }) else { return hit }
-		if shownViews.contains(where: { hit === $0 || hit.isDescendant(of: $0) }) {
+		let shown = shownViews
+		if shown.contains(where: { hit === $0 || hit.isDescendant(of: $0) }) {
 			return hit
 		}
 		let local = convert(point, from: superview)
-		for view in shownViews.reversed() {
+		for view in shown.reversed() {
 			if let shownHit = view.hitTest(local) {
 				return shownHit
 			}
 		}
-		return self
+		let barViews = [controls, nextControls].compactMap { $0 }.flatMap(\.allViews)
+		return barViews.contains { hit === $0 || hit.isDescendant(of: $0) } ? self : hit
 	}
 
 	override func performKeyEquivalent(with event: NSEvent) -> Bool {

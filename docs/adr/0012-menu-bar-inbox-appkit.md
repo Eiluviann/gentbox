@@ -20,7 +20,7 @@ The inbox content is AppKit views with manual frame layout, animated by Core Ani
 - **One snapshot per change, diffed onto views.** `InboxContentView` reads the model under `withObservationTracking` into a value snapshot, updates only the rows and sections whose inputs changed, lays out in one pass and commits every motion of the change (row positions, fades, the card's height) in one Core Animation transaction from the presented values (`LayerMotion`). Rows are reused by message id; a superseding message takes over its predecessor's row; filtered-out rows and unused sections are parked below the card, not removed.
 - **Native controls built ahead.** The buttons and reply field of the cards a click or a hand-over can show next (the rows on screen and the next-up item) are created one per quiet run-loop turn (`IdleWork`: no input queued, no motion running), drawn at zero opacity, out of reach of clicks, keys and VoiceOver. Expanding only reveals them. Only the expanded card that stays takes keys: a card leaving, parked or hidden by a filter takes none, and a card handed over after an answer takes keys once its motion is over.
 - **A card-sized surface.** The surface is the card itself, with its own rounded corners (`masksToBounds`, no mask layer); the shadow is a nine-slice image drawn once; the ring and the shadow live in layer-hosting views, because AppKit re-sorts a view's own sublayers by subview order.
-- **No autofill on the reply field.** The app registers `NSAutoFillHeuristicsEnabled = false` in its own registration domain (in memory, this process only; Gentbox has no credential fields), and warms the field editor and the spell checker ahead of the first focus.
+- **No autofill on the reply field.** The app registers `NSAutoFillHeuristicsEnabled = false` and `NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac = true` in its own registration domain (in memory, this process only; Gentbox has no credential fields), and warms the field editor and the spell checker ahead of the first focus.
 - **No redundant AppKit bookkeeping.** Labels are sized from their cell, not `fittingSize` (which solves a temporary Auto Layout engine per call); symbol images are looked up once per name and size; unchanged fills and frames are not set again.
 - **Same text sizes in both states** (the user's decision): the expanded card uses the collapsed row's 13 pt semibold title and its context line; expanding adds content and actions and enlarges no text.
 
@@ -30,7 +30,7 @@ The inbox content is AppKit views with manual frame layout, animated by Core Ani
 - Layout is code: every row, card body and chrome section computes its own frames. Text metrics come from AppKit's own labels, so the stills match the SwiftUI build to the device pixel.
 - Accessibility is explicit: a collapsed row is one button element that reads urgency, title, context and wait state, with the value "Muted" when muted; an expanded card is a group of its parts.
 - Popups and toasts (PR 4) start from the same parts (`Controls.swift`, `LayerMotion`, `IdleWork`).
-- `NSAutoFillHeuristicsEnabled` is an AppKit defaults key, not public API. If a later macOS drops it, the reply field's first focus costs a few milliseconds again; nothing breaks.
+- The two autofill keys are AppKit defaults keys, not public API. If a later macOS drops them, the reply field's first focus costs a few milliseconds again; nothing breaks.
 
 ## Alternatives
 

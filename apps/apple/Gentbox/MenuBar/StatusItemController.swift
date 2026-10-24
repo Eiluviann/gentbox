@@ -50,6 +50,10 @@ final class StatusItemController: NSObject {
 		updateButton()
 		#if DEBUG || GENTBOX_HOOKS
 		if Self.isOffscreen {
+			// AppKit saves an item's visibility under its autosave name; under
+			// its own name, hiding it here leaves the real item shown on the
+			// next launch.
+			item.autosaveName = "gentbox.offscreen"
 			item.isVisible = false
 		}
 		#endif
