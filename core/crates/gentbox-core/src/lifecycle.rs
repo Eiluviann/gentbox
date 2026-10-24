@@ -333,9 +333,11 @@ pub fn take_action(
 ///   minutes` (default 15). Neither is ever returned to the sender.
 ///
 /// A message that is already closed refuses every action, so a rescinded
-/// message rejects late answers and a late second answer loses. The core does
-/// not know about live waiters: the hub checks [`crate::actions::offered_actions`]
-/// before pressing.
+/// message rejects late answers and a late second answer loses. An answer or
+/// Defer the message has no button for is [`ActionError::UnknownAction`]:
+/// Approve on a completion or Done on a decision never closes anything. The
+/// core does not know about live waiters: the hub checks
+/// [`crate::actions::offered_actions`] before pressing.
 pub fn press_action(
     message: &Message,
     press: &ActionPress,
@@ -346,7 +348,13 @@ pub fn press_action(
         return Err(closed_error(message));
     }
     match press.kind {
-        ActionKind::Defer => defer(message, now),
+        ActionKind::Defer => {
+            if message.blocking != Blocking::Deferrable {
+                return Err(ActionError::NotDeferrable);
+            }
+            pressed_action(message, press)?;
+            defer(message, now)
+        }
         ActionKind::Open => Ok(acknowledge_if_open(message, now)),
         ActionKind::Snooze => snooze(message, now, press.snooze_minutes),
         ActionKind::Approve
@@ -394,7 +402,7 @@ fn answer(
     press: &ActionPress,
     now: OffsetDateTime,
 ) -> Result<ActionOutcome, ActionError> {
-    let action_id = answering_action_id(message, press)?;
+    let action_id = pressed_action(message, press)?.id.clone();
     let lifecycle = apply_event(&message.lifecycle, &LifecycleEvent::Answer, now)
         .map_err(|_| closed_error(message))?;
     let mut answered = message.clone();
@@ -412,40 +420,23 @@ fn answer(
     })
 }
 
-/// The id an answer is recorded under: the pressed one (which must exist with
-/// that kind), else the message's first action of the kind, else the kind's
-/// own name (a Done on an `action_required` message the sender never gave a
-/// button for).
-fn answering_action_id(message: &Message, press: &ActionPress) -> Result<String, ActionError> {
-    let of_kind = |action: &&crate::message::Action| action.kind == press.kind;
+/// The button a press stands for: the pressed id (which must exist with that
+/// kind), else the message's first button of the kind. A kind the message has
+/// no button for is refused; the hub adds Done to every `action_required`
+/// message and Defer to every `deferrable` one, so those always exist.
+fn pressed_action<'a>(
+    message: &'a Message,
+    press: &ActionPress,
+) -> Result<&'a crate::message::Action, ActionError> {
+    let mut of_kind = message
+        .actions
+        .iter()
+        .filter(|action| action.kind == press.kind);
     match &press.action_id {
-        Some(id) => message
-            .actions
-            .iter()
-            .filter(of_kind)
-            .find(|action| &action.id == id)
-            .map(|action| action.id.clone())
-            .ok_or(ActionError::UnknownAction),
-        None => Ok(message
-            .actions
-            .iter()
-            .find(of_kind)
-            .map(|action| action.id.clone())
-            .unwrap_or_else(|| answer_kind_name(press.kind).to_owned())),
+        Some(id) => of_kind.find(|action| &action.id == id),
+        None => of_kind.next(),
     }
-}
-
-fn answer_kind_name(kind: ActionKind) -> &'static str {
-    match kind {
-        ActionKind::Approve => "approve",
-        ActionKind::Deny => "deny",
-        ActionKind::Choice => "choice",
-        ActionKind::Reply => "reply",
-        ActionKind::Done => "done",
-        ActionKind::Defer => "defer",
-        ActionKind::Open => "open",
-        ActionKind::Snooze => "snooze",
-    }
+    .ok_or(ActionError::UnknownAction)
 }
 
 fn acknowledge_if_open(message: &Message, now: OffsetDateTime) -> ActionOutcome {

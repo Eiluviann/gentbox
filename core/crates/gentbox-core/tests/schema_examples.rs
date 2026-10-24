@@ -56,6 +56,7 @@ const MESSAGES: &[&str] = &[
 const ACTION_RESPONSES: &[&str] = &[
     "answered-response.json",
     "deferred-response.json",
+    "gone-response.json",
     "rescinded-response.json",
 ];
 const THREAD_RECORDS: &[&str] = &["thread-record.json", "thread-record-implicit.json"];
@@ -84,7 +85,7 @@ fn every_example_file_is_covered_by_a_type() {
         .collect();
     let on_disk: BTreeSet<&str> = on_disk.iter().map(String::as_str).collect();
     assert_eq!(on_disk, known, "a new example needs a type in this test");
-    assert_eq!(known.len(), 21);
+    assert_eq!(known.len(), 22);
 }
 
 #[test]
@@ -221,4 +222,52 @@ fn unknown_fields_are_rejected_like_the_schema_does() {
     let mut json = read("generic.json");
     json["typo"] = Value::Bool(true);
     assert!(serde_json::from_value::<MessageInput>(json).is_err());
+}
+
+#[test]
+fn the_schema_lists_every_long_poll_status_and_nothing_else() {
+    use gentbox_core::response::ResponseStatus;
+    let schema: Value = serde_json::from_str(
+        &fs::read_to_string(examples_dir().join("../message-v1.json")).unwrap(),
+    )
+    .unwrap();
+    let in_schema: BTreeSet<String> =
+        schema["$defs"]["actionResponse"]["properties"]["status"]["enum"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|status| status.as_str().unwrap().to_owned())
+            .collect();
+    let in_core: BTreeSet<String> = [
+        ResponseStatus::Pending,
+        ResponseStatus::Answered,
+        ResponseStatus::Deferred,
+        ResponseStatus::Dismissed,
+        ResponseStatus::Rescinded,
+        ResponseStatus::Expired,
+        ResponseStatus::Gone,
+    ]
+    .iter()
+    .map(|status| {
+        serde_json::to_value(status)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned()
+    })
+    .collect();
+    assert_eq!(in_schema, in_core);
+}
+
+#[test]
+fn a_swept_message_answers_gone_with_nothing_else() {
+    use gentbox_core::ids::MessageId;
+    use gentbox_core::response::ResponseStatus;
+    let id = MessageId::new("01JBM3Z8Q7Y4K2N6P0R5T9VWXA");
+    let gone = ActionResponse::gone(id.clone());
+    assert_eq!(gone.status, ResponseStatus::Gone);
+    assert_eq!(
+        serde_json::to_value(&gone).unwrap(),
+        read("gone-response.json")
+    );
 }

@@ -10,8 +10,8 @@ use gentbox_core::message::Conversation;
 use gentbox_core::message::{ActionKind, Message};
 use gentbox_core::topic::GroupStatus;
 use gentbox_store::{
-    DEFAULT_RETENTION, DeliveryEvent, DeliveryRecord, EntityKind, MessageFilter, RetentionPolicy,
-    Store, StoreError, SweepReport,
+    DEFAULT_RETENTION, DEFAULT_SWEPT_ID_RETENTION, DeliveryEvent, DeliveryRecord, EntityKind,
+    MessageFilter, RetentionPolicy, Store, StoreError, SweepReport,
 };
 use support::{
     NOW, closed, general_topic, implicit_thread, memory_store, plain, seed_group, thread,
@@ -129,6 +129,7 @@ fn the_retention_period_is_configurable() {
     let policy = RetentionPolicy {
         message_retention: days(7),
         group_retention: days(7),
+        ..RetentionPolicy::default()
     };
     let report = store.repository().sweep(NOW, &policy).unwrap();
     assert_eq!(report.messages, 1);
@@ -624,4 +625,66 @@ fn the_sweep_works_on_messages_of_every_combination() {
             .messages,
         15
     );
+}
+
+#[test]
+fn a_swept_message_is_remembered_as_swept_and_others_are_not() {
+    let store = store_with_group();
+    insert_closed(&store, "old", LifecycleState::Answered, 40);
+    insert_closed(&store, "recent", LifecycleState::Answered, 2);
+    let repository = store.repository();
+    repository
+        .insert_message(&plain("open", "one", "one"), NOW)
+        .unwrap();
+
+    repository.sweep(NOW, &RetentionPolicy::default()).unwrap();
+    assert!(repository.was_swept(&support::message_id("old")).unwrap());
+    assert!(
+        !repository
+            .was_swept(&support::message_id("recent"))
+            .unwrap()
+    );
+    assert!(!repository.was_swept(&support::message_id("open")).unwrap());
+    assert!(
+        !repository
+            .was_swept(&support::message_id("never-stored"))
+            .unwrap()
+    );
+}
+
+#[test]
+fn a_second_sweep_keeps_what_the_first_remembered() {
+    let store = store_with_group();
+    insert_closed(&store, "old", LifecycleState::Expired, 40);
+    let repository = store.repository();
+    repository.sweep(NOW, &RetentionPolicy::default()).unwrap();
+    repository
+        .sweep(NOW + days(1), &RetentionPolicy::default())
+        .unwrap();
+    assert!(repository.was_swept(&support::message_id("old")).unwrap());
+}
+
+#[test]
+fn swept_ids_are_forgotten_after_their_own_retention_period() {
+    let store = store_with_group();
+    insert_closed(&store, "old", LifecycleState::Answered, 40);
+    let repository = store.repository();
+    let policy = RetentionPolicy::default();
+    assert_eq!(policy.swept_id_retention, DEFAULT_SWEPT_ID_RETENTION);
+    repository.sweep(NOW, &policy).unwrap();
+
+    repository
+        .sweep(NOW + DEFAULT_SWEPT_ID_RETENTION, &policy)
+        .unwrap();
+    assert!(
+        repository.was_swept(&support::message_id("old")).unwrap(),
+        "the cutoff is strict"
+    );
+    repository
+        .sweep(
+            NOW + DEFAULT_SWEPT_ID_RETENTION + Duration::nanoseconds(1),
+            &policy,
+        )
+        .unwrap();
+    assert!(!repository.was_swept(&support::message_id("old")).unwrap());
 }

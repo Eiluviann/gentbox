@@ -1,0 +1,28 @@
+[package]
+name = "gentbox-hub"
+description = "Gentbox hub actor: serialises every state change, live waiters, timers and dispatch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+gentbox-core = { path = "../gentbox-core" }
+gentbox-relay = { path = "../gentbox-relay" }
+gentbox-store = { path = "../gentbox-store" }
+getrandom = "0.3.4"
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["serde-well-known"] }
+tokio = { version = "1.52.1", features = ["rt", "sync", "time", "macros"] }
+tracing = "0.1.44"
+ulid = "1.2.1"
+
+[dev-dependencies]
+serde_json = "1.0.154"
+tempfile = "3.27.0"
+time = { version = "0.3.55", features = ["macros"] }
+tokio = { version = "1.52.1", features = ["rt", "rt-multi-thread", "sync", "time", "macros", "test-util"] }
+
+[lints]
+workspace = true

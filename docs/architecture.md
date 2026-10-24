@@ -197,10 +197,11 @@ Closing a popup or a notification only acknowledges.
 | `dismissed` | `dismissed` |
 | `rescinded` | `rescinded`, with `rescindReason` |
 | `expired` | `expired` |
+| Deleted by retention (30 days after closing) | `gone`: the outcome is no longer known; an id the hub never issued answers 404 instead |
 
 Default `expiresAt` when the sender gives none: `blocking` and `deferrable` 24 h, `non_blocking` decisions and actions 7 days, `task_completed` 7 days, `generic` 24 h. `generic` messages are born `acknowledged`: they never badge.
 
-**Retention.** Answered, dismissed, rescinded and expired messages are deleted after 30 days. Since every message has a default expiry, nothing stays open forever unless a sender sets a far `expiresAt`. Configurable; the sweep runs at start and daily.
+**Retention.** Answered, dismissed, rescinded and expired messages are deleted after 30 days. Since every message has a default expiry, nothing stays open forever unless a sender sets a far `expiresAt`. Configurable; the sweep runs at start and daily. The sweep remembers the ids it deleted for one more year, storing only the id and when it was swept, so a late poll answers `gone` instead of 404.
 
 ### 5.3 Classification
 
@@ -382,7 +383,7 @@ ADR: [0002](adr/0002-ingest-transport.md).
 - The same router on HTTP/1.1 `127.0.0.1:<port>` (random free port at start, never `0.0.0.0`) for clients that cannot use a socket.
 - Remote listener for the own iOS app's full bodies, off by default and only with Tailscale (§10, optional M3).
 
-**Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/Gentbox/API`, then `$XDG_STATE_HOME/gentbox/API` (`GENTBOX_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `HMAC-SHA256(token, nonce)`. The client sends its bearer token only after checking that proof, so a process of another user squatting on a port left behind by a crash learns nothing.
+**Discovery** (Vaultday's pattern, hardened). `<state>/API/` (0700) holds `hub.sock`, `token` (0600, 256-bit random, base64url) and `port`. The hub removes `port` on quit. Clients (CLI, MCP server, hook) search the App Group container, then `~/Library/Application Support/Gentbox/API`, then `$XDG_STATE_HOME/gentbox/API` (`GENTBOX_API_DIR` overrides), use the socket when it exists, and fall back to TCP only after the hub proves itself: `POST /v1/hello {"nonce": "<random>"}` is the one unauthenticated route and answers `proof = base64url(HMAC-SHA256(token, "gentbox-hello-v1\0" + port + "\0" + nonce))`, where `port` is the hub's TCP port in decimal (the one in `API/port`) and `\0` a zero byte. The client recomputes it for the port it dialed, compares in constant time, and sends its bearer token only after that check. A process of another user squatting on a port left behind by a crash learns nothing, and cannot relay a client's nonce to the real hub on another port, because the proof is bound to the port.
 
 **Endpoints** (all but `hello` require `Authorization: Bearer <token>`, the sender token). `{id}` is always the hub-assigned message id.
 
@@ -406,6 +407,8 @@ ADR: [0002](adr/0002-ingest-transport.md).
 | `POST /v1/threads/{id}/close` · `/reopen` · `/rescind` | Close (optionally withdrawing its open messages), reopen, or withdraw its open messages |
 | `PUT /v1/threads/{id}/topic` | Move a thread with its messages to another topic |
 | `PUT /v1/messages/{id}/thread` | Move a message to another thread, or back to its default resolution with `null` |
+
+**Agent identity is self-asserted.** Routes that act for an agent without naming it in the body take its id in the `Gentbox-Agent` header (and optionally the conversation in `Gentbox-Conversation`); the conversation routes take it from the path. One sender token serves every agent, so these names are what the sender says: they keep a buggy agent from withdrawing or moving another agent's messages, not a malicious one. Per-agent tokens are a later change.
 
 **No answer route for senders.** The sender token can post, wait, rescind and report progress, but cannot answer or list messages (rescinding never answers): an agent that can read `API/token` must not be able to approve its own permission prompt or read other sessions' messages. Answers come only from the Mac UI (in-process, through FFI) and from the phone with per-action tokens (§9.3). A local "answer from the CLI" is Planned behind a separate answer credential kept in the Keychain with user presence (Touch ID), which an agent cannot read silently.
 
