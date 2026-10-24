@@ -12,22 +12,60 @@ public protocol InboxService: AnyObject, Sendable {
 	func muteThread(threadId: String, isMuted: Bool) async throws
 	func markTopicRead(topicId: String) async throws
 	func markThreadRead(threadId: String) async throws
-	func closeTopic(topicId: String, dismissOpenMessages: Bool) async throws
+	func closeTopic(topicId: String) async throws
 	func reopenTopic(topicId: String) async throws
-	func closeThread(threadId: String, dismissOpenMessages: Bool) async throws
+	func closeThread(threadId: String) async throws
 	func reopenThread(threadId: String) async throws
 	func moveThread(threadId: String, topicId: String) async throws
 }
 
 extension GentboxHub: InboxService {}
 
-/// The menu-bar inbox's state on the main actor: the grouped inbox, read
-/// again whenever the hub reports a change, and the commands you send from
-/// it. Reads coalesce: a burst of events costs one or two reads, never one
-/// per event.
+/// The menu-bar inbox's state on the main actor: the inbox, read again
+/// whenever the hub reports a change; which item is expanded (an accordion:
+/// one at most); a filter to one thread's open items; the rows picked for a
+/// bulk Dismiss; and the commands you send. Reads coalesce: a burst of events
+/// costs one or two reads, never one per event.
 @MainActor
 @Observable
 public final class InboxModel {
+	/// What is expanded: the full card, or (PR 4) the undo bar of an answer
+	/// held for 3 s in place of the card (design: `mac-popover-undo`).
+	public enum Expanded: Equatable, Sendable {
+		case card(String)
+		case held(String)
+
+		public var messageId: String {
+			switch self {
+			case .card(let id), .held(let id): id
+			}
+		}
+	}
+
+	/// What Close did.
+	public enum CloseOutcome: Equatable, Sendable {
+		case closed
+		/// Not closed: this many items are still open; the list now shows them.
+		case stillOpen(Int)
+	}
+
+	/// The list narrowed to one thread's open items, after Close found some.
+	public struct GroupFilter: Equatable, Sendable {
+		public let threadId: String
+		public let title: String
+		public let openCount: Int
+	}
+
+	/// How the expanded item is chosen.
+	private enum ExpansionChoice: Equatable {
+		/// The next-up item: a waiting sender first, then the blocking level.
+		case followNextUp
+		/// The item you expanded, until it leaves the list.
+		case chosen(Expanded)
+		/// You collapsed the expanded item: nothing, until you expand one.
+		case collapsed
+	}
+
 	/// The inbox as last read; `nil` until the first read finishes.
 	public private(set) var inbox: Inbox?
 	/// What went wrong, in words, for the popover's foot: the last command
@@ -35,14 +73,17 @@ public final class InboxModel {
 	public var failure: String? {
 		commandFailure ?? readFailure
 	}
+	/// The list narrowed to one thread, or `nil` for everything.
+	public private(set) var filter: GroupFilter?
+	/// The rows picked for a bulk Dismiss.
+	public private(set) var selection: Set<String> = []
 
 	/// A command's failure stays until the next command works: the read that
 	/// follows every command must not wipe it.
 	private var commandFailure: String?
 	/// A read's failure clears with the next read that works.
 	private var readFailure: String?
-	/// The row you picked; it takes the full card until it leaves the list.
-	public var selectedMessageId: String?
+	private var expansion: ExpansionChoice = .followNextUp
 
 	@ObservationIgnored private let service: any InboxService
 	@ObservationIgnored private var isReading = false
@@ -67,20 +108,87 @@ public final class InboxModel {
 		inbox?.items.isEmpty ?? true
 	}
 
-	/// The message in the full card (design: "Next up"): the row you picked,
-	/// else the one an agent is blocked on, else none.
-	public var card: InboxMessage? {
-		guard let inbox else { return nil }
-		if let selectedMessageId, let picked = inbox.items.first(where: { $0.id == selectedMessageId }) {
-			return picked
-		}
-		return inbox.nextUp
+	/// The list as drawn: everything, most pressing first, or one thread's
+	/// items under a filter.
+	public var visibleItems: [InboxMessage] {
+		let items = inbox?.items ?? []
+		guard let filter else { return items }
+		return items.filter { $0.threadId == filter.threadId }
 	}
 
-	/// The two-line list: everything but the card, most pressing first.
-	public var list: [InboxMessage] {
-		let cardId = card?.id
-		return (inbox?.items ?? []).filter { $0.id != cardId }
+	// MARK: Expansion
+
+	/// The expanded item, if any.
+	public var expanded: Expanded? {
+		switch expansion {
+		case .followNextUp:
+			return inbox?.nextUp.map { .card($0.id) }
+		case .chosen(let chosen):
+			return chosen
+		case .collapsed:
+			return nil
+		}
+	}
+
+	public func isExpanded(_ messageId: String) -> Bool {
+		expanded?.messageId == messageId
+	}
+
+	/// A click on a row expands it and collapses the one that was open; a
+	/// click on the expanded card's header collapses it.
+	public func toggleExpansion(of messageId: String) {
+		expansion = isExpanded(messageId) ? .collapsed : .chosen(.card(messageId))
+	}
+
+	/// The inbox closed: the next opening starts from the next-up item.
+	public func resetExpansion() {
+		expansion = .followNextUp
+		filter = nil
+		selection = []
+	}
+
+	/// After a read: an expanded item that left the list (answered,
+	/// dismissed, withdrawn) hands over to the next-up item.
+	private func keepExpansionCurrent() {
+		guard case .chosen(let chosen) = expansion else { return }
+		if !(inbox?.items.contains { $0.id == chosen.messageId } ?? false) {
+			expansion = .followNextUp
+		}
+	}
+
+	// MARK: Filter and selection
+
+	public func clearFilter() {
+		filter = nil
+	}
+
+	/// Bulk Dismiss never takes an `action_required` message: only Done
+	/// closes those.
+	public func canSelect(_ message: InboxMessage) -> Bool {
+		message.messageType != .actionRequired
+	}
+
+	public func toggleSelection(of message: InboxMessage) {
+		guard canSelect(message) else { return }
+		if selection.contains(message.id) {
+			selection.remove(message.id)
+		} else {
+			selection.insert(message.id)
+		}
+	}
+
+	public func clearSelection() {
+		selection = []
+	}
+
+	/// Dismisses each picked row as if it were dismissed alone: its agent
+	/// hears a plain `dismissed`.
+	public func dismissSelected() async {
+		let picked = (inbox?.items ?? []).filter { selection.contains($0.id) && canSelect($0) }
+		selection = []
+		for message in picked {
+			await dismiss(message)
+		}
 	}
 
 	/// Any hub event: read the inbox again.
@@ -107,6 +215,8 @@ public final class InboxModel {
 			do {
 				inbox = try await service.inbox()
 				readFailure = nil
+				keepExpansionCurrent()
+				selection = selection.filter { id in inbox?.items.contains { $0.id == id } ?? false }
 			} catch {
 				readFailure = Self.words(for: error)
 			}
@@ -147,17 +257,26 @@ public final class InboxModel {
 		await run { try await $0.markThreadRead(threadId: threadId) }
 	}
 
-	/// Closes a topic; with `dismissingOpenMessages` its open messages are
-	/// dismissed (never withdrawn: that is the agent's word).
-	public func closeTopic(_ topicId: String, dismissingOpenMessages: Bool) async {
-		await run { try await $0.closeTopic(topicId: topicId, dismissOpenMessages: dismissingOpenMessages) }
+	/// Close on a message's thread. A thread closes only when nothing in it
+	/// is open, so while items are open this narrows the list to them
+	/// ("N items still open") and closes nothing; there is no close-and-
+	/// dismiss. Snoozed items the list does not show make the hub refuse
+	/// too, and that refusal is worded in the foot.
+	public func closeThread(of message: InboxMessage) async -> CloseOutcome {
+		let open = (inbox?.items ?? []).filter { $0.threadId == message.threadId }
+		guard open.isEmpty else {
+			filter = GroupFilter(
+				threadId: message.threadId,
+				title: message.group?.threadTitle ?? "this thread",
+				openCount: open.count,
+			)
+			return .stillOpen(open.count)
+		}
+		await run { try await $0.closeThread(threadId: message.threadId) }
+		return commandFailure == nil ? .closed : .stillOpen(0)
 	}
 
-	/// Closes a thread; see `closeTopic`.
-	public func closeThread(_ threadId: String, dismissingOpenMessages: Bool) async {
-		await run { try await $0.closeThread(threadId: threadId, dismissOpenMessages: dismissingOpenMessages) }
-	}
-
+	/// Reopens a closed topic or thread (History and Settings, PR 5).
 	public func reopen(_ group: ClosedGroup) async {
 		switch group.kind {
 		case .topic: await run { try await $0.reopenTopic(topicId: group.id) }
@@ -192,6 +311,8 @@ public final class InboxModel {
 			default: return "Already closed"
 			}
 		case .NotFound: return "No longer there"
+		case .HasOpenMessages(let count): return count == 1 ? "1 item still open" : "\(count) items still open"
+		case .GeneralTopic: return "General cannot be closed"
 		case .Refused(let message): return message
 		case .Stopped: return "Gentbox has stopped"
 		case .AnotherHubRunning(let message), .CannotStart(let message), .Internal(let message):
