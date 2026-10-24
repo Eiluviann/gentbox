@@ -87,3 +87,9 @@ The list is code with table tests, like the guard's.
 - **A markdown "Plan" section inside `body`:** no structure to tick off, nothing to validate, and surfaces would parse markdown to find it.
 - **Reject missing plans by default:** strands blocking agents (as with titles).
 - **Steps on every type:** decisions and completions have no "how"; keeping steps to `action_required` keeps the UI and the validation simple.
+
+## Amendments
+
+### Amendment (2026-10-24): the MCP tools enforce `steps` in validation, not in the advertised schema
+
+The Claude API rejects `allOf`, `anyOf` and `oneOf` at the root of a tool's input schema (HTTP 400), so the root of `notify` and `ask` stays a plain `{ "type": "object" }`. The decision above is unchanged: `steps` is required whenever `type` is `action_required`. The MCP server enforces it with zod, which answers a call without `steps` with an error at path `steps` ("`steps` is required when `type` is `action_required`"), and the tool and `steps` descriptions state the rule with an example. Status stays Accepted.
