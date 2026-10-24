@@ -131,19 +131,26 @@ private struct InboxContent: View {
 	}
 }
 
-/// After Close found open items: "2 items still open in Phase 3", and Show
-/// all to leave the filter.
+/// After Close found open items: "2 items still open in Phase 3", counted
+/// live as they close, and Show all to leave the filter. At 0 the banner
+/// offers the plain Close.
 private struct FilterBanner: View {
 	let filter: InboxModel.GroupFilter
 	let inbox: InboxModel
 
 	var body: some View {
+		let count = inbox.filterOpenCount
 		HStack(spacing: 8) {
-			Text(filter.openCount == 1 ? "1 item still open in \(filter.title)" : "\(filter.openCount) items still open in \(filter.title)")
+			Text(Self.words(count: count, title: filter.title))
 				.font(.system(size: 11))
 				.foregroundStyle(.secondary)
 				.frame(maxWidth: .infinity, alignment: .leading)
 				.accessibilityIdentifier("inbox.filter")
+			if count == 0 {
+				Button("Close thread") { Task { await inbox.closeFilteredThread() } }
+					.buttonStyle(DesignButtonStyle(kind: .primary, size: .small))
+					.accessibilityIdentifier("inbox.close-filtered")
+			}
 			Button("Show all") { inbox.clearFilter() }
 				.buttonStyle(.plain)
 				.font(.system(size: 12))
@@ -151,6 +158,14 @@ private struct FilterBanner: View {
 				.accessibilityIdentifier("inbox.show-all")
 		}
 		.padding(EdgeInsets(top: 8, leading: Tokens.rowHorizontalPadding, bottom: 8, trailing: 12))
+	}
+
+	static func words(count: Int, title: String) -> String {
+		switch count {
+		case 0: "Nothing open in \(title)"
+		case 1: "1 item still open in \(title)"
+		default: "\(count) items still open in \(title)"
+		}
 	}
 }
 

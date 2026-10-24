@@ -165,6 +165,12 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 
 		openInbox()
 		let card = element("card:Allow Bash to run the ingest tests?")
+		// With the inbox open from launch, the first blocked-on message to
+		// arrive was pinned, and a later prompt never takes its place: expand
+		// the prompt by its row.
+		if !card.waitForExistence(timeout: 3) {
+			element("message:Allow Bash to run the ingest tests?").click()
+		}
 		XCTAssertTrue(card.waitForExistence(timeout: 10))
 		XCTAssertTrue(element("action:Approve").waitForExistence(timeout: 5))
 		XCTAssertTrue(element("action:Deny").exists)
@@ -213,16 +219,15 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let deferred = String(decoding: (waiter.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(), as: UTF8.self)
 		XCTAssertTrue(deferred.contains("\"deferred\""), deferred)
 
-		// Deferred, it no longer blocks the agent and leaves the card, but it
-		// stays in the list and Done still finishes it.
-		let row = element("message:Sign in to the payments sandbox")
-		XCTAssertTrue(row.waitForExistence(timeout: 5))
-		row.click()
+		// Deferred, it no longer blocks the agent, but it stays open, and its
+		// pinned card keeps Done in reach to finish it.
+		XCTAssertTrue(card.exists)
 		let done = element("action:Done")
 		XCTAssertTrue(done.waitForExistence(timeout: 5))
+		XCTAssertFalse(element("action:Defer").exists)
 		done.click()
-		XCTAssertTrue(row.waitForNonExistence(timeout: 5))
 		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
+		XCTAssertFalse(element("message:Sign in to the payments sandbox").exists)
 	}
 
 	/// The accordion springs inside a panel that holds its height: a panel
@@ -265,6 +270,65 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			let duringSpring = frames.filter { (Int($0[2]) ?? 0) < 500 }
 			let heights = Set(duringSpring.map { $0[4] })
 			XCTAssertEqual(heights.count, 1, "the panel changed height mid-spring in \(step): \(heights)")
+		}
+	}
+
+	/// The card's keys work in the panel, which never activates the app: ↩
+	/// approves, ⌘⌫ denies, R opens the reply field, where typing and ↩ send.
+	func testTheCardsKeysAnswerInThePanel() throws {
+		let prompts = [
+			("Allow editing a.ts?", "approve"),
+			("Allow editing b.ts?", "deny"),
+			("Allow editing c.ts?", "reply"),
+		]
+		var waiters: [String: Process] = [:]
+		for (index, (title, _)) in prompts.enumerated() {
+			let id = try post([
+				"type": "decision_required", "blocking": "blocking", "awaitsResponse": true, "title": title,
+				"conversation": ["id": "keys-\(index)"],
+				"actions": [
+					["id": "allow", "label": "Approve", "kind": "approve"],
+					["id": "deny", "label": "Deny", "kind": "deny"],
+					["id": "reply", "label": "Reply", "kind": "reply"],
+				],
+			])
+			waiters[title] = try longPoll(id)
+		}
+		defer { waiters.values.forEach { $0.terminate() } }
+		openInbox()
+
+		for _ in prompts {
+			// The expanded card is the pinned next-up prompt; act on it by key.
+			let expanded = try XCTUnwrap(
+				prompts.first { element("card:\($0.0)").waitForExistence(timeout: 5) },
+				"no card expanded",
+			)
+			let card = element("card:\(expanded.0)")
+			// A click in the card's empty corner gives the panel the keyboard.
+			card.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.9)).click()
+			switch expanded.1 {
+			case "approve":
+				app.typeKey(.return, modifierFlags: [])
+			case "deny":
+				app.typeKey(.delete, modifierFlags: .command)
+			default:
+				app.typeKey("r", modifierFlags: [])
+				let field = element("reply-field")
+				XCTAssertTrue(field.waitForExistence(timeout: 5))
+				field.click()
+				field.typeText("Use the staging cluster")
+				app.typeKey(.return, modifierFlags: [])
+			}
+			let waiter = try XCTUnwrap(waiters[expanded.0])
+			waiter.waitUntilExit()
+			let answer = String(decoding: (waiter.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(), as: UTF8.self)
+			XCTAssertTrue(answer.contains("\"answered\""), "\(expanded.0): \(answer)")
+			switch expanded.1 {
+			case "approve": XCTAssertTrue(answer.contains("\"allow\""), answer)
+			case "deny": XCTAssertTrue(answer.contains("\"deny\""), answer)
+			default: XCTAssertTrue(answer.contains("Use the staging cluster"), answer)
+			}
+			XCTAssertTrue(card.waitForNonExistence(timeout: 5))
 		}
 	}
 

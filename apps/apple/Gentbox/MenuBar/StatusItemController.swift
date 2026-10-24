@@ -44,6 +44,7 @@ final class StatusItemController: NSObject {
 		measuringHost.sizingOptions = []
 		panel = InboxPanel(content: host.view)
 		super.init()
+		panel.onClose = { [weak self] in self?.closePanel() }
 		configureButton()
 		updateButton()
 		fitOnChange()
@@ -94,6 +95,7 @@ final class StatusItemController: NSObject {
 	/// and R) without activating the app.
 	private func showPanel(takingKeyboard: Bool) {
 		app.inbox?.requestRead()
+		app.inbox?.presentationChanged(isPresented: true)
 		placePanel()
 		if takingKeyboard {
 			panel.makeKeyAndOrderFront(nil)
@@ -108,13 +110,14 @@ final class StatusItemController: NSObject {
 	}
 
 	private func closePanel() {
+		guard panel.isVisible else { return }
 		panel.orderOut(nil)
 		if let outsideClicks {
 			NSEvent.removeMonitor(outsideClicks)
 		}
 		outsideClicks = nil
 		// The next opening starts again from the next-up item, unfiltered.
-		app.inbox?.resetExpansion()
+		app.inbox?.presentationChanged(isPresented: false)
 	}
 
 	/// Sizes the panel to its content and hangs it under the status item, at
@@ -155,8 +158,13 @@ final class StatusItemController: NSObject {
 			_ = app.inbox?.selection
 		} onChange: { [weak self] in
 			Task { @MainActor in
-				self?.scheduleFit()
-				self?.fitOnChange()
+				guard let self else { return }
+				// An inbox that starts while the panel shows is shown too.
+				if self.panel.isVisible {
+					self.app.inbox?.presentationChanged(isPresented: true)
+				}
+				self.scheduleFit()
+				self.fitOnChange()
 			}
 		}
 	}

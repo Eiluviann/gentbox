@@ -58,9 +58,20 @@ final class InboxPanel: NSPanel {
 	override var canBecomeKey: Bool { true }
 	override var canBecomeMain: Bool { false }
 
+	/// How the panel closes: the controller's close, which also removes its
+	/// click monitor and resets the inbox's expansion, filter and selection.
+	var onClose: (() -> Void)?
+
 	/// Escape closes it, as it would a menu.
 	override func cancelOperation(_: Any?) {
-		orderOut(nil)
+		onClose?()
+	}
+
+	/// Losing the keyboard to another app (⌘Tab, a click elsewhere) closes
+	/// it, so it never floats over every Space unattended.
+	override func resignKey() {
+		super.resignKey()
+		onClose?()
 	}
 
 	/// Where the panel goes: under `anchor` (the status item, in screen

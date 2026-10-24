@@ -12,6 +12,9 @@ struct TypeIcon: View {
 			Image(systemName: InboxWords.typeSymbol(for: message))
 				.font(.system(size: size))
 				.foregroundStyle(Self.color(for: message.messageType))
+				// Decorative: `checkmark.circle` would read "Selected" and carry
+				// the Selected trait, which bulk Dismiss's picks use.
+				.accessibilityHidden(true)
 			if message.isUrgent {
 				Image(systemName: "figure.walk.motion")
 					.font(.system(size: size - 2))
@@ -123,6 +126,7 @@ struct InboxItem: View {
 	@State private var isHovered = false
 	@State private var reply = ""
 	@State private var isReplying = false
+	@FocusState private var isReplyFocused: Bool
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 0) {
@@ -254,7 +258,10 @@ struct InboxItem: View {
 			HStack(spacing: 6) {
 				TextField(replyAction.placeholder ?? "Reply", text: $reply)
 					.textFieldStyle(.roundedBorder)
+					.focused($isReplyFocused)
+					.onAppear { isReplyFocused = true }
 					.onSubmit { send(replyAction) }
+					.accessibilityIdentifier("reply-field")
 				Button("Send") { send(replyAction) }
 					.buttonStyle(DesignButtonStyle(kind: .primary, hint: "↩"))
 					.keyboardShortcut(.defaultAction)
