@@ -858,6 +858,38 @@ impl HubHandle {
             .await
     }
 
+    /// You close a topic, and so its open threads, from the Mac. With
+    /// `dismiss_open_messages` its open messages are dismissed: waiting senders
+    /// hear `dismissed`, never `rescinded`, which only an agent's own withdrawal
+    /// produces. `action_required` messages stay open; only Done closes them.
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::TopicNotFound`].
+    pub async fn close_topic_for_user(
+        &self,
+        id: TopicId,
+        dismiss_open_messages: bool,
+    ) -> Result<TopicRecord, HubError> {
+        self.call(move |hub| hub.close_topic_for_user(&id, dismiss_open_messages))
+            .await
+    }
+
+    /// You close a thread from the Mac; see
+    /// [`HubHandle::close_topic_for_user`].
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::ThreadNotFound`].
+    pub async fn close_thread_for_user(
+        &self,
+        id: ThreadId,
+        dismiss_open_messages: bool,
+    ) -> Result<ThreadRecord, HubError> {
+        self.call(move |hub| hub.close_thread_for_user(&id, dismiss_open_messages))
+            .await
+    }
+
     /// Mutes or unmutes a topic (and so its threads).
     ///
     /// # Errors

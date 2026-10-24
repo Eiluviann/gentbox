@@ -19,7 +19,7 @@ use gentbox_core::item::{DeliveredSurfaces, OpenItem};
 use gentbox_core::lifecycle::{
     ActionOutcome, ActionPress, LifecycleEvent, LifecycleState, apply_event, dismiss, press_action,
 };
-use gentbox_core::message::{Action, ActionKind, Conversation, Message, MessageInput};
+use gentbox_core::message::{Action, ActionKind, Conversation, Message, MessageInput, MessageType};
 use gentbox_core::policy::{
     DeliveryPlan, MacSurface, Policy, PolicyContext, Presence, PresenceState, decide,
 };
@@ -962,6 +962,49 @@ impl HubState {
         self.finish_withdrawals(withdrawn, now);
         self.dispatcher.send(HubEvent::ThreadChanged(id.clone()));
         Ok(self.store.repository().thread_record(id)?)
+    }
+
+    pub(crate) fn close_topic_for_user(
+        &mut self,
+        id: &TopicId,
+        dismiss_open_messages: bool,
+    ) -> Result<TopicRecord, HubError> {
+        self.close_topic(id, &CloseRequest::default(), None)?;
+        if dismiss_open_messages {
+            self.dismiss_open_messages(MessageFilter {
+                topic_id: Some(id.clone()),
+                ..MessageFilter::default()
+            })?;
+        }
+        Ok(self.store.repository().topic_record(id)?)
+    }
+
+    pub(crate) fn close_thread_for_user(
+        &mut self,
+        id: &ThreadId,
+        dismiss_open_messages: bool,
+    ) -> Result<ThreadRecord, HubError> {
+        self.close_thread(id, &CloseRequest::default(), None)?;
+        if dismiss_open_messages {
+            self.dismiss_open_messages(MessageFilter {
+                thread_id: Some(id.clone()),
+                ..MessageFilter::default()
+            })?;
+        }
+        Ok(self.store.repository().thread_record(id)?)
+    }
+
+    /// Dismisses the live messages the filter matches, in this actor turn;
+    /// `action_required` ones stay open, since only Done closes them.
+    fn dismiss_open_messages(&mut self, filter: MessageFilter) -> Result<(), HubError> {
+        let open = self.store.repository().list_messages(&filter)?;
+        for message in open
+            .iter()
+            .filter(|message| message.message_type != MessageType::ActionRequired)
+        {
+            self.dismiss(&message.id)?;
+        }
+        Ok(())
     }
 
     pub(crate) fn reopen_thread(&mut self, id: &ThreadId) -> Result<ThreadRecord, HubError> {
