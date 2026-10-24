@@ -414,6 +414,24 @@ fn an_item_the_hub_cleared_is_already_closed_as_handled_in_the_session() {
 }
 
 #[test]
+fn a_superseding_message_names_the_ones_it_replaced() {
+    let fixture = Fixture::start();
+    let first = fixture.post(json!({ "title": "Build 1 of 3", "correlationKey": "build" }));
+    let second = fixture.post(json!({ "title": "Build 2 of 3", "correlationKey": "build" }));
+    let third = fixture.post(json!({ "title": "Build 3 of 3", "correlationKey": "build" }));
+    let inbox = fixture.inbox();
+    let ids: Vec<&str> = inbox.items.iter().map(|item| item.id.as_str()).collect();
+    assert_eq!(ids, [third["id"].as_str().unwrap()]);
+    assert_eq!(
+        inbox.items[0].supersedes,
+        [
+            second["id"].as_str().unwrap().to_owned(),
+            first["id"].as_str().unwrap().to_owned(),
+        ]
+    );
+}
+
+#[test]
 fn the_delegate_hears_deliveries_on_the_hub_thread() {
     let fixture = Fixture::start();
     fixture.post(json!({ "type": "task_completed", "title": "Docs build" }));

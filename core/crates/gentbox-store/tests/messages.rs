@@ -835,6 +835,14 @@ fn the_supersede_chain_is_recorded_and_followed() {
         [message_id("v2"), message_id("v3")]
     );
     assert_eq!(repository.supersede_chain(&message_id("v3")).unwrap(), []);
+    assert_eq!(
+        repository.superseded_messages(&message_id("v3")).unwrap(),
+        [message_id("v2"), message_id("v1")]
+    );
+    assert_eq!(
+        repository.superseded_messages(&message_id("v1")).unwrap(),
+        []
+    );
 }
 
 #[test]

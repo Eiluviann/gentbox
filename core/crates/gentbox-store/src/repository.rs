@@ -366,6 +366,32 @@ impl<'connection> Repository<'connection> {
         Ok(chain)
     }
 
+    /// Every message `id` replaced, nearest first: its supersede chain read
+    /// backwards. Empty when it replaced nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Corrupt`] when the chain loops.
+    pub fn superseded_messages(&self, id: &MessageId) -> Result<Vec<MessageId>, StoreError> {
+        let mut chain = Vec::new();
+        let mut current = id.clone();
+        loop {
+            let replaced: Option<String> = self
+                .connection
+                .prepare_cached("SELECT id FROM messages WHERE superseded_by = ?1")?
+                .query_row(params![current.as_str()], |row| row.get(0))
+                .optional()?;
+            let Some(replaced) = replaced.map(MessageId::new) else {
+                return Ok(chain);
+            };
+            if replaced == *id || chain.contains(&replaced) {
+                return Err(StoreError::corrupt("superseded_by", "supersede cycle"));
+            }
+            chain.push(replaced.clone());
+            current = replaced;
+        }
+    }
+
     /// When the message reached a terminal state, as retention counts it.
     pub fn closed_at(&self, id: &MessageId) -> Result<Option<OffsetDateTime>, StoreError> {
         let closed: Option<Option<i64>> = self

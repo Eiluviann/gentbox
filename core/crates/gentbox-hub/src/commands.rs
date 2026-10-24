@@ -292,6 +292,9 @@ pub struct InboxEntry {
     pub offered_actions: Vec<Action>,
     /// Whether a sender is waiting for the answer now.
     pub has_live_waiter: bool,
+    /// The messages it replaced, nearest first, so a card showing one of them
+    /// can follow it to this one.
+    pub supersedes: Vec<MessageId>,
 }
 
 /// Everything the Mac inbox draws, read in one actor turn so that topics,

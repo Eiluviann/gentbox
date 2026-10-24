@@ -1386,13 +1386,14 @@ impl HubState {
             .into_iter()
             .map(|message| {
                 let has_live_waiter = self.waiters.is_live(&message.id, now);
-                InboxEntry {
+                Ok(InboxEntry {
                     offered_actions: cloned(offered_actions(&message, has_live_waiter)),
                     has_live_waiter,
+                    supersedes: repository.superseded_messages(&message.id)?,
                     message,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<_, HubError>>()?;
         Ok(InboxSnapshot {
             topics: groups.topics,
             threads: groups.threads,

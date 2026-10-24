@@ -250,6 +250,9 @@ pub struct InboxMessage {
     /// Its topic and thread, for the breadcrumb and the item menu; set in
     /// [`crate::GentboxHub::inbox`], `None` in events.
     pub group: Option<GroupContext>,
+    /// The messages it superseded, nearest first: a card showing one of them
+    /// follows it here. Set in [`crate::GentboxHub::inbox`], empty in events.
+    pub supersedes: Vec<String>,
 }
 
 /// A message's topic and thread as a row shows them.
@@ -270,11 +273,18 @@ pub struct GroupContext {
 
 impl InboxMessage {
     pub(crate) fn from_entry(entry: &InboxEntry) -> Self {
-        Self::new(
-            &entry.message,
-            &entry.offered_actions,
-            entry.has_live_waiter,
-        )
+        Self {
+            supersedes: entry
+                .supersedes
+                .iter()
+                .map(|id| id.as_str().to_owned())
+                .collect(),
+            ..Self::new(
+                &entry.message,
+                &entry.offered_actions,
+                entry.has_live_waiter,
+            )
+        }
     }
 
     pub(crate) fn new(
@@ -316,6 +326,7 @@ impl InboxMessage {
             repeat_count: message.repeat_count,
             step_count: u32::try_from(message.steps.len()).unwrap_or(u32::MAX),
             group: None,
+            supersedes: Vec::new(),
         }
     }
 
