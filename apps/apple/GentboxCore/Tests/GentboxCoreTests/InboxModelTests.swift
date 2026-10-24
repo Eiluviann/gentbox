@@ -74,7 +74,7 @@ struct InboxModelTests {
 		#expect(service.commands == ["action m7 allow -", "mute thread th1 true", "mute topic t1 false"])
 		#expect(model.failure == nil)
 
-		service.failure = .AlreadyClosed(state: .answered)
+		service.failure = .AlreadyClosed(state: .answered, rescindReason: nil)
 		await model.press(action("deny", .deny), on: prompt)
 		// The read that follows every command must not wipe it.
 		await model.readUntilCurrent()
@@ -85,6 +85,19 @@ struct InboxModelTests {
 		await model.snooze(prompt)
 		await model.readUntilCurrent()
 		#expect(model.failure == nil)
+	}
+
+	@Test func aLateAnswerSaysWhoClosedTheItem() {
+		#expect(
+			InboxModel.words(for: GentboxError.AlreadyClosed(state: .rescinded, rescindReason: .handledInSession))
+				== "Handled in the session",
+		)
+		for reason in [RescindReason.resolvedElsewhere, .obsolete, .superseded] {
+			#expect(
+				InboxModel.words(for: GentboxError.AlreadyClosed(state: .rescinded, rescindReason: reason))
+					== "Withdrawn by the agent",
+			)
+		}
 	}
 
 	@Test func theNextUpItemIsExpandedByDefault() async {
@@ -215,7 +228,7 @@ struct InboxModelTests {
 
 	@Test func bulkDismissReportsEveryFailure() async {
 		let (model, service) = await accordion()
-		service.failures = ["done": .AlreadyClosed(state: .answered)]
+		service.failures = ["done": .AlreadyClosed(state: .answered, rescindReason: nil)]
 		model.toggleSelection(of: message(id: "done"))
 		model.toggleSelection(of: message(id: "note"))
 		await model.dismissSelected()

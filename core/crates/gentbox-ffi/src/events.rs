@@ -56,11 +56,13 @@ pub enum HubEvent {
         /// Surfaces to take down.
         take_down: Surfaces,
     },
-    /// A message was withdrawn.
+    /// A message was withdrawn by its agent, or cleared by the hub as handled
+    /// in the session.
     Withdrawn {
         /// The message.
         message_id: String,
-        /// Why, for the "Withdrawn" line.
+        /// Why: "Withdrawn" for the agent's own reasons, "Handled in the
+        /// session" for `HandledInSession`.
         reason: RescindReason,
     },
     /// The live waiter appeared or lapsed: answer buttons appear or go.

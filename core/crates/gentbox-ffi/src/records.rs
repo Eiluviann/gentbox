@@ -71,15 +71,19 @@ pub enum ActionKind {
     Snooze,
 }
 
-/// Why a message was withdrawn.
+/// Why a message was withdrawn. The first three are the agent's own words
+/// ("Withdrawn"); `HandledInSession` is the hub's implicit clean-up, shown as
+/// "Handled in the session", never as "Withdrawn".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, uniffi::Enum)]
 pub enum RescindReason {
-    /// Handled in the session.
+    /// The agent resolved it elsewhere.
     ResolvedElsewhere,
     /// No longer needed.
     Obsolete,
     /// Replaced by a newer message.
     Superseded,
+    /// A completion or progress call showed it was handled in the session.
+    HandledInSession,
 }
 
 /// Where the Mac shows a message.
@@ -389,6 +393,7 @@ impl From<rescind::RescindReason> for RescindReason {
             rescind::RescindReason::ResolvedElsewhere => Self::ResolvedElsewhere,
             rescind::RescindReason::Obsolete => Self::Obsolete,
             rescind::RescindReason::Superseded => Self::Superseded,
+            rescind::RescindReason::HandledInSession => Self::HandledInSession,
         }
     }
 }

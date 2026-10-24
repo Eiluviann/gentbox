@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use gentbox_ffi::{
-    GentboxError, GentboxHub, GroupKind, HubDelegate, HubEvent, HubOptions, Inbox, PresenceState,
-    PresenceUpdate,
+    GentboxError, GentboxHub, GroupKind, HubDelegate, HubEvent, HubOptions, Inbox, LifecycleState,
+    PresenceState, PresenceUpdate, RescindReason,
 };
 use serde_json::{Value, json};
 use tokio::runtime::Runtime;
@@ -392,6 +392,25 @@ fn answers_close_the_message_and_a_second_answer_is_already_closed() {
     assert_eq!(answered, Ok(true));
     let second = fixture.block_on(fixture.hub.take_action(id, "deny".to_owned(), None));
     assert!(matches!(second, Err(GentboxError::AlreadyClosed { .. })));
+}
+
+#[test]
+fn an_item_the_hub_cleared_is_already_closed_as_handled_in_the_session() {
+    let fixture = Fixture::start();
+    let stale = fixture.post(json!({
+        "type": "decision_required", "blocking": "deferrable", "title": "Pick the next phase"
+    }));
+    let id = stale["id"].as_str().unwrap().to_owned();
+    // The agent finished: the hub clears what nobody waits on.
+    fixture.post(json!({ "type": "task_completed", "title": "Phase 3 is done" }));
+    let late = fixture.block_on(fixture.hub.dismiss(id));
+    assert_eq!(
+        late,
+        Err(GentboxError::AlreadyClosed {
+            state: LifecycleState::Rescinded,
+            rescind_reason: Some(RescindReason::HandledInSession),
+        })
+    );
 }
 
 #[test]

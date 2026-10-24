@@ -367,9 +367,11 @@ public final class InboxModel {
 	/// A failure in words for the popover's foot.
 	public static func words(for error: any Error) -> String {
 		switch error as? GentboxError {
-		case .AlreadyClosed(let state):
+		case .AlreadyClosed(let state, let rescindReason):
 			switch state {
 			case .answered: return "Already answered"
+			// "Withdrawn" only when the agent asked; the hub's own clean-up is not a withdrawal.
+			case .rescinded where rescindReason == .handledInSession: return "Handled in the session"
 			case .rescinded: return "Withdrawn by the agent"
 			case .expired: return "Expired before your answer"
 			default: return "Already closed"

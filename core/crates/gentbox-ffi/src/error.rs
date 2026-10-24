@@ -3,7 +3,9 @@
 use gentbox_hub::{HubError, StartError};
 use gentbox_ingest::IngestStartError;
 
-use crate::records::LifecycleState;
+use gentbox_core::lifecycle::ResolutionReason;
+
+use crate::records::{LifecycleState, RescindReason};
 
 /// Why a call failed. `AnotherHubRunning`, `NotFound`, `AlreadyClosed` and
 /// `Refused` are expected outcomes the UI words for you; `Stopped` and
@@ -33,6 +35,9 @@ pub enum GentboxError {
     AlreadyClosed {
         /// Its terminal state.
         state: LifecycleState,
+        /// Why it was withdrawn, when `state` is `Rescinded`: "Withdrawn by
+        /// the agent", or "Handled in the session" for the hub's clean-up.
+        rescind_reason: Option<RescindReason>,
     },
     /// The hub refused the command: an action not offered now, Done
     /// required instead of dismiss, a key conflict on a move.
@@ -69,8 +74,12 @@ impl From<HubError> for GentboxError {
             | HubError::ThreadNotFound(_) => Self::NotFound {
                 message: error.to_string(),
             },
-            HubError::MessageClosed { state, .. } => Self::AlreadyClosed {
+            HubError::MessageClosed { state, resolution } => Self::AlreadyClosed {
                 state: state.into(),
+                rescind_reason: match resolution {
+                    Some(ResolutionReason::Rescinded(reason)) => Some(reason.into()),
+                    _ => None,
+                },
             },
             HubError::HasOpenMessages { count } => Self::HasOpenMessages { count },
             HubError::GeneralTopic => Self::GeneralTopic,
