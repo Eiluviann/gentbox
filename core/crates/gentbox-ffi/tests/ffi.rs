@@ -143,6 +143,12 @@ fn a_simple_conversation_shows_as_general_then_its_thread() {
     assert_eq!(thread.messages[0].title, "Ingest tests pass");
     assert_eq!(thread.messages[0].agent_name, "Claude Code");
     assert!(inbox.next_up.is_none());
+    assert!(inbox.has_unread);
+
+    fixture
+        .block_on(fixture.hub.mark_topic_read(general.id.clone()))
+        .unwrap();
+    assert!(!fixture.inbox().has_unread);
 }
 
 #[test]
@@ -350,6 +356,10 @@ fn answers_close_the_message_and_a_second_answer_is_already_closed() {
         )
         .unwrap();
     assert!(fixture.inbox().next_up.is_none());
+    let answered = fixture
+        .block_on(fixture.hub.inbox())
+        .map(|inbox| inbox.next_up.is_none());
+    assert_eq!(answered, Ok(true));
     let second = fixture.block_on(fixture.hub.take_action(id, "deny".to_owned(), None));
     assert!(matches!(second, Err(GentboxError::AlreadyClosed { .. })));
 }

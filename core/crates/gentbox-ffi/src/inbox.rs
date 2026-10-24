@@ -19,7 +19,7 @@ use std::time::SystemTime;
 use gentbox_core::topic::{GroupStatus, Thread, Topic};
 use gentbox_hub::InboxSnapshot;
 
-use crate::records::{Blocking, InboxMessage, MessageType};
+use crate::records::{Blocking, InboxMessage, LifecycleState, MessageType};
 
 /// At most this many closed topics and threads, most recently closed first.
 const CLOSED_LIMIT: usize = 8;
@@ -115,6 +115,9 @@ pub struct Inbox {
     pub move_targets: Vec<TopicChoice>,
     /// How many messages agents wait on: the menu-bar count.
     pub waiting_count: u32,
+    /// Some listed message is still unread (open, not acknowledged): the
+    /// menu-bar dot.
+    pub has_unread: bool,
 }
 
 /// Groups a snapshot for the menu-bar inbox.
@@ -152,6 +155,9 @@ pub(crate) fn build_inbox(snapshot: &InboxSnapshot) -> Inbox {
             .count(),
     )
     .unwrap_or(u32::MAX);
+    let has_unread = messages
+        .iter()
+        .any(|message| message.state == LifecycleState::Open);
     let next_up = messages
         .iter()
         .position(is_blocked_on)
@@ -163,6 +169,7 @@ pub(crate) fn build_inbox(snapshot: &InboxSnapshot) -> Inbox {
         muted: muted_groups(snapshot, &topics),
         move_targets: move_targets(snapshot),
         waiting_count,
+        has_unread,
     }
 }
 

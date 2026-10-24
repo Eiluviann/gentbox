@@ -236,6 +236,9 @@ pub struct InboxMessage {
     pub has_live_waiter: bool,
     /// The buttons to show now.
     pub offered_actions: Vec<InboxAction>,
+    /// It asks for permission (it has an Approve button), whether or not a
+    /// sender waits now: the `checkmark.shield` icon.
+    pub asks_permission: bool,
     /// How many repeats it absorbed.
     pub repeat_count: u32,
     /// The steps of an action plan.
@@ -283,6 +286,10 @@ impl InboxMessage {
             received_at: SystemTime::from(message.received_at),
             has_live_waiter,
             offered_actions: offered_actions.iter().map(InboxAction::from).collect(),
+            asks_permission: message
+                .actions
+                .iter()
+                .any(|action| action.kind == core_message::ActionKind::Approve),
             repeat_count: message.repeat_count,
             step_count: u32::try_from(message.steps.len()).unwrap_or(u32::MAX),
         }
