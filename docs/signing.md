@@ -38,10 +38,10 @@ This follows Vaultday's recipe (`docs/signing.md` there), which has the troubles
 6. Build:
 
    ```bash
-   apps/apple/scripts/build-xcframework.sh && cd apps/apple && xcodegen generate && xcodebuild -project Gentbox.xcodeproj -scheme Gentbox -configuration Debug -derivedDataPath build build
+   apps/apple/scripts/build-xcframework.sh --release && cd apps/apple && xcodegen generate && xcodebuild -project Gentbox.xcodeproj -scheme Gentbox -configuration Release -derivedDataPath build build
    ```
 
-7. Run `apps/apple/build/Build/Products/Debug/Gentbox.app`. The mark appears in the menu bar; on the first launch the app registers itself as a login item and macOS says "“Gentbox” will open automatically when you log in".
+7. Run `apps/apple/build/Build/Products/Release/Gentbox.app`. Release is what you run day to day: it compiles in neither `DEBUG` nor the test and recording hooks (`GENTBOX_HOOKS`), which only Debug builds and hand-made measurement builds carry. The mark appears in the menu bar; on the first launch the app registers itself as a login item and macOS says "“Gentbox” will open automatically when you log in".
 
 **Why identifiers of its own.** Bundle ids and `group.` App Groups are unique across all teams, and Xcode registers what it signs. A Personal Team signing with the shipped names would hold them, and the paid team could not register them later. `Signing.personal-team.xcconfig` therefore uses `com.eiluviann.gentbox.personal` and a macOS-style App Group prefixed by the team id, which is never registered (`REGISTER_APP_GROUPS = NO`) and opens without a prompt.
 
@@ -66,13 +66,13 @@ This follows Vaultday's recipe (`docs/signing.md` there), which has the troubles
 3. Build with `-allowProvisioningUpdates`, so `xcodebuild` registers `com.eiluviann.gentbox` and `group.com.eiluviann.gentbox` and makes the development profile (it lasts a year):
 
    ```bash
-   cd apps/apple && xcodegen generate && xcodebuild -project Gentbox.xcodeproj -scheme Gentbox -configuration Debug -derivedDataPath build -allowProvisioningUpdates build
+   cd apps/apple && xcodegen generate && xcodebuild -project Gentbox.xcodeproj -scheme Gentbox -configuration Release -derivedDataPath build -allowProvisioningUpdates build
    ```
 
 4. Check that the embedded profile grants both notification capabilities (the PR 3 acceptance item still open):
 
    ```bash
-   security cms -D -i apps/apple/build/Build/Products/Debug/Gentbox.app/Contents/embedded.provisionprofile | plutil -extract Entitlements xml1 -o - -
+   security cms -D -i apps/apple/build/Build/Products/Release/Gentbox.app/Contents/embedded.provisionprofile | plutil -extract Entitlements xml1 -o - -
    ```
 
    It must list `com.apple.developer.usernotifications.time-sensitive` and `com.apple.developer.usernotifications.communication`.
@@ -105,7 +105,7 @@ Every launch logs the choice:
 (`log` alone is a zsh builtin.) What a build claims:
 
 ```bash
-codesign -d --entitlements - --xml apps/apple/build/Build/Products/Debug/Gentbox.app | plutil -p -
+codesign -d --entitlements - --xml apps/apple/build/Build/Products/Release/Gentbox.app | plutil -p -
 ```
 
 **One hub per user.** Two builds on the same state folder cannot run at once: the second one says "another hub is running". Builds with different folders (a Personal Team build and an ad hoc build) can, and each serves its own `API/` folder; the CLI uses the first it finds (architecture §8).

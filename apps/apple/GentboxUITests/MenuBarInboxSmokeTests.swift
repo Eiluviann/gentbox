@@ -246,54 +246,197 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// to end before it reads anything, so the app records its own frames
 	/// (`AnimationTrace`, debug builds) and this test reads that record.
 	///
-	/// The trace samples between display frames, every 20 to 40 ms, so
-	/// mid-motion the two may read apart by as much as the panel moves
-	/// between two samples, never more: a panel that lagged or led the
-	/// content would drift further. Settled, they agree.
+	/// A sample reads the panel's height as just set but the screen as last
+	/// composited, so mid-motion the two may read apart by as much as the
+	/// panel moves in one display frame, never more: a panel that lagged or
+	/// led the content would drift further. Samples come several to a frame,
+	/// so the bound is the panel's motion within one 60 Hz frame (CI's
+	/// displays) on either side of a sample, or to the next sample when
+	/// frames came further apart. Settled, they agree.
 	func testThePanelsHeightMovesWithTheContent() throws {
 		let frames = try traceFrames(in: "height-moves-with-content")
-		let steps = Dictionary(grouping: frames) { $0.step }
+		let steps = try traceSteps(in: "height-moves-with-content")
+		let byStep = Dictionary(grouping: frames) { $0.step }
 		XCTAssertEqual(
-			Set(steps.keys),
+			Set(byStep.keys),
 			[
 				"expand-row", "collapse", "expand-another", "expand-then-refresh", "removal", "arrival", "update",
-				"expand-prompt", "waiter",
+				"expand-prompt", "waiter", "despawn", "spawn", "reopen-mid-despawn",
 			],
 		)
-		for (step, frames) in steps {
+		var movingStepsSampled = 0
+		for (step, frames) in byStep where !Self.spawnSteps.contains(step) {
 			XCTAssertGreaterThan(frames.count, 5, step)
-			// A jump shows two heights; an eased move at least three. A machine
-			// under load can stall the samples until the motion is over (every
-			// frame then shows the end), which the settled check covers.
-			let isMotionSampled = frames.first?.panelHeight != frames.last?.panelHeight
-			if ["expand-row", "collapse", "removal", "arrival", "update"].contains(step), isMotionSampled {
-				XCTAssertGreaterThanOrEqual(Set(frames.map(\.panelHeight)).count, 3, "the panel did not ease in \(step)")
-			}
 			let missing = frames.filter { $0.gap == nil }.map(\.ms)
 			XCTAssertEqual(missing, [], "\(step): no content bottom marker in the frames at these ms")
-			// In device pixels: one is a point on CI's 1× display.
-			for (previous, frame) in zip(frames, frames.dropFirst()) {
-				guard let gap = frame.gap else { continue }
-				let sampleMotion = Double(abs(frame.panelHeight - previous.panelHeight))
+			for index in frames.indices.dropFirst() {
+				guard let gap = frames[index].gap else { continue }
+				let sampleMotion = neighbouringMotion(in: frames, at: index)
 				XCTAssertLessThanOrEqual(
-					abs(gap) * frame.scale, (sampleMotion + 1.5) * frame.scale,
-					"\(step) at \(frame.ms) ms: the content's bottom is \(gap) pt from the panel's, which moved \(sampleMotion) pt since the last frame",
+					abs(gap), sampleMotion + 1.5,
+					"\(step) at \(frames[index].ms) ms: the content's bottom is \(gap) pt from the panel's, which moved up to \(sampleMotion) pt within a frame of it",
 				)
 			}
 			for frame in frames.suffix(3) {
 				let gapPixels = (frame.gap ?? .infinity) * frame.scale
 				XCTAssertLessThanOrEqual(abs(gapPixels), 1, "\(step) settled \(gapPixels) px from the panel's bottom")
 			}
+			// Eased, not snapped: a step whose height changed shows a frame
+			// between before and after, unless the first sample came only
+			// after the motion was over (a stalled machine).
+			guard let before = steps[step]?.beforeHeight, let after = frames.last?.panelHeight, before != after else {
+				continue
+			}
+			let latency = steps[step]?.latencyMs ?? 0
+			if latency >= Int(Self.motionMilliseconds) {
+				logMotionCheck("\(step): not checked, the first sample came \(latency) ms after the change")
+				continue
+			}
+			movingStepsSampled += 1
+			let between = frames.filter { min(before, after) < $0.panelHeight && $0.panelHeight < max(before, after) }
+			XCTAssertFalse(between.isEmpty, "\(step): the panel went from \(before) to \(after) pt with no frame between")
+			logMotionCheck("\(step): checked, \(before) → \(after) pt with \(between.count) frames between")
+		}
+		XCTAssertGreaterThan(movingStepsSampled, 0, "no step that changed height was sampled in motion")
+		// Responsiveness: the first frame after a click lands within 50 ms.
+		for step in ["expand-row", "collapse", "expand-another"] {
+			let latency = try XCTUnwrap(steps[step]?.latencyMs, step)
+			XCTAssertLessThanOrEqual(latency, 50, "\(step): \(latency) ms to the first frame")
 		}
 	}
 
+	/// Spawn and despawn happen in place: the card's frame never changes,
+	/// it fades and scales to its end state, and a re-open mid-despawn turns
+	/// back without going blank or jumping.
+	func testTheCardSpawnsAndDespawnsInPlace() throws {
+		defer { app.launchEnvironment["GENTBOX_REDUCE_MOTION"] = nil }
+		let frames = try traceFrames(in: "spawn-in-place")
+		let steps = try traceSteps(in: "spawn-in-place")
+		XCTAssertLessThanOrEqual(steps["spawn"]?.latencyMs ?? .max, 50, "the panel's first frame came late")
+		let byStep = Dictionary(grouping: frames) { $0.step }
+		for step in Self.spawnSteps {
+			let frames = try XCTUnwrap(byStep[step], step)
+			XCTAssertEqual(Set(frames.map(\.panelX)).count, 1, "\(step): the card slid")
+			XCTAssertEqual(Set(frames.map(\.panelTop)).count, 1, "\(step): the card's top moved")
+			XCTAssertEqual(Set(frames.map(\.panelHeight)).count, 1, "\(step): the card's height changed")
+			XCTAssertGreaterThan(frames.first?.panelHeight ?? 0, 60, "\(step): the card opened at its content's height")
+		}
+		let despawn = try XCTUnwrap(byStep["despawn"])
+		XCTAssertEqual(despawn.last?.alpha ?? 1, 0, accuracy: 0.01, "despawn did not fade out")
+		let spawn = try XCTUnwrap(byStep["spawn"])
+		XCTAssertLessThan(spawn.first?.alpha ?? 1, 1, "spawn did not fade in")
+		// The trace runs with full motion: the card scales up from 0.96.
+		XCTAssertLessThan(spawn.map(\.zoom).min() ?? 1, 0.999, "spawn did not scale")
+		XCTAssertLessThan(despawn.map(\.zoom).min() ?? 1, 0.999, "despawn did not scale")
+		// Faded, not snapped: a frame between the start and the end, unless
+		// the first sample came only after the fade was over.
+		for (step, duration) in [("despawn", 120), ("spawn", 180)] {
+			let frames = try XCTUnwrap(byStep[step])
+			let latency = steps[step]?.latencyMs ?? 0
+			guard latency < duration else {
+				logMotionCheck("\(step): not checked, the first sample came \(latency) ms after the change")
+				continue
+			}
+			let between = frames.filter { 0.02 < $0.alpha && $0.alpha < 0.98 }
+			XCTAssertFalse(between.isEmpty, "\(step) snapped: no frame between transparent and opaque")
+			logMotionCheck("\(step): checked, \(between.count) frames mid-fade")
+		}
+		XCTAssertEqual(spawn.last?.alpha ?? 0, 1, accuracy: 0.01)
+		XCTAssertEqual(spawn.last?.zoom ?? 0, 1, accuracy: 0.001)
+		let reopen = try XCTUnwrap(byStep["reopen-mid-despawn"])
+		XCTAssertGreaterThan(reopen.map(\.alpha).min() ?? 0, 0.05, "the re-open went blank first")
+		for (previous, frame) in zip(reopen, reopen.dropFirst()) {
+			XCTAssertLessThanOrEqual(abs(frame.alpha - previous.alpha), 0.5, "the re-open jumped at \(frame.ms) ms")
+		}
+		XCTAssertEqual(reopen.last?.alpha ?? 0, 1, accuracy: 0.01)
+	}
+
+	/// Expanding a row, measured by the app's `Expand` signpost: from the
+	/// click to the next display frame. Instruments and Xcode show the
+	/// figures; the project is generated, so baselines live with whoever
+	/// records them.
+	func testExpandingARowIsMeasured() throws {
+		app.terminate()
+		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
+			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
+		}
+		let launchedAt = Date()
+		app.launch()
+		try waitForTheHub(startedAfter: launchedAt)
+		let titles = (1...3).map { "Release check \($0) passed" }
+		for (index, title) in titles.enumerated() {
+			try post(["type": "task_completed", "title": title, "conversation": ["id": "perf-\(index)"], "body": "line one\nline two"])
+		}
+		XCTAssertTrue(element("message:\(titles[0])").waitForExistence(timeout: 10))
+		let expand = XCTOSSignpostMetric(subsystem: "com.eiluviann.gentbox", category: "Interaction", name: "Expand")
+		let options = XCTMeasureOptions()
+		options.iterationCount = 5
+		var next = 0
+		measure(metrics: [expand], options: options) {
+			let title = titles[next % titles.count]
+			next += 1
+			let row = element("message:\(title)")
+			if row.waitForExistence(timeout: 2) {
+				row.click()
+			}
+			_ = element("card:\(title)").waitForExistence(timeout: 2)
+		}
+	}
+
+	/// The panel's window reaches the bottom of the screen, transparent below
+	/// the card: a click there passes through to what is below, so it counts
+	/// as a click elsewhere and closes the panel, as on a menu. It clicks the
+	/// desktop, so it runs where the menu bar shows (CI), not on a Mac whose
+	/// menu bar hides, where that would click into someone's work.
+	func testAClickBelowTheCardPassesThrough() throws {
+		try XCTSkipIf(Self.isMenuBarAutoHidden, "clicks the desktop below the panel; runs on CI")
+		try post(["type": "task_completed", "title": "Click-through check"])
+		openInbox()
+		let row = element("message:Click-through check")
+		XCTAssertTrue(row.waitForExistence(timeout: 10))
+		let panel = app.windows["gentbox.inbox"]
+		XCTAssertTrue(panel.exists)
+		// Well below the card's last row, inside the panel's window.
+		row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1)).withOffset(CGVector(dx: 0, dy: 140)).click()
+		XCTAssertTrue(row.waitForNonExistence(timeout: 5), "the click below the card did not pass through")
+	}
+
+	/// With Reduce Motion the card only fades: no frame is scaled.
+	func testWithReduceMotionTheCardOnlyFades() throws {
+		app.launchEnvironment["GENTBOX_REDUCE_MOTION"] = "1"
+		defer { app.launchEnvironment["GENTBOX_REDUCE_MOTION"] = nil }
+		let frames = try traceFrames(in: "reduce-motion", reduceMotion: true)
+		let spawning = frames.filter { Self.spawnSteps.contains($0.step) }
+		XCTAssertFalse(spawning.isEmpty)
+		XCTAssertEqual(spawning.map(\.zoom).min() ?? 0, 1, accuracy: 0.0001, "a frame was scaled")
+		XCTAssertLessThan(spawning.map(\.alpha).min() ?? 1, 0.5, "the card did not fade")
+	}
+
+	private static let spawnSteps: Set<String> = ["despawn", "spawn", "reopen-mid-despawn"]
+
+	/// Says in the log and the result bundle whether a step's motion was
+	/// checked, so a green run shows it.
+	private func logMotionCheck(_ line: String) {
+		print("Motion check · \(line)")
+		XCTContext.runActivity(named: "Motion check · \(line)") { _ in }
+	}
+	/// `Tokens.motionDuration`, which the UI tests cannot import.
+	private static let motionMilliseconds = 250.0
+
 	/// The panel never moves: from opening to closing its top edge and left
 	/// edge stay where they were set, and only the bottom edge moves.
+	///
+	/// Each opening places the panel afresh under the status item, whose
+	/// place follows the count, so the edges are checked per opening.
 	func testThePanelsTopEdgeNeverMoves() throws {
 		let frames = try traceFrames(in: "top-edge-never-moves")
 		XCTAssertGreaterThan(frames.count, 30)
-		XCTAssertEqual(Set(frames.map(\.panelTop)).count, 1, "the top edge moved: \(Set(frames.map(\.panelTop)))")
-		XCTAssertEqual(Set(frames.map(\.panelX)).count, 1, "the panel slid: \(Set(frames.map(\.panelX)))")
+		let openings = framesByOpening(frames)
+		XCTAssertGreaterThan(openings.count, 1, "the trace re-opens the panel")
+		for (number, opening) in openings.enumerated() {
+			XCTAssertEqual(Set(opening.map(\.panelTop)).count, 1, "opening \(number): the top edge moved: \(Set(opening.map(\.panelTop)))")
+			XCTAssertEqual(Set(opening.map(\.panelX)).count, 1, "opening \(number): the panel slid: \(Set(opening.map(\.panelX)))")
+		}
 	}
 
 	/// The card's keys work in the panel, which never activates the app: ↩
@@ -420,6 +563,50 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let gap: Double?
 		/// Device pixels per point.
 		let scale: Double
+		/// The card's opacity and scale as presented: spawn and despawn.
+		let alpha: Double
+		let zoom: Double
+	}
+
+	/// The most the panel's height moved between the sample at `index` and
+	/// the samples within one 60 Hz frame of it, or its two neighbours.
+	private func neighbouringMotion(in frames: [TraceFrame], at index: Int) -> Double {
+		let sample = frames[index]
+		let neighbours = frames.indices.filter { other in
+			abs(other - index) == 1 || abs(frames[other].ms - sample.ms) <= Self.slowestFrameMilliseconds
+		}
+		return Double(neighbours.map { abs(frames[$0].panelHeight - sample.panelHeight) }.max() ?? 0)
+	}
+
+	/// One frame at 60 Hz, rounded up.
+	private static let slowestFrameMilliseconds = 17
+
+	/// The frames split where the panel opens again after it closed. A
+	/// re-open mid-despawn turns back where it is, so it stays in its
+	/// opening.
+	private func framesByOpening(_ frames: [TraceFrame]) -> [[TraceFrame]] {
+		var openings: [[TraceFrame]] = []
+		var previousStep: String?
+		for frame in frames {
+			if openings.isEmpty || (frame.step != previousStep && frame.step == "spawn") {
+				openings.append([])
+			}
+			openings[openings.count - 1].append(frame)
+			previousStep = frame.step
+		}
+		return openings
+	}
+
+	/// `steps.csv`: per step, the card's height before the action and how
+	/// long after the change the first sample came.
+	private func traceSteps(in name: String) throws -> [String: (beforeHeight: Int, latencyMs: Int)] {
+		let csv = traceFolder(name).appendingPathComponent("steps.csv")
+		let rows = try String(contentsOf: csv, encoding: .utf8).split(separator: "\n").dropFirst()
+		return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+			let fields = row.split(separator: ",").map(String.init)
+			guard fields.count == 3, let before = Int(fields[1]), let latency = Int(fields[2]) else { return nil }
+			return (fields[0], (before, latency))
+		})
 	}
 
 	/// Each trace test keeps its own record, beside the state folder the app
@@ -434,9 +621,10 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// `awaiting-<step>` it writes (a prompt arrives, the expanded item is
 	/// superseded with a shorter body, a waiter starts on the prompt), and
 	/// reads its record.
-	private func traceFrames(in name: String) throws -> [TraceFrame] {
+	private func traceFrames(in name: String, reduceMotion: Bool = false) throws -> [TraceFrame] {
 		app.terminate()
 		let trace = traceFolder(name)
+		app.launchEnvironment["GENTBOX_REDUCE_MOTION"] = reduceMotion ? "1" : "0"
 		traceInUse = trace
 		app.launchEnvironment["GENTBOX_TRACE_DIR"] = trace.path
 		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
@@ -466,7 +654,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let waiter = try longPoll(prompt)
 		defer { waiter.terminate() }
 		let csv = trace.appendingPathComponent("frames.csv")
-		let deadline = Date().addingTimeInterval(30)
+		let deadline = Date().addingTimeInterval(60)
 		while !FileManager.default.fileExists(atPath: csv.path), Date() < deadline {
 			Thread.sleep(forTimeInterval: 0.5)
 		}
@@ -474,12 +662,13 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			.split(separator: "\n").dropFirst()
 			.map { $0.split(separator: ",").map(String.init) }
 			.compactMap { fields in
-				guard fields.count == 9, let number = Int(fields[0]), let ms = Int(fields[2]), let x = Int(fields[3]),
-					let top = Int(fields[4]), let height = Int(fields[5]), let scale = Double(fields[8])
+				guard fields.count == 11, let number = Int(fields[0]), let ms = Int(fields[2]), let x = Int(fields[3]),
+					let top = Int(fields[4]), let height = Int(fields[5]), let scale = Double(fields[8]),
+					let alpha = Double(fields[9]), let zoom = Double(fields[10])
 				else { return nil }
 				return TraceFrame(
 					number: number, step: fields[1], ms: ms, panelX: x, panelTop: top, panelHeight: height,
-					gap: Double(fields[7]), scale: scale,
+					gap: Double(fields[7]), scale: scale, alpha: alpha, zoom: zoom,
 				)
 			}
 	}
