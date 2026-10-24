@@ -32,6 +32,8 @@ public final class InboxModel {
 	public private(set) var inbox: Inbox?
 	/// The last command or read that failed, in words, until the next success.
 	public private(set) var failure: String?
+	/// The row you picked; it takes the full card until it leaves the list.
+	public var selectedMessageId: String?
 
 	@ObservationIgnored private let service: any InboxService
 	@ObservationIgnored private var isReading = false
@@ -53,8 +55,23 @@ public final class InboxModel {
 
 	/// Whether nothing is listed at all.
 	public var isEmpty: Bool {
-		guard let inbox else { return true }
-		return inbox.nextUp == nil && inbox.topics.isEmpty
+		inbox?.items.isEmpty ?? true
+	}
+
+	/// The message in the full card (design: "Next up"): the row you picked,
+	/// else the one an agent is blocked on, else none.
+	public var card: InboxMessage? {
+		guard let inbox else { return nil }
+		if let selectedMessageId, let picked = inbox.items.first(where: { $0.id == selectedMessageId }) {
+			return picked
+		}
+		return inbox.nextUp
+	}
+
+	/// The two-line list: everything but the card, most pressing first.
+	public var list: [InboxMessage] {
+		let cardId = card?.id
+		return (inbox?.items ?? []).filter { $0.id != cardId }
 	}
 
 	/// Any hub event: read the inbox again.

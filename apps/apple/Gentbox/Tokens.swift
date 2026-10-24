@@ -11,7 +11,17 @@ enum Tokens {
 	static let waiting = Color(red: 0xD7 / 255, green: 0x00 / 255, blue: 0x15 / 255)
 	/// Paused · can defer.
 	static let paused = Color(red: 0xE8 / 255, green: 0x71 / 255, blue: 0x0A / 255)
-	static let secondaryText = Color.secondary
+	/// Deny keeps the system red.
+	static let danger = Color(red: 0xD7 / 255, green: 0x00 / 255, blue: 0x15 / 255)
+	/// The Claude mark's own colour.
+	static let claude = Color(red: 0xD9 / 255, green: 0x77 / 255, blue: 0x57 / 255)
+	static let controlBackground = Color(nsColor: .controlBackgroundColor)
+	/// `--control-line` (#d1d1d6) in light mode.
+	static let controlLine = Color(nsColor: .separatorColor)
+	/// The faded dots between breadcrumb parts (#c7c7cc).
+	static let dot = Color(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255)
+	/// The list under the card sits on light grey; the card stays white.
+	static let listBackground = Color.primary.opacity(0.025)
 	static let track = Color.primary.opacity(0.05)
 
 	static let popoverWidth: CGFloat = 380
@@ -19,6 +29,4 @@ enum Tokens {
 	static let rowHorizontalPadding: CGFloat = 14
 	static let iconColumn: CGFloat = 16
 	static let columnGap: CGFloat = 10
-	/// A thread header and its rows indent under the topic's symbol.
-	static let threadIndent: CGFloat = 40
 }

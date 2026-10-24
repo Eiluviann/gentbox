@@ -14,11 +14,38 @@ public enum InboxWords {
 		}
 	}
 
-	/// The second line of a row: conversation · agent · time ago.
-	public static func rowContext(for message: InboxMessage, now: Date = Date()) -> [String] {
-		[message.conversationTitle, message.agentName, timeAgo(message.receivedAt, now: now)]
-			.compactMap { $0 }
+	/// The breadcrumb on a row's second line: "Topic › Thread". An agent's
+	/// General topic is left out (a simple conversation shows as its thread),
+	/// and so is a thread named like its topic.
+	public static func breadcrumb(for message: InboxMessage) -> String? {
+		guard let group = message.group else { return message.conversationTitle }
+		let topic = group.topicIsGeneral ? "" : group.topicTitle.trimmingCharacters(in: .whitespaces)
+		let thread = group.threadTitle.trimmingCharacters(in: .whitespaces)
+		let parts = [topic, thread.caseInsensitiveCompare(topic) == .orderedSame ? "" : thread]
 			.filter { !$0.isEmpty }
+		return parts.isEmpty ? nil : parts.joined(separator: " › ")
+	}
+
+	/// Whether the row's topic or thread is muted.
+	public static func isMuted(_ message: InboxMessage) -> Bool {
+		guard let group = message.group else { return false }
+		return group.topicIsMuted || group.threadIsMuted
+	}
+
+	/// Which mark draws an agent: its brand mark when Gentbox knows it.
+	public enum AgentMark: Equatable, Sendable {
+		case claude
+		case codex
+		case other
+	}
+
+	/// `source.agent` to its mark: "claude-code" and the like are Claude,
+	/// "codex" and the like are Codex.
+	public static func agentMark(for agent: String) -> AgentMark {
+		let agent = agent.lowercased()
+		if agent.contains("claude") { return .claude }
+		if agent.contains("codex") { return .codex }
+		return .other
 	}
 
 	/// The footer line for muted groups.
@@ -58,7 +85,7 @@ public enum InboxWords {
 		"pause.circle", "figure.walk.motion", "moon.zzz", "bell.slash", "bell", "archivebox",
 		"folder", "ellipsis", "gearshape", "tray", "arrow.uturn.backward", "envelope.open",
 		"arrow.up.forward.app", "checkmark", "xmark", "arrowshape.turn.up.left", "forward",
-		"bubble.left", "power",
+		"bubble.left", "power", "terminal",
 	]
 }
 

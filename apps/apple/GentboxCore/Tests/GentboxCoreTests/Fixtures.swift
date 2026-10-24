@@ -9,6 +9,10 @@ func message(
 	blocking: Blocking = .nonBlocking,
 	actions: [InboxAction] = [],
 	asksPermission: Bool = false,
+	group: GroupContext? = GroupContext(
+		topicTitle: "Gentbox", topicIsGeneral: false, topicIsMuted: false,
+		threadTitle: "Phase 3", threadIsMuted: false,
+	),
 	conversationTitle: String? = "gentbox",
 	receivedAt: Date = Date(timeIntervalSince1970: 1_000_000),
 ) -> InboxMessage {
@@ -17,7 +21,7 @@ func message(
 		blocking: blocking, state: .open, agent: "claude-code", agentName: "Claude Code",
 		conversationId: "session-1", conversationTitle: conversationTitle, topicId: "t1",
 		threadId: "th1", receivedAt: receivedAt, hasLiveWaiter: false, offeredActions: actions,
-		asksPermission: asksPermission, repeatCount: 0, stepCount: 0,
+		asksPermission: asksPermission, repeatCount: 0, stepCount: 0, group: group,
 	)
 }
 
@@ -25,9 +29,15 @@ func action(_ id: String, _ kind: ActionKind) -> InboxAction {
 	InboxAction(id: id, label: id.capitalized, kind: kind, value: nil, placeholder: nil, isDestructive: false)
 }
 
-func makeInbox(waiting: UInt32 = 0, topics: [InboxTopic] = [], muted: [MutedGroup] = []) -> Inbox {
+func makeInbox(
+	waiting: UInt32 = 0,
+	nextUp: InboxMessage? = nil,
+	items: [InboxMessage] = [],
+	topics: [InboxTopic] = [],
+	muted: [MutedGroup] = [],
+) -> Inbox {
 	Inbox(
-		nextUp: nil, topics: topics, closed: [], muted: muted, moveTargets: [],
+		nextUp: nextUp, items: items, topics: topics, closed: [], muted: muted, moveTargets: [],
 		waitingCount: waiting, hasUnread: false,
 	)
 }

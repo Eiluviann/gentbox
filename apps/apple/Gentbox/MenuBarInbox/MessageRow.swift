@@ -49,30 +49,68 @@ struct WaitingMark: View {
 	}
 }
 
-/// A message's second line: conversation · agent · time ago.
+/// The agent's mark: Claude's and Codex's brand marks, a terminal for any
+/// other agent. VoiceOver reads the agent's name.
+struct AgentMark: View {
+	let message: InboxMessage
+	var size: CGFloat = 11
+
+	var body: some View {
+		image
+			.frame(width: size, height: size)
+			.accessibilityLabel(message.agentName)
+	}
+
+	@ViewBuilder private var image: some View {
+		switch InboxWords.agentMark(for: message.agent) {
+		case .claude:
+			Image("AgentClaude").resizable().scaledToFit().foregroundStyle(Tokens.claude)
+		case .codex:
+			Image("AgentCodex").resizable().scaledToFit().foregroundStyle(.secondary)
+		case .other:
+			Image(systemName: "terminal").resizable().scaledToFit().foregroundStyle(.secondary)
+		}
+	}
+}
+
+/// A row's second line: "Topic › Thread · [agent] 4 min ago", with faded dots.
 struct RowContext: View {
 	let message: InboxMessage
 
 	var body: some View {
 		TimelineView(.periodic(from: .now, by: 60)) { timeline in
-			Text(InboxWords.rowContext(for: message, now: timeline.date).joined(separator: " · "))
-				.font(.system(size: 11))
-				.foregroundStyle(.secondary)
-				.lineLimit(1)
+			HStack(spacing: 4) {
+				if let breadcrumb = InboxWords.breadcrumb(for: message) {
+					Text(breadcrumb)
+						.lineLimit(1)
+						.truncationMode(.tail)
+						.layoutPriority(-1)
+					Text("·")
+						.font(.system(size: 14, weight: .bold))
+						.foregroundStyle(Tokens.dot)
+						.accessibilityHidden(true)
+				}
+				AgentMark(message: message)
+				Text(InboxWords.timeAgo(message.receivedAt, now: timeline.date))
+					.fixedSize()
+			}
+			.font(.system(size: 11))
+			.foregroundStyle(.secondary)
+			.accessibilityElement(children: .combine)
+			.accessibilityIdentifier("context:\(message.title)")
 		}
 	}
 }
 
-/// A two-line row: type icon, title, context, and the waiting mark. Its
-/// menu (right-click or the ellipsis on hover) snoozes or dismisses it and
-/// mutes, closes or moves its thread and topic.
+/// A two-line row on the list: type icon, title, breadcrumb, and the
+/// waiting mark, which the ellipsis menu replaces on hover. Clicking the row
+/// moves it into the card; right-click opens the same menu.
 struct MessageRow: View {
 	let message: InboxMessage
-	let thread: InboxThread
-	let topic: InboxTopic
 	let moveTargets: [TopicChoice]
 	let inbox: InboxModel
 	@State private var isHovered = false
+	@State private var closing: ItemMenu.Closing?
 
 	var body: some View {
 		HStack(alignment: .top, spacing: Tokens.columnGap) {
@@ -89,7 +127,7 @@ struct MessageRow: View {
 				WaitingMark(blocking: message.blocking)
 					.opacity(isHovered ? 0 : 1)
 				Menu {
-					menuItems
+					ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox, closing: $closing)
 				} label: {
 					Image(systemName: "ellipsis")
 						.foregroundStyle(.secondary)
@@ -97,6 +135,8 @@ struct MessageRow: View {
 				.menuStyle(.borderlessButton)
 				.menuIndicator(.hidden)
 				.fixedSize()
+				.padding(3)
+				.background(Tokens.track, in: RoundedRectangle(cornerRadius: 6))
 				.opacity(isHovered ? 1 : 0)
 				.accessibilityLabel("More")
 				.accessibilityIdentifier("message-menu:\(message.title)")
@@ -108,34 +148,22 @@ struct MessageRow: View {
 		.background(isHovered ? Tokens.track : .clear)
 		.contentShape(Rectangle())
 		.onHover { isHovered = $0 }
-		.contextMenu { menuItems }
+		.onTapGesture { inbox.selectedMessageId = message.id }
+		.contextMenu {
+			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox, closing: $closing)
+		}
+		.closeConfirmation($closing, inbox: inbox)
 		.accessibilityElement(children: .contain)
+		.accessibilityAddTraits(.isButton)
+		.accessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
 		.accessibilityIdentifier("message:\(message.title)")
-	}
-
-	@ViewBuilder private var menuItems: some View {
-		Button {
-			Task { await inbox.snooze(message) }
-		} label: {
-			Label("Snooze 15 min", systemImage: "moon.zzz")
-		}
-		if message.messageType != .actionRequired {
-			Button {
-				Task { await inbox.dismiss(message) }
-			} label: {
-				Label("Dismiss", systemImage: "xmark")
-			}
-		}
-		Divider()
-		ThreadMenu(thread: thread, topic: topic, moveTargets: moveTargets, inbox: inbox)
-		Divider()
-		TopicMenu(topic: topic, inbox: inbox)
 	}
 }
 
-/// The message an agent is blocked on: the full card with its body and the
-/// buttons it offers now (design: "Next up").
-struct NextUpCard: View {
+/// The full card (design: "Next up"): the message an agent is blocked on, or
+/// the row you picked, in a row's order (type icon, title, breadcrumb, state)
+/// with its body and buttons below.
+struct MessageCard: View {
 	let message: InboxMessage
 	let inbox: InboxModel
 	@State private var reply = ""
@@ -162,8 +190,8 @@ struct NextUpCard: View {
 						.padding(.top, 6)
 				}
 				if let body = message.body {
-					// The body carries commands, paths and raw input (ADR 0010);
-					// the popover shows its start in a code box.
+					// Commands, paths and raw input live only in the body
+					// (ADR 0010); the card shows its start.
 					Text(body)
 						.font(.system(size: 12, design: .monospaced))
 						.foregroundStyle(.secondary)
@@ -176,9 +204,14 @@ struct NextUpCard: View {
 			}
 			.padding(.leading, Tokens.iconColumn + Tokens.columnGap)
 		}
-		.padding(EdgeInsets(top: 14, leading: Tokens.rowHorizontalPadding, bottom: 16, trailing: Tokens.rowHorizontalPadding))
+		.padding(EdgeInsets(top: 14, leading: Tokens.rowHorizontalPadding, bottom: 18, trailing: Tokens.rowHorizontalPadding))
+		.background(Color(nsColor: .textBackgroundColor))
 		.accessibilityElement(children: .contain)
 		.accessibilityIdentifier("next-up:\(message.title)")
+		.onChange(of: message.id) {
+			isReplying = false
+			reply = ""
+		}
 	}
 
 	@ViewBuilder private var actionBar: some View {
@@ -189,22 +222,30 @@ struct NextUpCard: View {
 					.textFieldStyle(.roundedBorder)
 					.onSubmit { send(replyAction) }
 				Button("Send") { send(replyAction) }
+					.buttonStyle(DesignButtonStyle(kind: .primary, hint: "↩"))
 					.keyboardShortcut(.defaultAction)
 					.disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty)
 				Button("Cancel") { isReplying = false }
+					.buttonStyle(DesignButtonStyle())
+					.keyboardShortcut(.cancelAction)
 			}
-		} else if answers.isEmpty {
-			// No live waiter: answer buttons stay hidden (architecture §9.1).
-			Button("Snooze 15 min") { Task { await inbox.snooze(message) } }
-				.controlSize(.regular)
-		} else {
-			FlowButtons(actions: answers) { action in
+		} else if !answers.isEmpty {
+			AnswerButtons(actions: answers) { action in
 				if action.kind == .reply {
 					isReplying = true
 				} else {
 					Task { await inbox.press(action, on: message) }
 				}
 			}
+		} else if message.messageType == .taskCompleted || message.messageType == .generic {
+			Button("Dismiss") { Task { await inbox.dismiss(message) } }
+				.buttonStyle(DesignButtonStyle())
+				.accessibilityIdentifier("action:Dismiss")
+		} else {
+			// No live waiter: answers stay hidden (architecture §9.1).
+			Button("Snooze 15 min") { Task { await inbox.snooze(message) } }
+				.buttonStyle(DesignButtonStyle())
+				.accessibilityIdentifier("action:Snooze")
 		}
 	}
 
@@ -217,52 +258,49 @@ struct NextUpCard: View {
 	}
 }
 
-/// The card's buttons: the first approve or Done is the default, Deny and
-/// destructive ones are red.
-private struct FlowButtons: View {
+/// The card's buttons, as the design draws them: Approve (or Done) is the
+/// primary button with ↩, Deny is red with ⌘⌫, Reply carries R.
+private struct AnswerButtons: View {
 	let actions: [InboxAction]
 	let press: (InboxAction) -> Void
 
 	var body: some View {
 		HStack(spacing: 6) {
 			ForEach(actions, id: \.id) { action in
-				AnswerButton(action: action, isPrimary: action.id == primaryId) { press(action) }
+				answerButton(action)
 			}
+		}
+	}
+
+	@ViewBuilder private func answerButton(_ action: InboxAction) -> some View {
+		let button = Button(action.label) { press(action) }
+			.accessibilityIdentifier("action:\(action.label)")
+		if action.id == primaryId {
+			button
+				.buttonStyle(DesignButtonStyle(kind: .primary, hint: "↩"))
+				.keyboardShortcut(.defaultAction)
+		} else if action.id == denyId {
+			button
+				.buttonStyle(DesignButtonStyle(kind: .danger, hint: "⌘⌫"))
+				.keyboardShortcut(.delete, modifiers: .command)
+		} else if action.id == replyId {
+			button
+				.buttonStyle(DesignButtonStyle(hint: "R"))
+				.keyboardShortcut("r", modifiers: [])
+		} else {
+			button.buttonStyle(DesignButtonStyle(kind: action.isDestructive ? .danger : .normal))
 		}
 	}
 
 	private var primaryId: String? {
 		actions.first { $0.kind == .approve || $0.kind == .done }?.id
 	}
-}
 
-private struct AnswerButton: View {
-	let action: InboxAction
-	let isPrimary: Bool
-	let press: () -> Void
-
-	var body: some View {
-		if isPrimary {
-			button.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-		} else {
-			button.buttonStyle(.bordered)
-		}
+	private var denyId: String? {
+		actions.first { $0.kind == .deny }?.id
 	}
 
-	private var button: some View {
-		Button(action: press) {
-			if isRed {
-				Text(action.label).foregroundStyle(Color.red)
-			} else {
-				// The style picks the label colour: white on the accent while
-				// the window is key, ink when it is not.
-				Text(action.label)
-			}
-		}
-		.accessibilityIdentifier("action:\(action.label)")
-	}
-
-	private var isRed: Bool {
-		!isPrimary && (action.kind == .deny || action.isDestructive)
+	private var replyId: String? {
+		actions.first { $0.kind == .reply }?.id
 	}
 }

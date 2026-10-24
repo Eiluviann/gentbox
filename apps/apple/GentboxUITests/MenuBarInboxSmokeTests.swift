@@ -2,8 +2,10 @@ import Foundation
 import XCTest
 
 /// The smoke test of PR 3: the app launches as the hub, a message posted with
-/// `curl` appears in the menu-bar inbox, messages group topic → thread, a
-/// simple conversation lands in General, and topics and threads mute.
+/// `curl` appears in the menu-bar inbox, rows carry topic › thread (a simple
+/// conversation lands in General, which the breadcrumb leaves out), topics
+/// and threads mute from the item menu, a picked row takes the card, and an
+/// answer reaches the waiting sender.
 ///
 /// Each test runs the app on `~/Library/Application Support/Gentbox/UITests`,
 /// which the ad hoc entitlements open and the app empties at launch, so it
@@ -26,15 +28,16 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		if Self.isMenuBarAutoHidden {
 			app.launchArguments += ["-GentboxInboxInWindow", "YES"]
 		}
+		let launchedAt = Date()
 		app.launch()
-		try waitForTheHub()
+		try waitForTheHub(startedAfter: launchedAt)
 	}
 
 	override func tearDownWithError() throws {
 		app?.terminate()
 	}
 
-	func testACurlPostedMessageAppearsInGeneralUnderItsConversation() throws {
+	func testACurlPostedMessageAppearsWithItsConversationAsTheBreadcrumb() throws {
 		try post([
 			"type": "task_completed",
 			"title": "Ingest tests pass",
@@ -42,12 +45,14 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		])
 		openInbox()
 		XCTAssertTrue(element("message:Ingest tests pass").waitForExistence(timeout: 10))
-		XCTAssertTrue(element("topic:General").exists)
-		XCTAssertTrue(element("thread:Refactor the store").exists)
-		assertOrder(["topic:General", "thread:Refactor the store", "message:Ingest tests pass"])
+		// A simple conversation lands in General, which the breadcrumb leaves out.
+		let context = text(of: element("context:Ingest tests pass"))
+		XCTAssertTrue(context.contains("Refactor the store"), context)
+		XCTAssertFalse(context.contains("General"), context)
+		XCTAssertTrue(context.contains("Claude Code"), "the agent mark is labelled: \(context)")
 	}
 
-	func testMessagesGroupByTopicThenThread() throws {
+	func testRowsCarryTopicAndThreadNewestFirst() throws {
 		try post([
 			"type": "task_completed", "title": "Store migrations run on start",
 			"topic": ["key": "gentbox", "title": "Gentbox"],
@@ -55,7 +60,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		])
 		try post([
 			"type": "task_completed", "title": "Staging certificates rotated",
-			"conversation": ["id": "session-2"],
+			"source": ["agent": "codex", "displayName": "Codex"], "conversation": ["id": "cx-2"],
 			"topic": ["key": "infra", "title": "Infrastructure"],
 			"thread": ["key": "certs", "title": "Rotate staging certificates"],
 		])
@@ -66,16 +71,19 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		])
 		openInbox()
 		XCTAssertTrue(element("message:Release notes drafted").waitForExistence(timeout: 10))
-		// A topic sorts by its newest message: Gentbox (v1.1 above Phase 3),
-		// then Infrastructure.
+		XCTAssertTrue(text(of: element("context:Store migrations run on start")).contains("Gentbox › Phase 3"))
+		XCTAssertTrue(text(of: element("context:Release notes drafted")).contains("Gentbox › v1.1"))
+		let certificates = text(of: element("context:Staging certificates rotated"))
+		XCTAssertTrue(certificates.contains("Infrastructure › Rotate staging certificates"), certificates)
+		XCTAssertTrue(certificates.contains("Codex"), certificates)
 		assertOrder([
-			"topic:Gentbox", "thread:v1.1", "message:Release notes drafted",
-			"thread:Phase 3", "message:Store migrations run on start",
-			"topic:Infrastructure", "thread:Rotate staging certificates", "message:Staging certificates rotated",
+			"message:Release notes drafted",
+			"message:Staging certificates rotated",
+			"message:Store migrations run on start",
 		])
 	}
 
-	func testMutingATopicAndAThread() throws {
+	func testMutingATopicAndAThreadFromTheItemMenu() throws {
 		try post([
 			"type": "task_completed", "title": "Tokio upgraded",
 			"topic": ["key": "deps", "title": "Dependency upgrades"],
@@ -88,20 +96,17 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"thread": ["key": "search", "title": "Search filters"],
 		])
 		openInbox()
-		let topic = element("topic:Dependency upgrades")
-		XCTAssertTrue(topic.waitForExistence(timeout: 10))
-		topic.rightClick()
+		let tokio = element("message:Tokio upgraded")
+		XCTAssertTrue(tokio.waitForExistence(timeout: 10))
+		tokio.rightClick()
 		app.menuItems["Mute topic Dependency upgrades"].click()
-		XCTAssertTrue(isMuted(topic))
+		XCTAssertTrue(isMuted(tokio))
 		XCTAssertEqual(text(of: element("inbox.muted-summary")), "Dependency upgrades muted")
-		// Muting changes delivery only: the messages stay listed.
-		XCTAssertTrue(element("message:Tokio upgraded").exists)
 
-		let thread = element("thread:Search filters")
-		thread.rightClick()
+		let search = element("message:Search filters persist in the URL")
+		search.rightClick()
 		app.menuItems["Mute thread Search filters"].click()
-		XCTAssertTrue(isMuted(thread))
-		XCTAssertFalse(isMuted(element("topic:Web")))
+		XCTAssertTrue(isMuted(search))
 		XCTAssertEqual(text(of: element("inbox.muted-summary")), "2 topics and threads muted")
 	}
 
@@ -150,6 +155,14 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(element("action:Deny").exists)
 		attachSnapshot(named: "Menu-bar inbox")
 
+		// Picking a row moves it into the card; the prompt goes back to the list.
+		element("message:Search filters persist in the URL; 18 tests pass").click()
+		XCTAssertTrue(element("next-up:Search filters persist in the URL; 18 tests pass").waitForExistence(timeout: 5))
+		XCTAssertTrue(element("message:Allow Bash to run the ingest tests?").exists)
+		attachSnapshot(named: "Picked row")
+		element("message:Allow Bash to run the ingest tests?").click()
+		XCTAssertTrue(card.waitForExistence(timeout: 5))
+
 		element("action:Approve").click()
 		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
 		waiter.waitUntilExit()
@@ -162,13 +175,18 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	// MARK: Helpers
 
 	/// Waits for `API/port` and `API/token`: the hub is up and serving.
-	private func waitForTheHub() throws {
+	/// A `port` left by the previous test's app (killed, so it never removed
+	/// it) must not count: only one written after this launch does.
+	private func waitForTheHub(startedAfter launchedAt: Date) throws {
 		let api = stateFolder.appendingPathComponent("API")
 		let deadline = Date().addingTimeInterval(20)
 		while Date() < deadline {
 			let port = api.appendingPathComponent("port")
 			let token = api.appendingPathComponent("token")
-			if FileManager.default.fileExists(atPath: port.path), FileManager.default.fileExists(atPath: token.path) {
+			let written = (try? FileManager.default.attributesOfItem(atPath: port.path))?[.modificationDate] as? Date
+			if let written, written >= launchedAt.addingTimeInterval(-1),
+				FileManager.default.fileExists(atPath: token.path)
+			{
 				return
 			}
 			Thread.sleep(forTimeInterval: 0.2)
@@ -295,7 +313,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		element.label.isEmpty ? (element.value as? String ?? "") : element.label
 	}
 
-	/// The header reads "Muted" once the change is drawn.
+	/// The row reads "Muted" once the change is drawn.
 	private func isMuted(_ header: XCUIElement) -> Bool {
 		let muted = NSPredicate(format: "value == 'Muted'")
 		let expectation = XCTNSPredicateExpectation(predicate: muted, object: header)

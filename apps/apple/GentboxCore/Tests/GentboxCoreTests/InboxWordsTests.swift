@@ -16,11 +16,33 @@ struct InboxWordsTests {
 		#expect(InboxWords.timeAgo(now.addingTimeInterval(30), now: now) == "now")
 	}
 
-	@Test func rowContextIsConversationAgentAndTime() {
-		let row = message(receivedAt: now.addingTimeInterval(-600))
-		#expect(InboxWords.rowContext(for: row, now: now) == ["gentbox", "Claude Code", "10 min ago"])
-		let untitled = message(conversationTitle: nil, receivedAt: now)
-		#expect(InboxWords.rowContext(for: untitled, now: now) == ["Claude Code", "now"])
+	@Test func breadcrumbIsTopicThenThread() {
+		#expect(InboxWords.breadcrumb(for: message()) == "Gentbox › Phase 3")
+		let general = GroupContext(
+			topicTitle: "General", topicIsGeneral: true, topicIsMuted: false,
+			threadTitle: "Refactor the store", threadIsMuted: false,
+		)
+		#expect(InboxWords.breadcrumb(for: message(group: general)) == "Refactor the store")
+		let sameName = GroupContext(
+			topicTitle: "Web", topicIsGeneral: false, topicIsMuted: false, threadTitle: "web", threadIsMuted: false,
+		)
+		#expect(InboxWords.breadcrumb(for: message(group: sameName)) == "Web")
+		#expect(InboxWords.breadcrumb(for: message(group: nil, conversationTitle: "ingest")) == "ingest")
+	}
+
+	@Test func mutedByTopicOrThread() {
+		#expect(!InboxWords.isMuted(message()))
+		let thread = GroupContext(
+			topicTitle: "Web", topicIsGeneral: false, topicIsMuted: false, threadTitle: "Search", threadIsMuted: true,
+		)
+		#expect(InboxWords.isMuted(message(group: thread)))
+	}
+
+	@Test func knownAgentsGetTheirMarks() {
+		#expect(InboxWords.agentMark(for: "claude-code") == .claude)
+		#expect(InboxWords.agentMark(for: "Claude") == .claude)
+		#expect(InboxWords.agentMark(for: "codex") == .codex)
+		#expect(InboxWords.agentMark(for: "aider") == .other)
 	}
 
 	@Test func permissionPromptsGetTheShield() {

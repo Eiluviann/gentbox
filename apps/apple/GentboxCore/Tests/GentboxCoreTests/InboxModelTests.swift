@@ -78,6 +78,26 @@ struct InboxModelTests {
 		#expect(model.failure == "Already answered")
 	}
 
+	@Test func aPickedRowTakesTheCardUntilItLeavesTheList() async {
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking)
+		let done = message(id: "done")
+		let service = FakeService()
+		service.next = makeInbox(nextUp: prompt, items: [prompt, done])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		#expect(model.card?.id == "prompt")
+		#expect(model.list.map(\.id) == ["done"])
+
+		model.selectedMessageId = "done"
+		#expect(model.card?.id == "done")
+		#expect(model.list.map(\.id) == ["prompt"])
+
+		service.next = makeInbox(nextUp: prompt, items: [prompt])
+		await model.readUntilCurrent()
+		#expect(model.card?.id == "prompt")
+		#expect(model.list.isEmpty)
+	}
+
 	@Test func reopenPicksTheGroupKind() async {
 		let service = FakeService()
 		let model = InboxModel(service: service)

@@ -2,9 +2,10 @@ import GentboxCore
 import SwiftUI
 
 /// The menu-bar inbox (design: `mac-popover`): the message an agent is
-/// blocked on as a full card, then the open messages grouped topic → thread
-/// → messages, the Closed section, and a footer naming what is muted. No
-/// counters, no kind labels.
+/// blocked on as the full card on white, everything else as a two-line list
+/// on light grey with a rule between items, urgent first, then waiting. Topic
+/// and thread show only in each row's breadcrumb; no section titles, no
+/// counters. The popover lists only open, unhandled items.
 struct MenuBarInbox: View {
 	let app: AppModel
 
@@ -25,7 +26,7 @@ struct MenuBarInbox: View {
 	}
 }
 
-/// "Inbox", and the menu with Open at Login and Quit.
+/// "Inbox", and the settings menu (Open at Login, Quit).
 private struct InboxHeader: View {
 	let app: AppModel
 
@@ -55,6 +56,7 @@ private struct InboxHeader: View {
 			.menuStyle(.borderlessButton)
 			.menuIndicator(.hidden)
 			.fixedSize()
+			.frame(width: 28, height: 28)
 			.accessibilityLabel("Settings")
 			.accessibilityIdentifier("inbox.settings")
 		}
@@ -63,27 +65,30 @@ private struct InboxHeader: View {
 	}
 }
 
-/// The running inbox.
+/// The card, the list and the foot.
 private struct InboxContent: View {
 	let inbox: InboxModel
 
 	var body: some View {
 		if let snapshot = inbox.inbox {
-			if inbox.isEmpty, snapshot.closed.isEmpty {
+			if inbox.isEmpty {
 				InboxNotice(symbol: "tray", title: "No agent needs you", caption: nil)
 			} else {
 				ScrollView {
-					LazyVStack(alignment: .leading, spacing: 0) {
-						if let next = snapshot.nextUp {
-							NextUpCard(message: next, inbox: inbox)
+					VStack(alignment: .leading, spacing: 0) {
+						if let card = inbox.card {
+							MessageCard(message: card, inbox: inbox)
 							Divider()
 						}
-						ForEach(snapshot.topics, id: \.id) { topic in
-							TopicSection(topic: topic, snapshot: snapshot, inbox: inbox)
+						LazyVStack(alignment: .leading, spacing: 0) {
+							ForEach(Array(inbox.list.enumerated()), id: \.element.id) { index, message in
+								if index > 0 {
+									Divider().padding(.leading, Tokens.rowHorizontalPadding)
+								}
+								MessageRow(message: message, moveTargets: snapshot.moveTargets, inbox: inbox)
+							}
 						}
-						if !snapshot.closed.isEmpty {
-							ClosedSection(groups: snapshot.closed, inbox: inbox)
-						}
+						.background(Tokens.listBackground)
 					}
 				}
 				.frame(maxHeight: Tokens.listMaxHeight)
@@ -96,24 +101,8 @@ private struct InboxContent: View {
 	}
 }
 
-/// A topic header, then each thread's header and rows.
-private struct TopicSection: View {
-	let topic: InboxTopic
-	let snapshot: Inbox
-	let inbox: InboxModel
-
-	var body: some View {
-		TopicHeader(topic: topic, inbox: inbox)
-		ForEach(topic.threads, id: \.id) { thread in
-			ThreadHeader(thread: thread, topic: topic, moveTargets: snapshot.moveTargets, inbox: inbox)
-			ForEach(thread.messages, id: \.id) { message in
-				MessageRow(message: message, thread: thread, topic: topic, moveTargets: snapshot.moveTargets, inbox: inbox)
-			}
-		}
-	}
-}
-
-/// The foot: what is muted (with Unmute), and the last failure.
+/// The foot (design: `mac-popover-item-menu`): what is muted, with Unmute,
+/// and the last failure.
 private struct InboxFooter: View {
 	let snapshot: Inbox
 	let inbox: InboxModel
@@ -125,17 +114,17 @@ private struct InboxFooter: View {
 			VStack(alignment: .leading, spacing: 6) {
 				if let failure = inbox.failure {
 					Label(failure, systemImage: "xmark")
-						.font(.caption)
+						.font(.system(size: 11))
 						.foregroundStyle(Tokens.waiting)
 						.accessibilityIdentifier("inbox.failure")
 				}
 				if let muted {
 					HStack(spacing: 8) {
 						Image(systemName: "bell.slash")
-							.font(.caption)
+							.font(.system(size: 12))
 							.foregroundStyle(.secondary)
 						Text(muted)
-							.font(.caption)
+							.font(.system(size: 11))
 							.foregroundStyle(.secondary)
 							.frame(maxWidth: .infinity, alignment: .leading)
 							.accessibilityIdentifier("inbox.muted-summary")
@@ -154,12 +143,14 @@ private struct InboxFooter: View {
 						.menuStyle(.borderlessButton)
 						.menuIndicator(.hidden)
 						.fixedSize()
-						.font(.caption)
+						.font(.system(size: 12))
+						.foregroundStyle(Color.accentColor)
 						.accessibilityIdentifier("inbox.unmute")
 					}
 				}
 			}
 			.padding(EdgeInsets(top: 9, leading: 14, bottom: 9, trailing: 12))
+			.background(Tokens.listBackground)
 		}
 	}
 }
@@ -180,7 +171,7 @@ struct InboxNotice: View {
 				.padding(.top, 4)
 			if let caption {
 				Text(caption)
-					.font(.caption)
+					.font(.system(size: 11))
 					.foregroundStyle(.secondary)
 					.multilineTextAlignment(.center)
 			}

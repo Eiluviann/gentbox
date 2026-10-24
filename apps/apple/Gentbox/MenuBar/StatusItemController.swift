@@ -46,6 +46,8 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 		NSApp.activate()
 		testWindow = window
 		if let path = ProcessInfo.processInfo.environment["GENTBOX_SNAPSHOT_PATH"], !path.isEmpty {
+			// Snapshots are for comparing with the design boards, which are light.
+			window.appearance = NSAppearance(named: .aqua)
 			snapshotOnChange(to: URL(fileURLWithPath: path))
 		}
 	}
@@ -58,6 +60,7 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 		withObservationTracking {
 			_ = app.inbox?.inbox
 			_ = app.inbox?.failure
+			_ = app.inbox?.selectedMessageId
 		} onChange: { [weak self] in
 			Task { @MainActor in
 				try? await Task.sleep(for: .milliseconds(400))
@@ -72,7 +75,22 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 			let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)
 		else { return }
 		view.cacheDisplay(in: view.bounds, to: bitmap)
-		try? bitmap.representation(using: .png, properties: [:])?.write(to: url, options: .atomic)
+		// The cache leaves the window's own background out: lay it under.
+		let size = NSSize(width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
+		guard let opaque = NSBitmapImageRep(
+			bitmapDataPlanes: nil, pixelsWide: bitmap.pixelsWide, pixelsHigh: bitmap.pixelsHigh,
+			bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+			colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0,
+		) else { return }
+		NSGraphicsContext.saveGraphicsState()
+		NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: opaque)
+		view.effectiveAppearance.performAsCurrentDrawingAppearance {
+			NSColor.windowBackgroundColor.setFill()
+			NSRect(origin: .zero, size: size).fill()
+		}
+		bitmap.draw(in: NSRect(origin: .zero, size: size))
+		NSGraphicsContext.restoreGraphicsState()
+		try? opaque.representation(using: .png, properties: [:])?.write(to: url, options: .atomic)
 	}
 
 	private func configureButton() {
@@ -102,6 +120,11 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
 			popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
 			popover.contentViewController?.view.window?.makeKey()
 		}
+	}
+
+	/// The next opening starts again from the message an agent is blocked on.
+	func popoverDidClose(_: Notification) {
+		app.inbox?.selectedMessageId = nil
 	}
 
 	/// Redraws the mark and the count, then waits for the next change.
