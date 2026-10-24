@@ -20,13 +20,13 @@ body{margin:0}
 .bp-acts{display:flex;gap:6px;align-items:center}
 .mini{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:10px 12px 10px 14px}
 .mini > .i{margin-top:1px}
-.more{align-self:flex-end;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid var(--line);box-shadow:var(--shadow-panel);font-size:12px;font-weight:500}
+.more{align-self:flex-end;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:var(--elevated);border:1px solid var(--panel-line);box-shadow:var(--shadow-panel);font-size:12px;font-weight:500}
 .note{position:absolute;left:28px;bottom:24px;width:300px}
 </style>
 </helmet>
-<div class="board desk bs-board">
+<div data-theme="light" class="board desk bs-board">
 	<div class="menubar" style="justify-content: flex-end">
-		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">3</span></span>
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock dot-wait" d="{{ic.agent_dot}}"></path></svg><span class="mb-count">3</span></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
 		<span>Fri 18:51</span>
 	</div>

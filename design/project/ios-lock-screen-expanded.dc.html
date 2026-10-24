@@ -16,7 +16,7 @@ body{margin:0}
 .legend{position:relative;margin:12px 22px 0;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
 </style>
 </helmet>
-<div class="lock">
+<div data-theme="light" class="lock">
 	<div class="blur"></div>
 	<div style="height: 110px"></div>
 
@@ -29,7 +29,7 @@ body{margin:0}
 			<div style="display: flex; align-items: center; gap: 8px">
 				<svg class="i i18 c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
 				<span style="font-weight: 600; flex: 1">Your input is needed</span>
-				<svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>
+				<span class="i i22 agent-mark" aria-hidden="true"></span>
 			</div>
 			<div class="tags" style="margin-top: 0"><span class="tag wait" style="height: 20px; font-size: 12px">Agent waiting</span><span class="tag plain" style="font-size: 12px">Claude Code</span></div>
 			<div style="font-size: 17px; line-height: 22px; font-weight: 600">Allow Bash to run the ingest tests?</div>

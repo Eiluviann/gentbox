@@ -16,7 +16,7 @@ body{margin:0}
 .win{height:460px}
 </style>
 </helmet>
-<div class="board desk set-board se-board">
+<div data-theme="light" class="board desk set-board se-board">
 	<div class="window set-win win">
 		<nav class="sidebar" aria-label="Settings">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
@@ -36,10 +36,10 @@ body{margin:0}
 			</div>
 			<div class="set-pane">
 				<div class="callout warn">
-					<svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: #8a5a00"><path d="{{ic.exclamationmark_triangle}}"></path></svg>
+					<svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--warn-ink)"><path d="{{ic.exclamationmark_triangle}}"></path></svg>
 					<div>
 						<div class="headline">rules.toml has an error on line 14</div>
-						<div class="code" style="margin-top: 6px; background: rgba(255, 255, 255, 0.7)">14 │ class "generic"
+						<div class="code" style="margin-top: 6px; background: var(--code-on-tint)">14 │ class "generic"
    │       ^ expected = after class</div>
 						<div class="caption" style="margin-top: 6px; color: var(--ink-2)">Still using the rules from 14:05 until the file parses again</div>
 					</div>

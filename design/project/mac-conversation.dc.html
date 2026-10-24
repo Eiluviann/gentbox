@@ -23,7 +23,7 @@ body{margin:0}
 .mark{width:10px;height:10px}
 </style>
 </helmet>
-<div class="board desk cd-board">
+<div data-theme="light" class="board desk cd-board">
 	<div class="window win">
 		<nav class="sidebar" aria-label="Sidebar">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
@@ -44,7 +44,7 @@ body{margin:0}
 			<div class="toolbar">
 				<div style="flex: 1; min-width: 0">
 					<div class="caption"><a class="link" href="mac-topic.dc.html">Gentbox</a> › <a class="link" href="mac-thread.dc.html">Phase 3 · ingest</a> ›</div><div class="headline" style="font-size: 15px">api · fix flaky test</div>
-					<div class="tags" style="margin-top: 1px"><span class="tag plain"><svg class="i mark" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>Claude Code 2.3</span><span class="tag plain"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Ghostty · ttys004</span><span class="tag plain"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.folder}}"></path></svg><span class="mono" style="font-size: 11px">~/Developer/api</span></span></div>
+					<div class="tags" style="margin-top: 1px"><span class="tag plain"><span class="i mark agent-mark" aria-hidden="true"></span>Claude Code 2.3</span><span class="tag plain"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Ghostty · ttys004</span><span class="tag plain"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.folder}}"></path></svg><span class="mono" style="font-size: 11px">~/Developer/api</span></span></div>
 				</div>
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg>Open in Ghostty</button>
 				<button class="btn icon" aria-label="More"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
@@ -65,7 +65,7 @@ body{margin:0}
 							<div class="code">cargo test -p ingest -- --nocapture</div>
 							<div class="body">Run the ingest tests with output</div>
 							<div class="acts">
-								<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve<span class="kbd" style="color: #fff">⌘↩</span></button>
+								<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approve<span class="kbd" style="color: var(--on-fill)">⌘↩</span></button>
 								<button class="btn danger"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg>Deny</button>
 								<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrowshape_turn_up_left}}"></path></svg>Reply</button>
 								<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg>Snooze</button>

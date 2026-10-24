@@ -18,7 +18,7 @@ body{margin:0}
 .step{position:absolute;left:20px;top:20px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:rgba(255,255,255,.7)}
 </style>
 </helmet>
-<div class="lock">
+<div data-theme="light" class="lock">
 	<div class="step">3 · 18:45 · handled</div>
 	<div class="lock-date">Friday 23 October</div>
 	<div class="lock-time">18:45</div>
@@ -31,7 +31,7 @@ body{margin:0}
 			<div class="notif-sub">Gentbox · Phase 3 · ingest</div>
 			<div class="notif-body" style="color: #3c3c43">Allow Bash to run the ingest tests</div>
 		</div>
-		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+		<div class="thumb"><span class="i i22 agent-mark" aria-hidden="true"></span></div>
 	</div>
 	<div class="notif passive">
 		<div class="appicon notif-appicon"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></div>
@@ -40,7 +40,7 @@ body{margin:0}
 			<div class="notif-sub">infra · rotate staging certs</div>
 			<div class="notif-body" style="color: #3c3c43">Which cluster gets the new certificates first?</div>
 		</div>
-		<div class="thumb"><svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg></div>
+		<div class="thumb"><span class="i i22 agent-mark round" aria-hidden="true"></span></div>
 	</div>
 
 	<div class="legend">Once answered anywhere, the notification is replaced in place by a passive version without buttons, then removed. When the agent withdraws a message, its notification is removed straight away</div>

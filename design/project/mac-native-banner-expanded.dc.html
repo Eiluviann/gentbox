@@ -14,19 +14,19 @@
 body{margin:0}
 .ne-board{width:520px;height:440px}
 .wrap{position:absolute;top:40px;right:16px;width:350px;display:flex;flex-direction:column;gap:6px}
-.nn{padding:11px 12px;border-radius:18px;background:rgba(246,246,248,.96);border:1px solid var(--line);box-shadow:var(--shadow-panel);display:grid;grid-template-columns:34px minmax(0,1fr) 40px;column-gap:10px;align-items:start}
+.nn{padding:11px 12px;border-radius:18px;background:var(--banner);border:1px solid var(--line);box-shadow:var(--shadow-panel);display:grid;grid-template-columns:34px minmax(0,1fr) 40px;column-gap:10px;align-items:start}
 .appicon{width:34px;height:34px;border-radius:8px;background:#1d1d1f;position:relative}
 .appicon svg{position:absolute;left:8px;top:8px;width:18px;height:18px}
 .attach{width:40px;height:40px;border-radius:8px;background:var(--ask-soft);display:flex;align-items:center;justify-content:center;margin-top:8px}
 .nn-title{display:flex;justify-content:space-between;gap:8px;font-size:13px;line-height:17px;font-weight:600}
 .nn-title span{font-weight:400;font-size:11px;color:var(--ink-3)}
 .nn-text{font-size:13px;line-height:17px;color:var(--ink)}
-.nact{height:34px;border-radius:12px;background:rgba(246,246,248,.96);border:1px solid var(--line);box-shadow:0 4px 12px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500}
-.nreply{display:flex;gap:6px;align-items:center;padding:5px 5px 5px 12px;border-radius:12px;background:#fff;border:1px solid var(--accent);box-shadow:0 0 0 3px rgba(0,122,255,.2)}
+.nact{height:34px;border-radius:12px;background:var(--banner);border:1px solid var(--line);box-shadow:var(--shadow-raise);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500}
+.nreply{display:flex;gap:6px;align-items:center;padding:5px 5px 5px 12px;border-radius:12px;background:var(--field);border:1px solid var(--accent);box-shadow:0 0 0 3px var(--focus-ring)}
 .note{position:absolute;left:28px;bottom:24px;width:300px}
 </style>
 </helmet>
-<div class="board desk ne-board">
+<div data-theme="light" class="board desk ne-board">
 	<div class="menubar" style="justify-content: flex-end">
 		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}"></path></svg></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
@@ -41,7 +41,7 @@ body{margin:0}
 				<div class="nn-text" style="font-weight: 500">Which title for the 1.1 release notes?<br>Gentbox · v1.1 · docs · release notes</div>
 				<div class="nn-text" style="color: var(--ink-2)">I used “Faster inbox” for now and kept going</div>
 			</div>
-			<div class="attach" style="background: #fff; border: 1px solid var(--line)"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+			<div class="attach" style="background: var(--control); border: 1px solid var(--line)"><span class="i i22 agent-mark" aria-hidden="true"></span></div>
 		</div>
 		<div class="nact">Keep “Faster inbox”</div>
 		<div class="nact">Use “Inbox, quieter”</div>

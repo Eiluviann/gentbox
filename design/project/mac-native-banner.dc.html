@@ -14,7 +14,7 @@
 body{margin:0}
 .nb-board{width:520px;height:440px}
 .nn.second{top:170px}
-.nn{position:absolute;top:40px;right:16px;width:350px;padding:11px 12px;border-radius:18px;background:rgba(246,246,248,.96);border:1px solid var(--line);box-shadow:var(--shadow-panel);display:grid;grid-template-columns:34px minmax(0,1fr) 40px;column-gap:10px;align-items:start}
+.nn{position:absolute;top:40px;right:16px;width:350px;padding:11px 12px;border-radius:18px;background:var(--banner);border:1px solid var(--line);box-shadow:var(--shadow-panel);display:grid;grid-template-columns:34px minmax(0,1fr) 40px;column-gap:10px;align-items:start}
 .appicon{width:34px;height:34px;border-radius:8px;background:#1d1d1f;position:relative}
 .appicon svg{position:absolute;left:8px;top:8px;width:18px;height:18px}
 .attach{width:40px;height:40px;border-radius:8px;background:var(--ask-soft);display:flex;align-items:center;justify-content:center;margin-top:8px}
@@ -24,7 +24,7 @@ body{margin:0}
 .note{position:absolute;left:28px;bottom:24px;width:300px}
 </style>
 </helmet>
-<div class="board desk nb-board">
+<div data-theme="light" class="board desk nb-board">
 	<div class="menubar" style="justify-content: flex-end">
 		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}"></path></svg></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
@@ -38,7 +38,7 @@ body{margin:0}
 			<div class="nn-text" style="font-weight: 500">Which title for the 1.1 release notes?<br>Gentbox · v1.1 · docs · release notes</div>
 			<div class="nn-text" style="color: var(--ink-2)">I used “Faster inbox” for now and kept going</div>
 		</div>
-		<div class="attach" style="background: #fff; border: 1px solid var(--line)"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+		<div class="attach" style="background: var(--control); border: 1px solid var(--line)"><span class="i i22 agent-mark" aria-hidden="true"></span></div>
 	</div>
 
 	<div class="nn second">
@@ -48,7 +48,7 @@ body{margin:0}
 			<div class="nn-text" style="font-weight: 500">Urgent · Agent waiting · Gentbox · Phase 3 · ingest</div>
 			<div class="nn-text" style="color: var(--ink-2)">Allow Bash to run the ingest tests?</div>
 		</div>
-		<div class="attach" style="background: #fff; border: 1px solid var(--line)"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+		<div class="attach" style="background: var(--control); border: 1px solid var(--line)"><span class="i i22 agent-mark" aria-hidden="true"></span></div>
 	</div>
 
 	<div class="note">

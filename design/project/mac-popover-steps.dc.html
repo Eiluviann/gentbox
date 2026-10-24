@@ -15,7 +15,7 @@ body{margin:0}
 .pp-board{height:800px}
 </style>
 </helmet>
-<div class="board desk pp-board">
+<div data-theme="light" class="board desk pp-board">
 	<div class="menubar" style="justify-content: flex-end">
 		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path></svg></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
@@ -33,7 +33,7 @@ body{margin:0}
 			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
 			<div style="min-width: 0">
 				<div class="headline">Sign in to the payments sandbox so the end-to-end tests can run</div>
-				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <svg class="i" viewBox="{{bm.claude.vb}}" aria-label="Claude Code" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>9 min ago</div>
+				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>9 min ago</div>
 			</div>
 			<svg class="i pp-state-icon c-paused" viewBox="0 0 100 100" aria-label="Paused, can defer"><path d="{{ic.pause_circle}}"></path></svg>
 		</div>

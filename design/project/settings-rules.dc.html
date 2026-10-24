@@ -17,7 +17,7 @@ body{margin:0}
 .arrow{color:var(--ink-3)}
 </style>
 </helmet>
-<div class="board desk set-board sr-board">
+<div data-theme="light" class="board desk set-board sr-board">
 	<div class="window set-win win">
 		<nav class="sidebar" aria-label="Settings">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
@@ -68,7 +68,7 @@ body{margin:0}
 
 				<div class="card">
 					<div class="card-head">
-						<svg class="i" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg>
+						<span class="i agent-mark" aria-hidden="true"></span>
 						<div><div class="headline">Built-in · Claude Code</div><div class="caption">13 rules shipped with the app, after yours</div></div>
 						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_down}}"></path></svg>
 					</div>

@@ -12,24 +12,25 @@
 <helmet>
 <style>
 body{margin:0}
-.oc-board{width:1180px;height:600px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.oc-board{width:1180px;height:640px;padding:32px;display:flex;flex-direction:column;gap:16px}
 .cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
-.legend{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.legend > div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+.legend{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.legend > div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--card)}
 </style>
 </helmet>
-<div class="board oc-board">
+<div data-theme="light" class="board oc-board">
 	<div>
 		<div class="title-large">Outcomes, afterwards</div>
-		<div class="body">How an answered, done, deferred, dismissed or withdrawn message reads once it is handled; the same tags appear everywhere it is listed</div>
+		<div class="body">How a message reads once it is handled; the same tags appear everywhere it is listed. Dismissing is never a refusal, and only the agent can withdraw</div>
 	</div>
 
 	<div class="legend">
 		<div><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Approved on Mac</span><div class="caption" style="margin-top: 6px"><span class="mono">answered</span> · approve, deny, choice or reply, with where</div></div>
 		<div><span class="tag act"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>Done on Mac</span><div class="caption" style="margin-top: 6px"><span class="mono">done</span> · you did the action; the agent was told</div></div>
 		<div><span class="tag working"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.forward}}"></path></svg>Deferred · agent working</span><div class="caption" style="margin-top: 6px"><span class="mono">deferred</span> · still open, no longer blocking</div></div>
-		<div><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark_circle}}"></path></svg>Marked done, no answer</span><div class="caption" style="margin-top: 6px"><span class="mono">dismissed</span> · closed by you; the agent got no answer</div></div>
-		<div><span class="tag gone"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>Withdrawn</span><div class="caption" style="margin-top: 6px"><span class="mono">rescinded</span> · by the agent, with the reason in words</div></div>
+		<div><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark_circle}}"></path></svg>Dismissed</span><div class="caption" style="margin-top: 6px"><span class="mono">dismissed</span> · cleared by you without an answer; never a refusal</div></div>
+		<div><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Handled in the session</span><div class="caption" style="margin-top: 6px"><span class="mono">handled_in_session</span> · the agent reported progress or finished, so the hub cleared it</div></div>
+		<div><span class="tag gone"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>Withdrawn</span><div class="caption" style="margin-top: 6px"><span class="mono">rescinded</span> · only when the agent withdraws it, with its reason</div></div>
 	</div>
 
 	<div class="cols">
@@ -53,7 +54,12 @@ body{margin:0}
 				</div>
 				<div class="row">
 					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
-					<div><div class="headline" style="font-weight: 500">Rename the ingest test helpers?</div><div class="tags"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark_circle}}"></path></svg>Marked done, no answer</span><span class="tag plain">api · 16:40</span></div></div>
+					<div><div class="headline" style="font-weight: 500">Rename the ingest test helpers?</div><div class="tags"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark_circle}}"></path></svg>Dismissed on Mac</span><span class="tag plain">api · 16:40</span></div></div>
+					<span></span>
+				</div>
+				<div class="row">
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+					<div><div class="headline" style="font-weight: 500">Allow Bash to run the end-to-end tests?</div><div class="tags"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Handled in the session</span><span class="tag plain">web · 18:20</span></div></div>
 					<span></span>
 				</div>
 				<div class="row withdrawn">
@@ -67,7 +73,7 @@ body{margin:0}
 
 		<div>
 			<div class="eyebrow" style="margin-bottom: 8px">Conversation · web · WEB-142 checkout</div>
-			<div class="tl" style="background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px">
+			<div class="tl" style="background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px">
 				<div class="tl-line"></div>
 				<div class="tl-item">
 					<span class="tl-time">18:58</span>
@@ -87,19 +93,19 @@ body{margin:0}
 				<div class="tl-item">
 					<span class="tl-time">18:31</span>
 					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
-					<div><div class="headline" style="font-weight: 500">Choose a payment provider for the test run</div><div class="tags" style="margin-top: 2px"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark_circle}}"></path></svg>Marked done, no answer</span><span class="tag plain">answered in the session</span></div></div>
+					<div><div class="headline" style="font-weight: 500">Choose a payment provider for the test run</div><div class="tags" style="margin-top: 2px"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark_circle}}"></path></svg>Dismissed on Mac</span><span class="tag plain">no answer was sent</span></div></div>
 				</div>
 				<div class="tl-item">
 					<span class="tl-time">18:20</span>
-					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>
-					<div><div class="headline" style="font-weight: 500; color: var(--ink-3)">Allow Bash to run the end-to-end tests?</div><div class="tags" style="margin-top: 2px"><span class="tag gone">Withdrawn · Handled in the session</span></div></div>
+					<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+					<div><div class="headline" style="font-weight: 500">Allow Bash to run the end-to-end tests?</div><div class="tags" style="margin-top: 2px"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Handled in the session</span><span class="tag plain">the agent ran them another way</span></div></div>
 				</div>
 			</div>
 		</div>
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":600}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1180,"height":640}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {} };

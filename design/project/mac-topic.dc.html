@@ -16,7 +16,7 @@ body{margin:0}
 .win{width:1120px;height:720px}
 </style>
 </helmet>
-<div class="board desk tp-board">
+<div data-theme="light" class="board desk tp-board">
 	<div class="window win">
 		<nav class="sidebar" aria-label="Sidebar">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
@@ -41,7 +41,7 @@ body{margin:0}
 					<div class="caption">An inbox for your AI agents · opened by Claude Code</div>
 				</div>
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>Mute</button>
-				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close topic</button>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close topic…<span class="kbd">4 open</span></button>
 				<button class="btn icon" aria-label="More"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 			</div>
 
@@ -73,7 +73,7 @@ body{margin:0}
 						<svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true" style="margin-top: 3px"><path d="{{ic.chevron_right}}"></path></svg>
 					</div>
 				</div>
-				<div class="caption">A topic is the bigger undertaking; each thread is a version, a phase or a single conversation. The label on a thread is its most pressing open item</div>
+				<div class="caption">A topic is the bigger undertaking; each thread is a version, a phase or a single conversation. The label on a thread is its most pressing open item. Close shows how many are open and leads to them; General has no Close</div>
 			</div>
 		</main>
 	</div>
