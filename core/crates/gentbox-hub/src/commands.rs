@@ -21,8 +21,8 @@ use gentbox_core::rescind::{RescindReason, RescindRequest};
 use gentbox_core::resolve::GroupingError;
 use gentbox_core::response::{ActionResponse, AnsweredVia, IngestResponse, IngestWarning};
 use gentbox_core::topic::{
-    CloseRequest, GroupStatus, ThreadCreate, ThreadRecord, ThreadRef, TopicCreate, TopicRecord,
-    TopicRef, TopicStyle,
+    CloseRequest, GroupStatus, Thread, ThreadCreate, ThreadRecord, ThreadRef, Topic, TopicCreate,
+    TopicRecord, TopicRef, TopicStyle,
 };
 use gentbox_store::{Conflict, EntityKind, MessageFilter, StoreError, SweepReport, Upserted};
 use serde::{Deserialize, Deserializer};
@@ -267,6 +267,30 @@ pub struct MessageGrouping {
     pub topic_id: TopicId,
     /// Its thread.
     pub thread_id: ThreadId,
+}
+
+/// One live message in the inbox, with what the UI may offer for it now.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InboxEntry {
+    /// The stored message.
+    pub message: Message,
+    /// The buttons to show now.
+    pub offered_actions: Vec<Action>,
+    /// Whether a sender is waiting for the answer now.
+    pub has_live_waiter: bool,
+}
+
+/// Everything the Mac inbox draws, read in one actor turn so that topics,
+/// threads and messages agree with each other.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct InboxSnapshot {
+    /// Every topic, open and closed, with its mute and read state.
+    pub topics: Vec<Topic>,
+    /// Every thread, open and closed.
+    pub threads: Vec<Thread>,
+    /// The live messages (open and acknowledged) not snoozed past now,
+    /// newest first.
+    pub entries: Vec<InboxEntry>,
 }
 
 /// A JSON field that may be absent (`None`), `null` (`Some(None)`) or set.
@@ -640,7 +664,7 @@ impl HubHandle {
         request: ThreadMove,
         requester: Requester,
     ) -> Result<ThreadRecord, HubError> {
-        self.call(move |hub| hub.move_thread(&id, &request, &requester))
+        self.call(move |hub| hub.move_thread(&id, &request, Some(&requester)))
             .await
     }
 
@@ -655,7 +679,7 @@ impl HubHandle {
         request: MessageThreadMove,
         requester: Requester,
     ) -> Result<MessageGrouping, HubError> {
-        self.call(move |hub| hub.move_message(&id, &request, &requester))
+        self.call(move |hub| hub.move_message(&id, &request, Some(&requester)))
             .await
     }
 
@@ -789,6 +813,49 @@ impl HubHandle {
     /// Only [`HubError::Stopped`].
     pub async fn tracked_waiters(&self) -> Result<usize, HubError> {
         self.call(|hub| Ok(hub.tracked_waiters())).await
+    }
+
+    /// The inbox in one read: every topic and thread, and the live messages
+    /// with their buttons (architecture §5.4, "Inbox").
+    ///
+    /// # Errors
+    ///
+    /// Only the hub's own failures.
+    pub async fn inbox_snapshot(&self) -> Result<InboxSnapshot, HubError> {
+        self.call(|hub| hub.inbox_snapshot()).await
+    }
+
+    /// You move a thread, with its messages, to another topic from the inbox.
+    /// Unlike [`HubHandle::move_thread`] there is no owner check: the person
+    /// at the Mac may regroup any agent's work.
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::ThreadNotFound`], [`HubError::Conflict`] when the key
+    /// exists in the target (409), [`HubError::Grouping`] for an unknown
+    /// target topic.
+    pub async fn move_thread_for_user(
+        &self,
+        id: ThreadId,
+        request: ThreadMove,
+    ) -> Result<ThreadRecord, HubError> {
+        self.call(move |hub| hub.move_thread(&id, &request, None))
+            .await
+    }
+
+    /// You move a message to another thread from the inbox, or back to its
+    /// default resolution with `thread: None`; no owner check.
+    ///
+    /// # Errors
+    ///
+    /// [`HubError::MessageNotFound`], [`HubError::Grouping`].
+    pub async fn move_message_for_user(
+        &self,
+        id: MessageId,
+        request: MessageThreadMove,
+    ) -> Result<MessageGrouping, HubError> {
+        self.call(move |hub| hub.move_message(&id, &request, None))
+            .await
     }
 
     /// Mutes or unmutes a topic (and so its threads).

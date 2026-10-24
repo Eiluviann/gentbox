@@ -35,8 +35,9 @@ use tokio::sync::{mpsc, watch};
 
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use commands::{
-    ActionRequest, ConversationUpdate, HubError, HubHandle, IngestOutcome, IngestStatus,
-    MessageGrouping, MessageThreadMove, Requester, ThreadMove, ThreadUpdate, TopicUpdate,
+    ActionRequest, ConversationUpdate, HubError, HubHandle, InboxEntry, InboxSnapshot,
+    IngestOutcome, IngestStatus, MessageGrouping, MessageThreadMove, Requester, ThreadMove,
+    ThreadUpdate, TopicUpdate,
 };
 pub use config::{DATABASE_FILE_NAME, HubConfig};
 pub use dispatch::{HubDelegate, HubEvent, NoDelegate};

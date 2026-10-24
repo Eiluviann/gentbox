@@ -49,8 +49,9 @@ use tokio::sync::{mpsc, watch};
 
 use crate::clock::Clock;
 use crate::commands::{
-    ActionRequest, ConversationUpdate, HubError, IngestOutcome, IngestStatus, Job, MessageGrouping,
-    MessageThreadMove, Requester, ThreadMove, ThreadUpdate, TopicUpdate,
+    ActionRequest, ConversationUpdate, HubError, InboxEntry, InboxSnapshot, IngestOutcome,
+    IngestStatus, Job, MessageGrouping, MessageThreadMove, Requester, ThreadMove, ThreadUpdate,
+    TopicUpdate,
 };
 use crate::config::source_settings;
 use crate::dispatch::{Dispatcher, HubEvent};
@@ -367,6 +368,8 @@ impl HubState {
         }
         self.dispatcher.send(HubEvent::Delivered {
             offered_actions: cloned(offered_actions(&message, plan.should_wait)),
+            // A waiting sender counts as live from delivery on (§5.2).
+            has_live_waiter: plan.should_wait,
             replaces: supersede
                 .as_ref()
                 .map(|supersede| supersede.replaces.clone()),
@@ -989,20 +992,27 @@ impl HubState {
         )
     }
 
+    /// `requester` is the agent asking; `None` is you in the Mac UI, who may
+    /// move any thread.
     pub(crate) fn move_thread(
         &mut self,
         id: &ThreadId,
         request: &ThreadMove,
-        requester: &Requester,
+        requester: Option<&Requester>,
     ) -> Result<ThreadRecord, HubError> {
         let now = self.now();
         let thread = self.store.repository().thread(id)?;
-        self.check_owns_thread(&thread, requester)?;
-        let snapshot = self.store.repository().grouping_snapshot()?;
-        let created_by = CreatedBy {
-            agent: requester.agent.clone(),
-            conversation_id: requester.conversation_id.clone(),
+        let created_by = match requester {
+            Some(requester) => {
+                self.check_owns_thread(&thread, requester)?;
+                CreatedBy {
+                    agent: requester.agent.clone(),
+                    conversation_id: requester.conversation_id.clone(),
+                }
+            }
+            None => thread.created_by.clone(),
         };
+        let snapshot = self.store.repository().grouping_snapshot()?;
         let (target, new_topic) = match &request.topic {
             TopicRef::Id(by_id) => {
                 let topic = snapshot
@@ -1092,15 +1102,17 @@ impl HubState {
     // Messages: move
     // -----------------------------------------------------------------
 
+    /// `requester` is the agent asking; `None` is you in the Mac UI, who may
+    /// move any message.
     pub(crate) fn move_message(
         &mut self,
         id: &MessageId,
         request: &MessageThreadMove,
-        requester: &Requester,
+        requester: Option<&Requester>,
     ) -> Result<MessageGrouping, HubError> {
         let now = self.now();
         let message = self.store.repository().message(id)?;
-        if !requester.owns(&message) {
+        if requester.is_some_and(|requester| !requester.owns(&message)) {
             return Err(HubError::NotOwner);
         }
         let topic = request.topic.as_ref().map(redacted_topic_ref);
@@ -1311,6 +1323,32 @@ impl HubState {
         Ok(message)
     }
 
+    pub(crate) fn inbox_snapshot(&self) -> Result<InboxSnapshot, HubError> {
+        let now = self.now();
+        let repository = self.store.repository();
+        let groups = repository.grouping_snapshot()?;
+        let messages = repository.list_messages(&MessageFilter {
+            hide_snoozed_at: Some(now),
+            ..MessageFilter::default()
+        })?;
+        let entries = messages
+            .into_iter()
+            .map(|message| {
+                let has_live_waiter = self.waiters.is_live(&message.id, now);
+                InboxEntry {
+                    offered_actions: cloned(offered_actions(&message, has_live_waiter)),
+                    has_live_waiter,
+                    message,
+                }
+            })
+            .collect();
+        Ok(InboxSnapshot {
+            topics: groups.topics,
+            threads: groups.threads,
+            entries,
+        })
+    }
+
     pub(crate) fn offered_actions_of(&self, id: &MessageId) -> Result<Vec<Action>, HubError> {
         let message = self.store.repository().message(id)?;
         Ok(cloned(offered_actions(
@@ -1320,11 +1358,10 @@ impl HubState {
     }
 
     fn send_updated(&self, message: &Message, take_down: DeliveredSurfaces, now: OffsetDateTime) {
+        let has_live_waiter = self.waiters.is_live(&message.id, now);
         self.dispatcher.send(HubEvent::Updated {
-            offered_actions: cloned(offered_actions(
-                message,
-                self.waiters.is_live(&message.id, now),
-            )),
+            offered_actions: cloned(offered_actions(message, has_live_waiter)),
+            has_live_waiter,
             message: message.clone(),
             take_down,
         });
