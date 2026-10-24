@@ -98,7 +98,17 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		for bar in [controls, nextControls].compactMap({ $0 }) {
 			bar.layOut(at: y, width: width)
 		}
-		return y + ActionControls.barHeight
+		return y + (controls?.height(isReplying: isReplying, width: width) ?? ActionControls.barHeight)
+	}
+
+	/// Notes where the reply field and its buttons show now: the field grows
+	/// a line at a time with the card's height.
+	func capture(into motion: inout LayerMotion) {
+		guard let controls else { return }
+		motion.capture(controls.replyField?.layer, ["position", "bounds"])
+		for view in [controls.send, controls.cancel] as [NSView?] {
+			motion.capture(view?.layer, ["position"])
+		}
 	}
 
 	// MARK: Controls
@@ -227,20 +237,22 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		if field.stringValue != text {
 			field.stringValue = text
 			// The caret after the text, as if typed.
-			field.currentEditor()?.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+			let end = NSRange(location: (text as NSString).length, length: 0)
+			field.currentEditor()?.selectedRange = end
+			field.currentEditor()?.scrollRangeToVisible(end)
 		}
-		controls?.send?.isEnabled = !text.trimmingCharacters(in: .whitespaces).isEmpty
+		controls?.send?.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 	}
 
 	func controlTextDidChange(_: Notification) {
 		guard let field = controls?.replyField else { return }
 		inbox.updateReply(field.stringValue)
-		controls?.send?.isEnabled = !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty
+		controls?.send?.isEnabled = !field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 	}
 
 	@objc func sendReply() {
 		guard let message, let field = controls?.replyField, let action = controls?.spec.reply, !hasSent else { return }
-		let text = field.stringValue.trimmingCharacters(in: .whitespaces)
+		let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !text.isEmpty else { return }
 		hasSent = true
 		inbox.endReply()
@@ -280,7 +292,7 @@ final class ActionControls {
 	let spec: Spec
 	private(set) var answerButtons: [InboxButton] = []
 	private(set) var fallbackButton: InboxButton?
-	private(set) var replyField: NSTextField?
+	private(set) var replyField: ReplyField?
 	private(set) var send: InboxButton?
 	private(set) var cancel: InboxButton?
 	private var factories: [(ActionControls, CardBodyView) -> NSView]
@@ -328,18 +340,33 @@ final class ActionControls {
 		allViews.forEach { $0.removeFromSuperview() }
 	}
 
-	/// Each bar left to right at `y`; the reply field takes what its buttons
-	/// leave.
+	/// Space between the reply field and its buttons.
+	static let replyGap: CGFloat = 8
+
+	/// The height the shown bar takes: one row of buttons, or the reply field
+	/// over its Send and Cancel.
+	func height(isReplying: Bool, width: CGFloat) -> CGFloat {
+		guard isReplying, let replyField else { return Self.barHeight }
+		return replyField.height(width: width) + Self.replyGap + Self.barHeight
+	}
+
+	/// Each bar left to right at `y`; the reply field spans the width, with
+	/// its buttons on the row below.
 	func layOut(at y: CGFloat, width: CGFloat) {
-		let bars: [[NSView]] = [answerButtons, [fallbackButton].compactMap { $0 }, [replyField, send, cancel].compactMap { $0 }]
+		var buttonsTop = y
+		if let replyField {
+			replyField.frame = NSRect(x: 0, y: y, width: width, height: replyField.height(width: width))
+			buttonsTop = replyField.frame.maxY + Self.replyGap
+		}
+		let bars: [(views: [NSView], top: CGFloat)] = [
+			(answerButtons, y), ([fallbackButton].compactMap { $0 }, y), ([send, cancel].compactMap { $0 }, buttonsTop),
+		]
 		for bar in bars {
 			var x: CGFloat = 0
-			let others = bar.filter { $0 !== replyField }.map { $0.frame.width + 6 }.reduce(0, +)
-			for view in bar {
-				let viewWidth = view === replyField ? max(width - others, 80) : view.frame.width
-				let top = y + ((Self.barHeight - view.frame.height) / 2).rounded()
-				view.frame = NSRect(x: x, y: top, width: viewWidth, height: view.frame.height)
-				x += viewWidth + 6
+			for view in bar.views {
+				let top = bar.top + ((Self.barHeight - view.frame.height) / 2).rounded()
+				view.frame = NSRect(x: x, y: top, width: view.frame.width, height: view.frame.height)
+				x += view.frame.width + 6
 			}
 		}
 	}
@@ -373,16 +400,13 @@ final class ActionControls {
 		}
 		if let reply = spec.reply {
 			factories.append { controls, body in
-				let field = NSTextField()
-				field.bezelStyle = .roundedBezel
-				field.controlSize = .regular
+				let field = ReplyField()
 				field.placeholderString = reply.placeholder ?? "Reply"
 				field.delegate = body
 				field.target = body
 				field.action = #selector(CardBodyView.sendReply)
 				field.cell?.sendsActionOnEndEditing = false
 				field.setAccessibilityIdentifier("reply-field")
-				field.sizeToFit()
 				controls.replyField = field
 				// What the first focus and the first keystroke would otherwise
 				// set up mid-frame: the window's field editor and the shared

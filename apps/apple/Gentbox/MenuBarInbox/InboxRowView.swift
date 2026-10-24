@@ -92,6 +92,7 @@ final class InboxRowView: FlippedView {
 		for view in [icon, urgentBadge, title, context, waitingMark, moreButton, body] as [NSView?] {
 			motion.capture(view?.layer, ["position"])
 		}
+		body?.capture(into: &motion)
 	}
 
 	/// Shows `content`, laying out its parts; the caller places the row and
