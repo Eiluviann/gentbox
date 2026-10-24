@@ -223,6 +223,7 @@ describe('ask', () => {
 	function askingClient(
 		getResponse: HubClient['getResponse'],
 		ingest = ingestResponse(),
+		extra: Partial<HubClient> = {},
 	) {
 		const postMessage = vi.fn<HubClient['postMessage']>(async () =>
 			succeed({ wasCreated: true, record: ingest }),
@@ -231,7 +232,12 @@ describe('ask', () => {
 			succeed(actionResponse('rescinded')),
 		);
 		return {
-			client: stubHubClient({ postMessage, rescindMessage, getResponse }),
+			client: stubHubClient({
+				postMessage,
+				rescindMessage,
+				getResponse,
+				...extra,
+			}),
 			postMessage,
 			rescindMessage,
 		};
@@ -313,10 +319,14 @@ describe('ask', () => {
 
 	it('returns "no answer yet" and leaves the message open when the timeout passes', async () => {
 		const clock = fakeClock();
-		const { client, rescindMessage } = askingClient(async (_id, seconds) => {
-			clock.advance(seconds);
-			return succeed(actionResponse('pending'));
-		});
+		const { client, rescindMessage } = askingClient(
+			async (_id, seconds) => {
+				clock.advance(seconds);
+				return succeed(actionResponse('pending'));
+			},
+			ingestResponse(),
+			{ parkMessage: async () => succeed(actionResponse('pending')) },
+		);
 		const result = await runTool(
 			'ask',
 			{ title: 'Allow Bash to run the tests?', timeoutSeconds: 60 },
@@ -333,6 +343,36 @@ describe('ask', () => {
 		expect(textOf(result)).toContain('`wait`');
 		expect(textOf(result)).toContain('`rescind`');
 		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('parks the message when the timeout passes, and says it can still be answered later', async () => {
+		const clock = fakeClock();
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		const postMessage = async () =>
+			succeed({ wasCreated: true, record: ingestResponse() });
+		const result = await runTool(
+			'ask',
+			{ title: 'Allow Bash to run the tests?', timeoutSeconds: 60 },
+			depsFor(
+				stubHubClient({
+					postMessage,
+					getResponse: async (_id, seconds) => {
+						clock.advance(seconds);
+						return succeed(actionResponse('pending'));
+					},
+					parkMessage,
+				}),
+				{ wait: clock },
+			),
+			undefined,
+		);
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+		const text = textOf(result);
+		expect(text).toContain('may still answer');
+		expect(text).toContain('answer in the conversation instead');
+		expect(text).toContain('`rescind`');
 	});
 
 	it('uses the default timeout when the agent gives none', async () => {
@@ -638,6 +678,29 @@ describe('wait', () => {
 		expect(textOf(result)).toContain('not withdrawn');
 	});
 
+	it('parks the message when a wait times out', async () => {
+		const clock = fakeClock();
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		await runTool(
+			'wait',
+			{ messageId: MESSAGE_ID, timeoutSeconds: 60 },
+			depsFor(
+				stubHubClient({
+					getResponse: async (_id, seconds) => {
+						clock.advance(seconds);
+						return succeed(actionResponse('pending'));
+					},
+					parkMessage,
+				}),
+				{ wait: clock },
+			),
+			undefined,
+		);
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+	});
+
 	it('leaves the message open when nothing arrives in time', async () => {
 		const clock = fakeClock();
 		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
@@ -648,7 +711,14 @@ describe('wait', () => {
 		const result = await runTool(
 			'wait',
 			{ messageId: MESSAGE_ID, timeoutSeconds: 60 },
-			depsFor(stubHubClient({ getResponse, rescindMessage }), { wait: clock }),
+			depsFor(
+				stubHubClient({
+					getResponse,
+					rescindMessage,
+					parkMessage: async () => succeed(actionResponse('pending')),
+				}),
+				{ wait: clock },
+			),
 			undefined,
 		);
 		expect(jsonOf(result)).toMatchObject({

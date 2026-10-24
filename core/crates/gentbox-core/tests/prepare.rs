@@ -170,6 +170,7 @@ fn the_ingest_response_assembles_from_the_prepared_message() {
         state: message.lifecycle.state,
         should_wait: true,
         warnings,
+        parked: false,
     };
     let json = serde_json::to_value(&response).unwrap();
     assert_eq!(json["fieldSources"]["urgent"], "default");

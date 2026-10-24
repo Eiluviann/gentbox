@@ -322,6 +322,22 @@ describe('request building', () => {
 		expect(JSON.parse(request?.body ?? '')).toEqual({ reason: 'obsolete' });
 	});
 
+	it('parks a message with POST on its park route, as its owner', async () => {
+		const connection = await connect(() => ({
+			status: 200,
+			body: { messageId: MESSAGE_ID, status: 'pending' },
+		}));
+		const parked = await connection.client.parkMessage(MESSAGE_ID);
+		expect(parked).toMatchObject({ ok: true, value: { status: 'pending' } });
+		const request = connection.hub.requests.at(-1);
+		expect([request?.method, request?.url]).toEqual([
+			'POST',
+			`/v1/messages/${MESSAGE_ID}/park`,
+		]);
+		expect(request?.headers['gentbox-agent']).toBe('claude-code');
+		expect(request?.headers['gentbox-conversation']).toBe('conversation-1');
+	});
+
 	it('rescinds by correlation keys and reports progress on the conversation route', async () => {
 		const connection = await connect(() => ({
 			status: 200,

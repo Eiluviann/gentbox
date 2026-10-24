@@ -23,6 +23,23 @@ describe('gentbox wait', () => {
 		});
 	});
 
+	it('parks the message when the wait times out, so it stays for the user', async () => {
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		const fixture = createCommandFixture(
+			stubHubClient({
+				getResponse: async () => succeed(actionResponse('pending')),
+				parkMessage,
+			}),
+		);
+		// A one-second wait ends at once on the stub's pending answer plus the deadline.
+		expect(await runWait([MESSAGE_ID, '--timeout', '1'], fixture.context)).toBe(
+			EXIT.noAnswer,
+		);
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+	});
+
 	it('does not withdraw the message when the answer is a dismissal', async () => {
 		const fixture = createCommandFixture(
 			stubHubClient({

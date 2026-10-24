@@ -51,7 +51,7 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'timed_out',
-				note: 'No answer yet; the message stays open. Run `gentbox wait` to collect the answer later, or ask in the conversation and `gentbox rescind` the message once that is handled.',
+				note: 'No answer yet; the message stays open and the user may still answer it (Gentbox will not clear it when the session moves on). Run `gentbox wait` to collect the answer later. If you get the answer in the conversation instead, run `gentbox rescind` on the message.',
 			});
 			return EXIT.noAnswer;
 		case 'not_waiting':
@@ -67,7 +67,7 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'muted',
-				note: `The message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open. Run \`gentbox wait\` to collect the answer, or ask in the conversation and \`gentbox rescind\` the message (--reason resolved_elsewhere) once that is handled.`,
+				note: `The message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open and Gentbox will not clear it when the session moves on. Run \`gentbox wait\` to collect the answer. If you get the answer in the conversation instead, run \`gentbox rescind\` on the message (--reason resolved_elsewhere).`,
 			});
 			return EXIT.noAnswer;
 		case 'merged':

@@ -170,6 +170,7 @@ pub fn progress_rescissions(
     items
         .iter()
         .filter(|item| item.is_live() && &item.conversation == conversation)
+        .filter(|item| !item.is_parked)
         .filter(|item| {
             item.correlation_key.as_deref() == Some(IDLE_CORRELATION_KEY)
                 || (item.is_waiting_on_you() && !item.has_live_waiter)
@@ -246,7 +247,7 @@ fn completion_rescissions(
 ) -> Vec<Rescission> {
     items
         .iter()
-        .filter(|item| item.is_waiting_on_you() && !item.has_live_waiter)
+        .filter(|item| item.is_waiting_on_you() && !item.has_live_waiter && !item.is_parked)
         .filter(|item| Some(&item.id) != already_rescinded)
         .map(|item| {
             rescission_for(

@@ -228,6 +228,13 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 			message:
 				"Delivered to the inbox without a ping: rule 'Mute integration asks' mutes it",
 		});
+		expect(asked.value.ingest.parked).toBe(true);
+		// The session moves on: a progress report and a completion leave a parked ask alone.
+		expect(await client.reportProgress()).toMatchObject({ ok: true });
+		const done = await client.postMessage(
+			message('Phase 4 is done', { type: 'task_completed' }),
+		);
+		expect(done.ok).toBe(true);
 		const stillOpen = await client.getResponse(asked.value.ingest.id, 0);
 		expect(stillOpen).toMatchObject({ ok: true, value: { status: 'pending' } });
 		// Only an explicit rescind from the agent withdraws it.
@@ -287,6 +294,41 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 			ok: true,
 			value: { status: 'rescinded', rescindReason: 'resolved_elsewhere' },
 		});
+	});
+
+	it('a timed-out ask the sender parked survives progress, one nobody parked does not', async () => {
+		const client = await connect();
+		const lapsed = await client.postMessage(
+			message('Pick the next phase', {
+				type: 'decision_required',
+				blocking: 'deferrable',
+				correlationKey: 'lapsed-1',
+			}),
+		);
+		const timedOut = await client.postMessage(
+			message('Pick the release name', {
+				type: 'decision_required',
+				blocking: 'deferrable',
+				correlationKey: 'timed-out-1',
+			}),
+		);
+		if (!lapsed.ok || !timedOut.ok) throw new Error('post failed');
+		expect(await client.parkMessage(timedOut.value.record.id)).toMatchObject({
+			ok: true,
+			value: { status: 'pending' },
+		});
+		expect(await client.reportProgress()).toMatchObject({ ok: true });
+		expect(await client.getResponse(lapsed.value.record.id, 0)).toMatchObject({
+			ok: true,
+			value: { status: 'rescinded', rescindReason: 'handled_in_session' },
+		});
+		expect(await client.getResponse(timedOut.value.record.id, 0)).toMatchObject(
+			{
+				ok: true,
+				value: { status: 'pending' },
+			},
+		);
+		await client.rescindMessage(timedOut.value.record.id, 'resolved_elsewhere');
 	});
 
 	it('notify reports the mute to the model', async () => {

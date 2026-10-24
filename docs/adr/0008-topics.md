@@ -124,3 +124,4 @@ topic = { key = "project:{project}", title = "{project}", kind = "project" }
 ## Amendments
 
 - **2026-10-24: a muted message reports the mute and stays open.** Where this ADR says senders of muted messages get `shouldWait: false` so a hook falls back at once: that is unchanged, but the sender is no longer left to withdraw the message. The ingest response carries the warning `muted` ("Delivered to the inbox without a ping: topic 'X' is muted"), and the message stays open for the user to answer later; the sender may collect the answer with a poll or rescind it itself. Withdrawn means the agent asked (ADR 0007, amendments).
+- **2026-10-24: a muted ask is parked.** The hub also parks a muted message that awaits a response (ADR 0007, amendments), so the clean-ups of completion and progress leave it for you to answer later.

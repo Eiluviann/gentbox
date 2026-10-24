@@ -196,6 +196,7 @@ impl<'connection> Repository<'connection> {
                         ":resolution": resolution_kind(message.lifecycle.resolution),
                         ":rescind_reason": rescind_reason(message.lifecycle.resolution),
                         ":rescind_handled_in_session": is_handled_in_session(message.lifecycle.resolution),
+                        ":parked_at": to_optional_nanos(message.parked_at)?,
                         ":is_closed": message.lifecycle.state.is_closed(),
                         ":now": to_nanos(now)?,
                     })?;
@@ -571,6 +572,7 @@ impl<'connection> Repository<'connection> {
                 ":resolution": resolution_kind(lifecycle.resolution),
                 ":rescind_reason": rescind_reason(lifecycle.resolution),
                 ":rescind_handled_in_session": is_handled_in_session(lifecycle.resolution),
+                ":parked_at": to_optional_nanos(message.parked_at)?,
                 ":closed_at": lifecycle.state.is_closed().then_some(to_nanos(now)?),
                 ":updated_at": to_nanos(now)?,
             })?;
@@ -802,6 +804,7 @@ fn decode_message(row: &Row<'_>) -> Result<Message, StoreError> {
         metadata,
         lifecycle,
         repeat_count: row.get("repeat_count")?,
+        parked_at: from_optional_nanos("parked_at", row.get("parked_at")?)?,
     })
 }
 
@@ -811,7 +814,7 @@ m.source_host, m.conversation_id, m.topic_id, m.thread_id, m.type, m.urgent, m.b
 m.field_sources, m.muted_by_rule, m.event, m.title, m.summary, m.body, m.steps, \
 m.steps_completed, m.scope, m.awaits_response, m.correlation_key, m.sensitive, m.created_at, \
 m.received_at, m.expires_at, m.metadata, m.repeat_count, m.state, m.snoozed_until, \
-m.deferred_at, m.resolution, m.rescind_reason, m.rescind_handled_in_session, \
+m.deferred_at, m.resolution, m.rescind_reason, m.rescind_handled_in_session, m.parked_at, \
 c.title AS conversation_title, c.cwd AS conversation_cwd, c.focus AS conversation_focus, \
 r.action_id AS answer_action_id, r.action_kind AS answer_action_kind, r.value AS answer_value, \
 r.answered_via AS answer_via, r.answered_at AS answer_at \
@@ -824,13 +827,13 @@ INSERT INTO messages (id, idempotency_key, source_agent, source_display_name, so
 source_host, conversation_id, topic_id, thread_id, type, urgent, blocking, field_sources, \
 muted_by_rule, event, title, summary, body, steps, steps_completed, scope, awaits_response, \
 correlation_key, sensitive, created_at, received_at, expires_at, metadata, repeat_count, state, \
-snoozed_until, deferred_at, resolution, rescind_reason, rescind_handled_in_session, closed_at, updated_at) \
+snoozed_until, deferred_at, resolution, rescind_reason, rescind_handled_in_session, parked_at, closed_at, updated_at) \
 VALUES (:id, :idempotency_key, :source_agent, :source_display_name, :source_version, \
 :source_host, :conversation_id, :topic_id, :thread_id, :type, :urgent, :blocking, \
 :field_sources, :muted_by_rule, :event, :title, :summary, :body, :steps, :steps_completed, \
 :scope, :awaits_response, :correlation_key, :sensitive, :created_at, :received_at, \
 :expires_at, :metadata, :repeat_count, :state, :snoozed_until, :deferred_at, :resolution, \
-:rescind_reason, :rescind_handled_in_session, :closed_at, :updated_at)";
+:rescind_reason, :rescind_handled_in_session, :parked_at, :closed_at, :updated_at)";
 
 const UPDATE_MESSAGE: &str = "\
 UPDATE messages SET type = :type, urgent = :urgent, blocking = :blocking, \
@@ -840,7 +843,7 @@ steps_completed = :steps_completed, scope = :scope, awaits_response = :awaits_re
 correlation_key = :correlation_key, sensitive = :sensitive, created_at = :created_at, \
 expires_at = :expires_at, metadata = :metadata, repeat_count = :repeat_count, state = :state, \
 snoozed_until = :snoozed_until, deferred_at = :deferred_at, resolution = :resolution, \
-rescind_reason = :rescind_reason, rescind_handled_in_session = :rescind_handled_in_session, \
+rescind_reason = :rescind_reason, rescind_handled_in_session = :rescind_handled_in_session, parked_at = :parked_at, \
 closed_at = CASE WHEN :is_closed THEN COALESCE(closed_at, :now) ELSE NULL END, \
 updated_at = :now \
 WHERE id = :id";

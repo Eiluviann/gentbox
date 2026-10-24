@@ -63,6 +63,8 @@ pub struct OpenItem {
     pub received_at: OffsetDateTime,
     /// Where it is currently shown.
     pub delivered: DeliveredSurfaces,
+    /// The hub parked it: completion and progress leave it open.
+    pub is_parked: bool,
 }
 
 impl OpenItem {
@@ -83,6 +85,7 @@ impl OpenItem {
             has_live_waiter,
             received_at: message.received_at,
             delivered: DeliveredSurfaces::from_plan(plan),
+            is_parked: message.is_parked(),
         }
     }
 

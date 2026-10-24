@@ -4,6 +4,7 @@ import {
 	type AskOutcome,
 	askAndWait,
 	mutedCause,
+	parkAfterTimeout,
 	type WaitOptions,
 	waitForAnswer,
 } from './ask-flow.ts';
@@ -212,11 +213,12 @@ async function wait(
 		signal,
 		...deps.wait,
 	});
+	await parkAfterTimeout(client, input.messageId, outcome);
 	return describeAskOutcome(input.messageId, outcome, undefined);
 }
 
 const KEEP_OPEN_ADVICE =
-	'Call `wait` with this messageId to collect the answer later, or ask the user in the conversation and `rescind` the message (reason resolved_elsewhere) once that is handled.';
+	'Call `wait` with this messageId to collect the answer later. If you get the answer in the conversation instead, `rescind` the message (reason resolved_elsewhere) so it does not linger in the inbox.';
 
 function describeAskOutcome(
 	messageId: string,
@@ -256,7 +258,7 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'muted',
-					instruction: `Your message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open. ${KEEP_OPEN_ADVICE}`,
+					instruction: `Your message was delivered to the inbox, but ${mutedCause(outcome.detail)}, so the user wasn't pinged and may answer later. The message stays open and Gentbox will not clear it when the session moves on. ${KEEP_OPEN_ADVICE}`,
 				},
 				warnings,
 			);
@@ -276,7 +278,7 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'timed_out',
-					instruction: `No answer yet; the message stays open in the user's inbox. ${KEEP_OPEN_ADVICE}`,
+					instruction: `No answer yet; the message stays open in the user's inbox and the user may still answer it: Gentbox will not clear it when the session moves on. ${KEEP_OPEN_ADVICE}`,
 				},
 				warnings,
 			);

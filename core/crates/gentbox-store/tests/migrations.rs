@@ -192,7 +192,10 @@ fn a_version_2_file_migrates_to_version_3_and_keeps_its_rescinded_rows() {
     {
         let connection = Connection::open(&path).unwrap();
         connection
-            .execute_batch("ALTER TABLE messages DROP COLUMN rescind_handled_in_session")
+            .execute_batch(
+                "ALTER TABLE messages DROP COLUMN rescind_handled_in_session; \
+                 ALTER TABLE messages DROP COLUMN parked_at",
+            )
             .unwrap();
         connection.pragma_update(None, "user_version", 2).unwrap();
     }

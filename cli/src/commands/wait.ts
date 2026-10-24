@@ -1,4 +1,4 @@
-import { waitForAnswer } from '../ask-flow.ts';
+import { parkAfterTimeout, waitForAnswer } from '../ask-flow.ts';
 import { isUlid } from '../message-types.ts';
 import { reportOutcome } from './answer-output.ts';
 import { DEFAULT_ASK_TIMEOUT_SECONDS, parseTimeout } from './ask.ts';
@@ -35,6 +35,7 @@ export async function runWait(
 		);
 	return withHub(context, async (client) => {
 		const outcome = await waitForAnswer(client, messageId, { timeoutSeconds });
+		await parkAfterTimeout(client, messageId, outcome);
 		return reportOutcome(context, messageId, outcome);
 	});
 }

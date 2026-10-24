@@ -1149,3 +1149,21 @@ fn a_message_state_and_its_resolution_must_agree() {
     ));
     assert_eq!(repository.message(&live.id).unwrap(), live);
 }
+
+#[test]
+fn a_parked_message_keeps_its_parked_time() {
+    let store = store_with_group();
+    let repository = store.repository();
+    let mut message = plain("parked", "one", "one");
+    assert!(message.parked_at.is_none());
+    repository.insert_message(&message, NOW).unwrap();
+    message.parked_at = Some(NOW + Duration::seconds(30));
+    repository.update_message(&message, NOW).unwrap();
+    let read = repository.message(&message.id).unwrap();
+    assert_eq!(read.parked_at, Some(NOW + Duration::seconds(30)));
+    assert!(
+        repository
+            .message(&plain("other", "one", "one").id)
+            .is_err()
+    );
+}

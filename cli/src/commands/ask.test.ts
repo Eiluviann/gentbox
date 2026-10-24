@@ -158,6 +158,28 @@ describe('gentbox ask', () => {
 		expect(rescindMessage).not.toHaveBeenCalled();
 	});
 
+	it('parks the message when the ask times out', async () => {
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		const rescindMessage = vi.fn<HubClient['rescindMessage']>();
+		const fixture = createCommandFixture(
+			stubHubClient({
+				postMessage: async () =>
+					succeed({ wasCreated: true, record: ingestResponse() }),
+				getResponse: async () => succeed(actionResponse('pending')),
+				parkMessage,
+				rescindMessage,
+			}),
+		);
+		expect(
+			await runAsk(['--title', 'Allow it?', '--timeout', '1'], fixture.context),
+		).toBe(EXIT.noAnswer);
+		expect(fixture.stdoutJson()).toMatchObject({ reason: 'timed_out' });
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
 	it('exits 4 and says a message the hub cleared was handled in the session, not withdrawn', async () => {
 		const { client } = askingClient(
 			actionResponse('rescinded', { rescindReason: 'handled_in_session' }),

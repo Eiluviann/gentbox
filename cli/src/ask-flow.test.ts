@@ -194,6 +194,7 @@ describe('askAndWait', () => {
 				clock.advance(seconds);
 				return succeed(actionResponse('pending'));
 			},
+			parkMessage: async () => succeed(actionResponse('pending')),
 		});
 		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
 			timeoutSeconds: 60,
@@ -204,6 +205,95 @@ describe('askAndWait', () => {
 			value: { outcome: { kind: 'timed_out' } },
 		});
 		expect(rescindMessage).not.toHaveBeenCalled();
+	});
+
+	it('parks the message when the deadline passes, so a progress report cannot clear it', async () => {
+		const clock = fakeClock();
+		const parkMessage = vi.fn<HubClient['parkMessage']>(async () =>
+			succeed(actionResponse('pending')),
+		);
+		const { client } = clientWith({
+			getResponse: async (_id, seconds) => {
+				clock.advance(seconds);
+				return succeed(actionResponse('pending'));
+			},
+			parkMessage,
+		});
+		await askAndWait(client, SAMPLE_MESSAGE, { timeoutSeconds: 60, ...clock });
+		expect(parkMessage).toHaveBeenCalledExactlyOnceWith(MESSAGE_ID);
+	});
+
+	it('still reports the timeout when parking fails', async () => {
+		const clock = fakeClock();
+		const { client } = clientWith({
+			getResponse: async (_id, seconds) => {
+				clock.advance(seconds);
+				return succeed(actionResponse('pending'));
+			},
+			parkMessage: async () =>
+				fail({ kind: 'transport', message: 'ECONNRESET' }),
+		});
+		const asked = await askAndWait(client, SAMPLE_MESSAGE, {
+			timeoutSeconds: 60,
+			...clock,
+		});
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'timed_out' } },
+		});
+	});
+
+	it('does not park a cancelled or failed wait, or an answered, deferred or muted ask', async () => {
+		const parkMessage = vi.fn<HubClient['parkMessage']>();
+		const controller = new AbortController();
+		const outcomes = [
+			clientWith({
+				getResponse: async () => {
+					controller.abort();
+					return succeed(actionResponse('pending'));
+				},
+				parkMessage,
+			}),
+			clientWith({
+				getResponse: async () =>
+					fail({
+						kind: 'http',
+						status: 500,
+						code: 'internal',
+						message: 'boom',
+						pointer: undefined,
+					}),
+				parkMessage,
+			}),
+			clientWith({
+				getResponse: async () =>
+					succeed(actionResponse('answered', { actionKind: 'approve' })),
+				parkMessage,
+			}),
+			clientWith({
+				getResponse: async () => succeed(actionResponse('deferred')),
+				parkMessage,
+			}),
+			clientWith({
+				postMessage: async () =>
+					succeed({
+						wasCreated: true,
+						record: ingestResponse({
+							shouldWait: false,
+							parked: true,
+							warnings: [{ code: 'muted', message: 'Delivered … muted' }],
+						}),
+					}),
+				parkMessage,
+			}),
+		];
+		for (const { client } of outcomes) {
+			await askAndWait(client, SAMPLE_MESSAGE, {
+				timeoutSeconds: 60,
+				signal: controller.signal,
+			});
+		}
+		expect(parkMessage).not.toHaveBeenCalled();
 	});
 
 	it('leaves the message open when the wait is cancelled', async () => {

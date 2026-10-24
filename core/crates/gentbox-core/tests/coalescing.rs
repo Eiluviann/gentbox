@@ -871,3 +871,64 @@ fn an_idempotent_retry_changes_nothing_not_even_through_rescinds() {
         }
     );
 }
+
+fn parked(mut message: Message) -> Message {
+    message.parked_at = Some(NOW);
+    message
+}
+
+#[test]
+fn a_parked_item_is_exempt_from_the_completion_clean_up() {
+    let free = message("FREE", DecisionRequired, Blocks, json!({}));
+    let held = parked(message("HELD", DecisionRequired, Blocks, json!({})));
+    let completed = message("DONE", TaskCompleted, NonBlocking, json!({}));
+    let outcome = run(&completed, &[item_of(&free, false), item_of(&held, false)]);
+    assert_eq!(
+        rescinded_ids(&outcome),
+        vec![("FREE".to_owned(), RescindReason::HandledInSession)]
+    );
+}
+
+#[test]
+fn a_parked_item_is_exempt_from_the_progress_clean_up() {
+    let conversation = ConversationKey::new("claude-code", "conversation-1");
+    let free = message("FREE", DecisionRequired, Blocks, json!({}));
+    let held = parked(message("HELD", DecisionRequired, Deferrable, json!({})));
+    let held_idle = parked(message(
+        "IDLE",
+        Generic,
+        NonBlocking,
+        json!({ "correlationKey": IDLE_CORRELATION_KEY }),
+    ));
+    let rescissions = progress_rescissions(
+        &conversation,
+        &[
+            item_of(&free, false),
+            item_of(&held, false),
+            item_of(&held_idle, false),
+        ],
+        false,
+    );
+    let ids: Vec<_> = rescissions.iter().map(|r| r.message_id.as_str()).collect();
+    assert_eq!(ids, vec!["FREE"]);
+}
+
+#[test]
+fn a_superseding_message_still_replaces_a_parked_one() {
+    let held = parked(message(
+        "HELD",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "ask-1" }),
+    ));
+    let newer = message(
+        "NEW",
+        DecisionRequired,
+        Blocks,
+        json!({ "correlationKey": "ask-1", "title": "Allow Bash to run all tests?" }),
+    );
+    match run(&newer, &[item_of(&held, false)]) {
+        CoalesceOutcome::Superseded { replaces, .. } => assert_eq!(replaces.as_str(), "HELD"),
+        other => panic!("expected a supersede, got {other:?}"),
+    }
+}

@@ -261,7 +261,7 @@ impl HubState {
             conversation_id: Some(prepared.message.conversation.id.clone()),
         };
         let groups = PlannedGroups::new(&snapshot, resolution, &created_by, now);
-        let message = prepared.into_message(
+        let mut message = prepared.into_message(
             new_message_id(now),
             now,
             groups.topic_id.clone(),
@@ -272,7 +272,14 @@ impl HubState {
         // or dropped as a repeat of another message answers with that message's
         // id, and a `muted` warning there would send the sender to rescind it.
         let mut warnings_if_stored = warnings.clone();
-        warnings_if_stored.extend(muted_warning(&message, groups.muted_group.as_deref()));
+        let muted = muted_warning(&message, groups.muted_group.as_deref());
+        // A muted ask goes to the inbox without a ping and its sender is told
+        // to collect the answer later: park it, so the clean-ups of completion
+        // and progress leave it for the user.
+        if muted.is_some() && message.awaits_response {
+            message.parked_at = Some(now);
+        }
+        warnings_if_stored.extend(muted);
         let items = self.open_items(&message.conversation_key(), now)?;
         let outcome = coalesce(&CoalesceInput {
             incoming: &message,
@@ -528,6 +535,32 @@ impl HubState {
         let closed = self.withdraw(vec![rescission], now)?;
         let message = closed.first().unwrap_or(&message);
         Ok(ActionResponse::for_message(message, false))
+    }
+
+    /// Parks a live message of the requester: its sender was told to collect
+    /// the answer later (its wait timed out), so the clean-ups of completion
+    /// and progress leave it open. Parking again keeps the first time.
+    pub(crate) fn park(
+        &mut self,
+        id: &MessageId,
+        requester: &Requester,
+    ) -> Result<ActionResponse, HubError> {
+        let now = self.now();
+        let mut message = self.store.repository().message(id)?;
+        if !requester.owns(&message) {
+            return Err(HubError::NotOwner);
+        }
+        if !message.is_live() {
+            return Err(HubError::MessageClosed {
+                state: message.lifecycle.state,
+                resolution: message.lifecycle.resolution,
+            });
+        }
+        if !message.is_parked() {
+            message.parked_at = Some(now);
+            self.store.repository().update_message(&message, now)?;
+        }
+        Ok(ActionResponse::for_message(&message, false))
     }
 
     pub(crate) fn rescind_by_correlation_keys(
@@ -1804,6 +1837,7 @@ fn ingest_response(
         state: message.lifecycle.state,
         should_wait,
         warnings,
+        parked: message.is_parked(),
     }
 }
 

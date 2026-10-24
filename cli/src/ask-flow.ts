@@ -139,7 +139,23 @@ export async function askAndWait(
 		);
 	}
 	const outcome = await waitForAnswer(client, ingest.id, options);
+	await parkAfterTimeout(client, ingest.id, outcome);
 	return succeed({ ingest, outcome });
+}
+
+/**
+ * A timed-out sender tells its agent to collect the answer later, so the hub
+ * must keep the message through the clean-ups of completion and progress. A
+ * cancel, a failure or a killed process does not park it: the stale prompt
+ * should still clear. Best effort: the outcome is the timeout either way.
+ */
+export async function parkAfterTimeout(
+	client: HubClient,
+	messageId: string,
+	outcome: AskOutcome,
+): Promise<void> {
+	if (outcome.kind !== 'timed_out') return;
+	await client.parkMessage(messageId);
 }
 
 /** `shouldWait: false`: a mute, nobody can answer now, or an idempotent retry hit a message that already closed. */

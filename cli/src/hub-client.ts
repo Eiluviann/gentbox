@@ -77,6 +77,13 @@ export type HubClient = {
 		messageId: string,
 		reason: RescindReason,
 	): Promise<Result<ActionResponse, HubFailure>>;
+	/**
+	 * Tells the hub this sender stopped waiting after a timeout and told its
+	 * agent to collect the answer later: completion and progress then leave the
+	 * message open. Only for a timeout; a cancelled, failed or killed wait stays
+	 * eligible for the clean-up.
+	 */
+	parkMessage(messageId: string): Promise<Result<ActionResponse, HubFailure>>;
 	rescindByCorrelationKeys(
 		request: RescindRequest,
 	): Promise<Result<string[], HubFailure>>;
@@ -373,6 +380,16 @@ export function createHubClient(session: HubSession): HubClient {
 					method: 'DELETE',
 					path: `/v1/messages/${encodeURIComponent(messageId)}`,
 					body: { reason },
+				},
+				actionResponseSchema,
+			),
+		parkMessage: (messageId) =>
+			callValue(
+				session,
+				{
+					method: 'POST',
+					path: `/v1/messages/${encodeURIComponent(messageId)}/park`,
+					body: {},
 				},
 				actionResponseSchema,
 			),

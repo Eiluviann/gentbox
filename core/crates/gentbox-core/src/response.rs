@@ -218,4 +218,9 @@ pub struct IngestResponse {
     /// What the hub changed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<IngestWarning>,
+    /// The hub parked the message: it was muted and awaits a response, so the
+    /// completion and progress clean-ups leave it open for the user to answer
+    /// later.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub parked: bool,
 }

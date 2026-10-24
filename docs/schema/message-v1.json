@@ -911,6 +911,10 @@
 				"shouldWait": {
 					"type": "boolean"
 				},
+				"parked": {
+					"description": "The hub parked the message: it was muted and awaits a response, so the sender was told to collect the answer later. A parked message is exempt from the implicit clean-ups of completion and progress and closes only by the user's answer or dismiss, the sender's own rescind, or expiry. Absent means false.",
+					"type": "boolean"
+				},
 				"warnings": {
 					"description": "Changes the hub made or things it held back, for the sender to learn from (e.g. the title guard, or `muted`: delivered to the inbox without a ping because the topic, thread or a rule mutes it; the message stays open).",
 					"type": "array",

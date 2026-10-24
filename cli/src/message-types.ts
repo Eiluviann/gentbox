@@ -405,6 +405,8 @@ export const ingestResponseSchema = z.object({
 	]),
 	shouldWait: z.boolean(),
 	warnings: z.array(ingestWarningSchema).optional(),
+	/** Muted and awaiting a response: the hub parked it, so completion and progress leave it open. */
+	parked: z.boolean().optional(),
 });
 export type IngestResponse = z.infer<typeof ingestResponseSchema>;
 
