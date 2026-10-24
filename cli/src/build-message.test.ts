@@ -166,6 +166,14 @@ describe('buildAnswerActions', () => {
 		]);
 	});
 
+	it('offers a free-text Reply instead of Approve and Deny when the question is not yes or no', () => {
+		const actions = buildAnswerActions('decision_required', {
+			choices: [],
+			allowReply: true,
+		});
+		expect(actions.map((action) => action.kind)).toEqual(['reply', 'open']);
+	});
+
 	it('offers one button per choice, then Reply, then Open', () => {
 		const actions = buildAnswerActions('decision_required', {
 			choices: ['Use SQLite', 'Use Postgres'],

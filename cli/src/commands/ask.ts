@@ -27,7 +27,7 @@ Prints the answer as JSON. Exit codes: 0 answered, 3 deferred, 4 no answer
 
   --choice <label>          A choice button; repeatable (up to 4). Without any, a decision
                             offers Approve and Deny.
-  --reply                   Also offer a free-text Reply.
+  --reply                   Offer a free-text Reply (with no --choice it replaces Approve/Deny).
   --timeout <seconds>       How long to wait (default ${DEFAULT_ASK_TIMEOUT_SECONDS}).
 
 Defaults: --type decision_required, --blocking blocking. Use --blocking deferrable when you can

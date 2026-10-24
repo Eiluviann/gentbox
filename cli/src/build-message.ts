@@ -131,9 +131,10 @@ export function toThreadReference(
 
 /**
  * The answer buttons of an `ask`. A decision with no choices offers Approve
- * and Deny; with choices, one button per choice. A reply button and the open
- * button come last. An `action_required` message gets only these two extras:
- * the hub adds Done itself.
+ * and Deny; with choices, one button per choice. `allowReply` adds a free-text
+ * Reply (and, with no choices, replaces Approve and Deny: a question that is
+ * not yes or no). The open button comes last. An `action_required` message
+ * gets only Reply and Open: the hub adds Done itself.
  */
 export function buildAnswerActions(
 	type: MessageType,
@@ -141,7 +142,8 @@ export function buildAnswerActions(
 ): Action[] {
 	const answerButtons: Action[] = [];
 	if (type === 'decision_required') {
-		if (answers.choices.length === 0) {
+		const isApproval = answers.choices.length === 0 && !answers.allowReply;
+		if (isApproval) {
 			answerButtons.push(
 				{ id: 'approve', label: 'Approve', kind: 'approve' },
 				{ id: 'deny', label: 'Deny', kind: 'deny', destructive: true },

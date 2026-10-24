@@ -52,3 +52,25 @@ export async function resolveTopicId(
 		? fail(`no topic has the key "${reference}"`)
 		: succeed(topic.id);
 }
+
+/** A thread id as given, or the id of the thread with this key inside `topicReference`. */
+export async function resolveThreadId(
+	client: HubClient,
+	reference: string,
+	topicReference: string | undefined,
+): Promise<Result<string, string>> {
+	if (isUlid(reference)) return succeed(reference);
+	if (topicReference === undefined)
+		return fail(`"${reference}" is a thread key; name its topic too`);
+	const topicId = await resolveTopicId(client, topicReference);
+	if (!topicId.ok) return topicId;
+	const listed = await client.listThreads(topicId.value, undefined);
+	if (!listed.ok)
+		return fail(
+			`cannot look up thread "${reference}": ${listed.error.message}`,
+		);
+	const thread = listed.value.find((candidate) => candidate.key === reference);
+	return thread === undefined
+		? fail(`no thread has the key "${reference}" in that topic`)
+		: succeed(thread.id);
+}
