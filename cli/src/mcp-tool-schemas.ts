@@ -7,12 +7,17 @@ import {
 	topicStyleSchema,
 } from './message-types.ts';
 
-/** `type: "object"` JSON Schema, which is all MCP asks of a tool's `inputSchema`. */
+/**
+ * `type: "object"` JSON Schema, which is all MCP asks of a tool's `inputSchema`.
+ * The root must stay free of `allOf`, `anyOf`, `oneOf` and `not`: the Claude API
+ * answers 400 for a tool whose `input_schema` has them at the top level. Rules
+ * that need them (steps with action_required, one of messageId and
+ * correlationKeys) are checked by zod and stated in the descriptions.
+ */
 export type ToolInputJsonSchema = {
 	type: 'object';
 	properties?: Record<string, unknown>;
 	required?: string[];
-	allOf?: unknown[];
 	[key: string]: unknown;
 };
 
@@ -342,30 +347,12 @@ export type ToolSpec = {
 	inputSchema: ToolInputJsonSchema;
 };
 
-const STEPS_CONDITION = {
-	if: {
-		properties: { type: { const: 'action_required' } },
-		required: ['type'],
-	},
-	// biome-ignore lint/suspicious/noThenProperty: `then` is a JSON Schema keyword
-	then: { required: ['steps'] },
-};
-/** Includes an absent `type`: `ask` then means decision_required, which has no steps. */
-const NO_STEPS_UNLESS_ACTION = {
-	if: { not: STEPS_CONDITION.if },
-	// biome-ignore lint/suspicious/noThenProperty: `then` is a JSON Schema keyword
-	then: { not: { required: ['steps'] } },
-};
-
 /** The JSON Schema of a zod object, as MCP wants it (`type: "object"`). */
-function toInputSchema(
-	schema: z.ZodType,
-	extra: Partial<ToolInputJsonSchema> = {},
-): ToolInputJsonSchema {
+function toInputSchema(schema: z.ZodType): ToolInputJsonSchema {
 	const { $schema: _dialect, ...json } = z.toJSONSchema(schema, {
 		io: 'input',
 	});
-	return { ...json, type: 'object', ...extra };
+	return { ...json, type: 'object' };
 }
 
 export const TOOL_SPECS: ToolSpec[] = [
@@ -380,9 +367,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 			"The result repeats the hub's warnings (title rewritten, steps missing, secrets redacted) verbatim; heed them.",
 		].join('\n\n'),
 		schema: notifyInputSchema,
-		inputSchema: toInputSchema(notifyInputSchema, {
-			allOf: [STEPS_CONDITION, NO_STEPS_UNLESS_ACTION],
-		}),
+		inputSchema: toInputSchema(notifyInputSchema),
 	},
 	{
 		name: 'ask',
@@ -395,9 +380,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 			"The result repeats the hub's warnings verbatim; heed them.",
 		].join('\n\n'),
 		schema: askInputSchema,
-		inputSchema: toInputSchema(askInputSchema, {
-			allOf: [STEPS_CONDITION, NO_STEPS_UNLESS_ACTION],
-		}),
+		inputSchema: toInputSchema(askInputSchema),
 	},
 	{
 		name: 'wait',
@@ -409,11 +392,9 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'rescind',
 		description:
-			'Withdraw your own open message(s) because they no longer need the user: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
+			'Withdraw your own open message(s) because they no longer need the user. Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
 		schema: rescindInputSchema,
-		inputSchema: toInputSchema(rescindInputSchema, {
-			anyOf: [{ required: ['messageId'] }, { required: ['correlationKeys'] }],
-		}),
+		inputSchema: toInputSchema(rescindInputSchema),
 	},
 	{
 		name: 'create_topic',

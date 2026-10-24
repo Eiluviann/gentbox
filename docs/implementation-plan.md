@@ -198,7 +198,7 @@ No Phone pane in v1 (it comes with M1).
 
 **Title guard (ADR 0010).** The `notify`, `ask`, `create_topic` and `create_thread` tool descriptions and `title` parameters state the rule with one good and one bad example, and the tool results pass the hub's `warnings` to the model verbatim. Tests: Vitest that warnings reach the tool result.
 
-**Action plans (ADR 0011).** `notify` and `ask` require `steps` in their input schema when `type` is `action_required`, with an example in the description; CLI `--step` (repeatable). Tests: Vitest for the conditional requirement.
+**Action plans (ADR 0011).** `notify` and `ask` require `steps` when `type` is `action_required`, with an example in the description. The rule is checked in the tool's validation (the error names `steps`) and stated in the tool and `steps` descriptions, not as `allOf`/`anyOf` in the advertised input schema, because the Claude API rejects those at the root of a tool's `input_schema` (a Vitest walks every tool's root to keep it plain); CLI `--step` (repeatable). Tests: Vitest for the conditional requirement.
 
 ### Phase 4 · Claude Code integration (part of v1)
 

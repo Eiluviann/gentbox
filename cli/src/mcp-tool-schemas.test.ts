@@ -1,4 +1,3 @@
-import { Ajv2020 } from 'ajv/dist/2020.js';
 import { describe, expect, it } from 'vitest';
 import { TOOL_SPECS, type ToolSpec } from './mcp-tool-schemas.ts';
 
@@ -17,10 +16,6 @@ function descriptionOf(property: unknown): string {
 	)
 		return '';
 	return typeof property.description === 'string' ? property.description : '';
-}
-
-function jsonSchemaAccepts(spec: ToolSpec, input: unknown): boolean {
-	return new Ajv2020({ strict: false }).compile(spec.inputSchema)(input);
 }
 
 describe('the tool list', () => {
@@ -103,20 +98,56 @@ describe('the conditional requirement of steps', () => {
 		['ask', { ...base, type: 'action_required', steps }, true],
 		['ask', { ...base }, true],
 		['ask', { ...base, steps }, false],
-	])(
-		'%s %j is accepted: %s, by the JSON Schema and by the validator alike',
-		(name, input, isAccepted) => {
-			const spec = specOf(name);
-			expect(jsonSchemaAccepts(spec, input)).toBe(isAccepted);
-			expect(spec.schema.safeParse(input).success).toBe(isAccepted);
+	])('%s %j is accepted: %s', (name, input, isAccepted) => {
+		expect(specOf(name).schema.safeParse(input).success).toBe(isAccepted);
+	});
+
+	it('names the missing field in the validation error', () => {
+		const parsed = specOf('notify').schema.safeParse({
+			...base,
+			type: 'action_required',
+		});
+		expect(parsed.success).toBe(false);
+		expect(parsed.error?.issues[0]).toMatchObject({
+			path: ['steps'],
+			message: '`steps` is required when `type` is `action_required`',
+		});
+	});
+
+	it.each(['notify', 'ask'])(
+		'%s says in the steps field that action_required needs it',
+		(name) => {
+			const steps = specOf(name).inputSchema.properties?.steps;
+			expect(descriptionOf(steps)).toContain(
+				'required when type is action_required',
+			);
 		},
 	);
+});
 
-	it('lists steps as required in the schema a client sees', () => {
-		const allOf = JSON.stringify(specOf('notify').inputSchema.allOf);
-		expect(allOf).toContain('"const":"action_required"');
-		expect(allOf).toContain('"required":["steps"]');
-	});
+describe('the root of every input schema', () => {
+	// The Claude API answers 400 "input_schema does not support oneOf, allOf, or anyOf at the top level".
+	it.each(TOOL_SPECS.map((spec) => spec.name))(
+		'%s is a plain object schema',
+		(name) => {
+			const root = specOf(name).inputSchema;
+			expect(root.type).toBe('object');
+			for (const keyword of [
+				'allOf',
+				'anyOf',
+				'oneOf',
+				'not',
+				'if',
+				'then',
+				'else',
+				'enum',
+			]) {
+				expect(root, `${name} uses ${keyword} at the root`).not.toHaveProperty(
+					keyword,
+				);
+			}
+		},
+	);
 });
 
 describe('argument validation', () => {
@@ -146,8 +177,13 @@ describe('argument validation', () => {
 			spec.schema.safeParse({ messageId: '01JBMA2W8R6T4Y2V0P8N6M4K2H' })
 				.success,
 		).toBe(true);
-		expect(jsonSchemaAccepts(spec, {})).toBe(false);
-		expect(jsonSchemaAccepts(spec, { correlationKeys: ['b'] })).toBe(true);
+		expect(spec.schema.safeParse({ correlationKeys: ['b'] }).success).toBe(
+			true,
+		);
+		expect(spec.description).toContain(
+			'Give exactly one of `messageId` or `correlationKeys`',
+		);
+		expect(spec.description).toContain('or by `correlationKeys`');
 	});
 
 	it('ask offers blocking and deferrable only', () => {

@@ -39,10 +39,14 @@ describe('the MCP server over a real protocol session', () => {
 			expect(tool.inputSchema.type).toBe('object');
 			expect(tool.description?.length).toBeGreaterThan(40);
 		}
-		const notify = tools.find((tool) => tool.name === 'notify');
-		expect(JSON.stringify(notify?.inputSchema)).toContain(
-			'"required":["steps"]',
-		);
+		for (const tool of tools) {
+			for (const keyword of ['allOf', 'anyOf', 'oneOf', 'not']) {
+				expect(
+					tool.inputSchema,
+					`${tool.name} uses ${keyword} at the root`,
+				).not.toHaveProperty(keyword);
+			}
+		}
 		expect(client.getInstructions()).toContain('plain-words summary');
 	});
 
