@@ -32,6 +32,8 @@ export type FakeHub = {
 	environment: DiscoveryEnvironment;
 	requests: RecordedRequest[];
 	port: number | undefined;
+	/** From now on `hello` is answered with a proof for another token: the port was taken over. */
+	becomeImpostor: () => void;
 	close: () => Promise<void>;
 };
 
@@ -46,6 +48,7 @@ export async function startFakeHub(options: FakeHubOptions): Promise<FakeHub> {
 	const requests: RecordedRequest[] = [];
 	const servers: Server[] = [];
 	let tcpPort: number | undefined;
+	let isImpostor = options.isImpostor === true;
 
 	const serve = (transport: 'socket' | 'tcp') =>
 		createServer((incoming, outgoing) => {
@@ -76,9 +79,7 @@ export async function startFakeHub(options: FakeHubOptions): Promise<FakeHub> {
 
 	const answerHello = (request: RecordedRequest): FakeAnswer => {
 		const { nonce } = JSON.parse(request.body);
-		const key = options.isImpostor
-			? `${options.token}-impostor`
-			: options.token;
+		const key = isImpostor ? `${options.token}-impostor` : options.token;
 		return {
 			status: 200,
 			body: {
@@ -118,6 +119,9 @@ export async function startFakeHub(options: FakeHubOptions): Promise<FakeHub> {
 		},
 		requests,
 		port: tcpPort,
+		becomeImpostor: () => {
+			isImpostor = true;
+		},
 		close: () =>
 			Promise.all(
 				servers.map(

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	computeHelloProof,
 	connectToHub,
@@ -122,10 +122,107 @@ describe('connectToHub', () => {
 		);
 		const posted = await connection.client.postMessage(MESSAGE);
 		expect(posted.ok).toBe(true);
-		const [hello, post] = connection.hub.requests;
-		expect(hello?.url).toBe('/v1/hello');
-		expect(hello?.headers.authorization).toBeUndefined();
+		// One proof when connecting, one more right before the request that carries the token.
+		const [firstHello, secondHello, post] = connection.hub.requests;
+		expect([firstHello?.url, secondHello?.url, post?.url]).toEqual([
+			'/v1/hello',
+			'/v1/hello',
+			'/v1/messages',
+		]);
+		expect(firstHello?.headers.authorization).toBeUndefined();
+		expect(secondHello?.headers.authorization).toBeUndefined();
 		expect(post?.headers.authorization).toBe(`Bearer ${TOKEN}`);
+	});
+
+	it('proves the hub again before every request over TCP: a squatter on a stale port never gets the token', async () => {
+		const onConnectionLost = vi.fn();
+		hub = await startFakeHub({
+			directory,
+			token: TOKEN,
+			transports: ['tcp'],
+			handler: () => ({ status: 201, body: INGEST_RESPONSE }),
+		});
+		const connected = await connectToHub({
+			environment: hub.environment,
+			identity: IDENTITY,
+			sleep: () => Promise.resolve(),
+			onConnectionLost,
+		});
+		if (!connected.ok) throw new Error(connected.error);
+		expect((await connected.value.postMessage(MESSAGE)).ok).toBe(true);
+		const requestsBeforeTakeover = hub.requests.length;
+
+		hub.becomeImpostor();
+		const posted = await connected.value.postMessage(MESSAGE);
+
+		expect(posted).toMatchObject({ ok: false, error: { kind: 'protocol' } });
+		if (!posted.ok)
+			expect(describeHubFailure(posted.error)).toContain('token was not sent');
+		const afterTakeover = hub.requests.slice(requestsBeforeTakeover);
+		expect(afterTakeover.map((request) => request.url)).toEqual(['/v1/hello']);
+		expect(
+			afterTakeover.some(
+				(request) => request.headers.authorization !== undefined,
+			),
+		).toBe(false);
+		expect(JSON.stringify(afterTakeover)).not.toContain(TOKEN);
+		expect(onConnectionLost).toHaveBeenCalledOnce();
+	});
+
+	it('does not prove the hub again over the socket', async () => {
+		const connection = await connect(
+			() => ({ status: 201, body: INGEST_RESPONSE }),
+			['socket', 'tcp'],
+		);
+		await connection.client.postMessage(MESSAGE);
+		await connection.client.postMessage(MESSAGE);
+		expect(
+			connection.hub.requests.filter((request) => request.url === '/v1/hello'),
+		).toHaveLength(1);
+	});
+
+	it('reports a lost connection so the caller can rediscover the hub', async () => {
+		const onConnectionLost = vi.fn();
+		hub = await startFakeHub({
+			directory,
+			token: TOKEN,
+			transports: ['socket'],
+			handler: () => ({ status: 201, body: INGEST_RESPONSE }),
+		});
+		const connected = await connectToHub({
+			environment: hub.environment,
+			identity: IDENTITY,
+			onConnectionLost,
+		});
+		if (!connected.ok) throw new Error(connected.error);
+		await hub.close();
+		hub = undefined;
+		expect(await connected.value.postMessage(MESSAGE)).toMatchObject({
+			ok: false,
+			error: { kind: 'transport' },
+		});
+		expect(onConnectionLost).toHaveBeenCalledOnce();
+	});
+
+	it('does not report a lost connection for an HTTP error from a hub that is there', async () => {
+		const onConnectionLost = vi.fn();
+		hub = await startFakeHub({
+			directory,
+			token: TOKEN,
+			transports: ['socket'],
+			handler: () => ({
+				status: 422,
+				body: { code: 'schema_invalid', message: 'bad', pointer: '/title' },
+			}),
+		});
+		const connected = await connectToHub({
+			environment: hub.environment,
+			identity: IDENTITY,
+			onConnectionLost,
+		});
+		if (!connected.ok) throw new Error(connected.error);
+		await connected.value.postMessage(MESSAGE);
+		expect(onConnectionLost).not.toHaveBeenCalled();
 	});
 
 	it('never sends the token to a hub whose proof is wrong', async () => {

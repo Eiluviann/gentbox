@@ -39,16 +39,25 @@ export function createMcpServer(deps: ToolDeps): Server {
 	return server;
 }
 
-/** Connects on the first tool call and keeps the client; a failed attempt is tried again next call. */
+/**
+ * Connects on the first tool call and keeps the client. A failed attempt is
+ * tried again on the next call, and so is a client that reports a lost
+ * connection (the hub quit, or restarted on a new port): the endpoint is
+ * discovered and, over TCP, proven again.
+ */
 export function connectOnFirstUse(
-	connect: () => Promise<Result<HubClient, string>>,
+	connect: (onConnectionLost: () => void) => Promise<Result<HubClient, string>>,
 ): () => Promise<Result<HubClient, string>> {
 	let pending: Promise<Result<HubClient, string>> | undefined;
 	return () => {
-		pending ??= connect().then((connected) => {
-			if (!connected.ok) pending = undefined;
+		if (pending !== undefined) return pending;
+		const attempt: Promise<Result<HubClient, string>> = connect(() => {
+			if (pending === attempt) pending = undefined;
+		}).then((connected) => {
+			if (!connected.ok && pending === attempt) pending = undefined;
 			return connected;
 		});
-		return pending;
+		pending = attempt;
+		return attempt;
 	};
 }

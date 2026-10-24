@@ -24,10 +24,11 @@ try {
 }
 
 const server = createMcpServer({
-	getClient: connectOnFirstUse(() =>
+	getClient: connectOnFirstUse((onConnectionLost) =>
 		connectToHub({
 			environment: readDiscoveryEnvironment(process.env),
 			identity: { agent: sender.agent, conversationId: sender.conversationId },
+			onConnectionLost,
 		}),
 	),
 	sender,

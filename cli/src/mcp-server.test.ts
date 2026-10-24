@@ -143,4 +143,33 @@ describe('connectOnFirstUse', () => {
 		expect((await getClient()).ok).toBe(true);
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
+
+	it('discovers the hub again after the client reports a lost connection: a restart on a new port', async () => {
+		let reportLost: () => void = () => undefined;
+		const connect = vi.fn(async (onConnectionLost: () => void) => {
+			reportLost = onConnectionLost;
+			return succeed(stubHubClient());
+		});
+		const getClient = connectOnFirstUse(connect);
+		const first = await getClient();
+		reportLost();
+		const second = await getClient();
+		expect(connect).toHaveBeenCalledTimes(2);
+		expect(second).not.toBe(first);
+	});
+
+	it('ignores a lost-connection report from a client it has already replaced', async () => {
+		const reports: (() => void)[] = [];
+		const connect = vi.fn(async (onConnectionLost: () => void) => {
+			reports.push(onConnectionLost);
+			return succeed(stubHubClient());
+		});
+		const getClient = connectOnFirstUse(connect);
+		await getClient();
+		reports[0]?.();
+		await getClient();
+		reports[0]?.();
+		await getClient();
+		expect(connect).toHaveBeenCalledTimes(2);
+	});
 });

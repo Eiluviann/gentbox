@@ -9,6 +9,7 @@ import {
 	type HttpTransport,
 	type HubTarget,
 	type RawRequest,
+	type RawResponse,
 	sendHttpRequest,
 } from './http-transport.ts';
 import {
@@ -115,6 +116,11 @@ export type HubSession = {
 	identity: HubIdentity;
 	transport: HttpTransport;
 	sleep: (milliseconds: number) => Promise<void>;
+	/**
+	 * Called when the hub cannot be reached or (over TCP) no longer proves
+	 * itself: the endpoint found at connect time is stale, so find it again.
+	 */
+	onConnectionLost: () => void;
 };
 
 const REQUEST_TIMEOUT_MILLISECONDS = 15_000;
@@ -170,6 +176,7 @@ export type ConnectOptions = {
 	identity: HubIdentity;
 	transport?: HttpTransport;
 	sleep?: (milliseconds: number) => Promise<void>;
+	onConnectionLost?: () => void;
 };
 
 /**
@@ -187,12 +194,13 @@ export async function connectToHub(
 	for (const endpoint of endpoints) {
 		const target = await reachEndpoint(endpoint, transport);
 		if (target.ok) {
-			const session = {
+			const session: HubSession = {
 				target: target.value,
 				token: endpoint.token,
 				identity: options.identity,
 				transport,
 				sleep,
+				onConnectionLost: options.onConnectionLost ?? (() => undefined),
 			};
 			return succeed(createHubClient(session));
 		}
@@ -228,25 +236,53 @@ async function reachEndpoint(
 			endpoint.port,
 		);
 		if (proven.ok) return succeed(target);
-		problems.push(`port ${endpoint.port}: ${proven.error}`);
+		problems.push(`port ${endpoint.port}: ${proven.error.message}`);
 	}
 	if (problems.length === 0)
 		problems.push('no socket and no port: the hub is not serving');
 	return fail(problems.join('; '));
 }
 
+const NOT_THE_HUB_MESSAGE =
+	"the answer is not the hub's proof; the token was not sent";
+
+/** Why a TCP hub could not be proven: it did not answer, or what answered is not the hub. */
+type ProofFailure = { kind: 'unreachable' | 'impostor'; message: string };
+
 async function proveHubOverTcp(
 	transport: HttpTransport,
 	token: string,
 	port: number,
-): Promise<Result<undefined, string>> {
+): Promise<Result<undefined, ProofFailure>> {
 	const nonce = randomNonce();
 	const hello = await sayHello(transport, { kind: 'tcp', port }, nonce);
-	if (!hello.ok) return hello;
+	if (!hello.ok) return fail({ kind: 'unreachable', message: hello.error });
 	if (!isValidHelloProof(token, port, nonce, hello.value)) {
-		return fail("the answer is not the hub's proof; the token was not sent");
+		return fail({ kind: 'impostor', message: NOT_THE_HUB_MESSAGE });
 	}
 	return succeed(undefined);
+}
+
+/**
+ * Over TCP the hub is proven again before every request that carries the
+ * token (a port can change hands when the hub restarts); the socket needs no
+ * proof, since only this user can reach it.
+ */
+async function proveSessionHub(
+	session: HubSession,
+): Promise<Result<undefined, HubFailure>> {
+	if (session.target.kind === 'socket') return succeed(undefined);
+	const proven = await proveHubOverTcp(
+		session.transport,
+		session.token,
+		session.target.port,
+	);
+	if (proven.ok) return proven;
+	return fail(
+		proven.error.kind === 'unreachable'
+			? { kind: 'transport', message: proven.error.message }
+			: { kind: 'protocol', message: proven.error.message },
+	);
 }
 
 /** `POST /v1/hello`, the one request without the token. Returns the hub's proof. */
@@ -481,15 +517,30 @@ async function exchange(
 		signal: call.signal,
 	};
 	for (let attempt = 0; ; attempt++) {
-		const response = await session.transport(session.target, request);
-		if (!response.ok)
-			return fail({ kind: 'transport', message: response.error });
-		const { status, headers, body } = response.value;
+		const sent = await sendOnce(session, request);
+		if (!sent.ok) return sent;
+		const { status, headers, body } = sent.value;
 		if (status >= 200 && status < 300) return succeed({ status, body });
 		const isRateLimited = status === 429 && attempt < MAX_RATE_LIMIT_RETRIES;
 		if (!isRateLimited) return fail(httpFailure(status, body));
 		await session.sleep(retryAfterMilliseconds(headers['retry-after']));
 	}
+}
+
+/** Proves the hub when needed, then sends; a stale endpoint is reported to the session's owner. */
+async function sendOnce(
+	session: HubSession,
+	request: RawRequest,
+): Promise<Result<RawResponse, HubFailure>> {
+	const proven = await proveSessionHub(session);
+	if (!proven.ok) {
+		session.onConnectionLost();
+		return proven;
+	}
+	const response = await session.transport(session.target, request);
+	if (response.ok) return response;
+	if (request.signal?.aborted !== true) session.onConnectionLost();
+	return fail({ kind: 'transport', message: response.error });
 }
 
 function authenticatedHeaders(session: HubSession): Record<string, string> {
