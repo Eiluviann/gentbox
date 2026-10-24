@@ -251,7 +251,7 @@ impl HubState {
         let prepared = prepare_message(input, &self.rules, BuiltInRules::load(), settings)
             .map_err(HubError::Rejected)?;
         let rescinds = prepared.message.rescinds.clone();
-        let warnings = prepared.warnings.clone();
+        let mut warnings = prepared.warnings.clone();
         let snapshot = self.store.repository().grouping_snapshot()?;
         let resolution = resolve_grouping(&snapshot, &prepared.grouping_request())
             .map_err(HubError::Grouping)?;
@@ -267,6 +267,7 @@ impl HubState {
             groups.thread_id.clone(),
         );
         let plan = self.plan_for(&message, groups.is_muted);
+        warnings.extend(muted_warning(&message, &groups));
         let items = self.open_items(&message.conversation_key(), now)?;
         let outcome = coalesce(&CoalesceInput {
             incoming: &message,
@@ -1562,6 +1563,8 @@ struct PlannedGroups {
     reopens_thread: Option<ThreadId>,
     uses_default_thread: bool,
     is_muted: bool,
+    /// What the topic or thread mute is called, for the sender's warning.
+    muted_group: Option<String>,
 }
 
 impl PlannedGroups {
@@ -1585,16 +1588,17 @@ impl PlannedGroups {
                 (thread.id.clone(), Some(thread))
             }
         };
-        let topic_muted = snapshot
+        let muted_topic = snapshot
             .topics
             .iter()
-            .find(|topic| topic.id == topic_id)
-            .is_some_and(|topic| topic.muted);
-        let thread_muted = snapshot
+            .find(|topic| topic.id == topic_id && topic.muted);
+        let muted_thread = snapshot
             .threads
             .iter()
-            .find(|thread| thread.id == thread_id)
-            .is_some_and(|thread| thread.muted);
+            .find(|thread| thread.id == thread_id && thread.muted);
+        let muted_group = muted_topic
+            .map(|topic| format!("topic '{}'", topic.title))
+            .or_else(|| muted_thread.map(|thread| format!("thread '{}'", thread.title)));
         Self {
             topic_id,
             thread_id,
@@ -1603,7 +1607,8 @@ impl PlannedGroups {
             reopens_topic: resolution.reopens_topic,
             reopens_thread: resolution.reopens_thread,
             uses_default_thread: resolution.uses_default_thread,
-            is_muted: topic_muted || thread_muted,
+            is_muted: muted_group.is_some(),
+            muted_group,
         }
     }
 
@@ -1728,6 +1733,24 @@ fn rename_implicit_threads(
         renamed.push(thread.id);
     }
     Ok(renamed)
+}
+
+/// Tells the sender its message went to the inbox without a ping because a
+/// mute holds it back (urgent messages break through and get no warning).
+fn muted_warning(message: &Message, groups: &PlannedGroups) -> Option<IngestWarning> {
+    if message.urgent {
+        return None;
+    }
+    let cause = match (&groups.muted_group, &message.muted_by_rule) {
+        (Some(group), _) => format!("{group} is muted"),
+        (None, Some(rule)) => format!("rule '{rule}' mutes it"),
+        (None, None) => return None,
+    };
+    Some(IngestWarning {
+        code: WarningCode::Muted,
+        field: None,
+        message: format!("Delivered to the inbox without a ping: {cause}"),
+    })
 }
 
 fn ingest_response(

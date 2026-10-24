@@ -161,6 +161,9 @@ pub enum WarningCode {
     StepRewritten,
     /// A secret was redacted.
     SecretRedacted,
+    /// The message was delivered to the inbox without a ping because its
+    /// topic, thread or a rule mutes it.
+    Muted,
 }
 
 /// One entry of `ingestResponse.warnings`.

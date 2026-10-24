@@ -37,6 +37,10 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 
 	beforeAll(async () => {
 		stateDirectory = mkdtempSync(join(tmpdir(), 'gentbox-it-'));
+		writeFileSync(
+			join(stateDirectory, 'rules.toml'),
+			'[[rule]]\nname = "Mute integration asks"\nmatch = { event = "integration.muted" }\nmute = true\n',
+		);
 		apiDirectory = join(stateDirectory, 'API');
 		daemon = spawn(
 			GENTBOXD,
@@ -173,7 +177,7 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		expect(closed).toMatchObject({ ok: true, value: { status: 'closed' } });
 	});
 
-	it('ask returns "no answer" at once and withdraws the message when no UI can answer', async () => {
+	it('ask returns "no answer" at once and leaves the message open when no UI can answer', async () => {
 		const client = await connect();
 		const asked = await askAndWait(
 			client,
@@ -185,14 +189,58 @@ describe.skipIf(!isDaemonAvailable)('against a real gentboxd', () => {
 		);
 		expect(asked).toMatchObject({
 			ok: true,
-			value: { outcome: { kind: 'not_waiting' }, didRescind: true },
+			value: { outcome: { kind: 'not_waiting' } },
 		});
 		if (!asked.ok) return;
 		const polled = await client.getResponse(asked.value.ingest.id, 0);
-		expect(polled).toMatchObject({
+		expect(polled).toMatchObject({ ok: true, value: { status: 'pending' } });
+	});
+
+	it('a muted ask returns muted at once, names the mute, and stays open until the model rescinds it', async () => {
+		const client = await connect();
+		const asked = await askAndWait(
+			client,
+			message('Allow Bash to run the ingest tests?', {
+				type: 'decision_required',
+				blocking: 'blocking',
+				event: 'integration.muted',
+			}),
+			{ timeoutSeconds: 5 },
+		);
+		expect(asked).toMatchObject({
+			ok: true,
+			value: { outcome: { kind: 'muted' } },
+		});
+		if (!asked.ok) return;
+		expect(asked.value.ingest.warnings).toContainEqual({
+			code: 'muted',
+			message:
+				"Delivered to the inbox without a ping: rule 'Mute integration asks' mutes it",
+		});
+		const stillOpen = await client.getResponse(asked.value.ingest.id, 0);
+		expect(stillOpen).toMatchObject({ ok: true, value: { status: 'pending' } });
+		// Only an explicit rescind from the agent withdraws it.
+		const rescinded = await client.rescindMessage(
+			asked.value.ingest.id,
+			'resolved_elsewhere',
+		);
+		expect(rescinded).toMatchObject({
 			ok: true,
 			value: { status: 'rescinded', rescindReason: 'resolved_elsewhere' },
 		});
+	});
+
+	it('notify reports the mute to the model', async () => {
+		const client = await connect();
+		const posted = await client.postMessage(
+			message('Release notes are drafted', {
+				type: 'task_completed',
+				event: 'integration.muted',
+			}),
+		);
+		expect(
+			posted.ok && posted.value.record.warnings?.map((warning) => warning.code),
+		).toContain('muted');
 	});
 
 	it('rescinds by id and by correlation key', async () => {

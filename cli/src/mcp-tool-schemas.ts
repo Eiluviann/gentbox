@@ -178,7 +178,7 @@ export const askInputSchema = z
 			.max(3600)
 			.optional()
 			.describe(
-				'How long to wait for the answer (default 300). On expiry the message is withdrawn.',
+				'How long to wait for the answer (default 300). On expiry the message stays open: collect the answer with `wait` later.',
 			),
 		steps: stepsSchema,
 		correlationKey: correlationKeySchema,
@@ -359,7 +359,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'notify',
 		description: [
-			"Send a notification to the user's Gentbox inbox and return at once. It does not wait for an answer; use `ask` when you need one.",
+			"Send a notification to the user's Gentbox inbox and return at once. It does not wait for an answer; use `ask` when you need one. If its topic or thread is muted, the notification still reaches the inbox but without a ping, and the result says so (`muted` warning).",
 			'Pick `type` deliberately: action_required when the user must do something themselves, task_completed when work finished, generic for anything worth keeping for reference.',
 			TITLE_RULE,
 			STEPS_RULE,
@@ -372,7 +372,7 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'ask',
 		description: [
-			'Ask the user something in Gentbox and wait for the answer: an approval, a choice between options, or free text. It returns the answer, `deferred` (the user chose Defer: carry on with work that needs no input, then collect the answer with `wait`), or "no answer" (nothing arrived in time: the message is withdrawn, so ask in the conversation instead).',
+			'Ask the user something in Gentbox and wait for the answer: an approval, a choice between options, or free text. It returns the answer, `deferred` (the user chose Defer: carry on with work that needs no input, then collect the answer with `wait`), or "no answer". "No answer" never withdraws the message: it stays open in the inbox. It comes back as `timed_out` (nothing arrived in time), `muted` (the message was delivered, but its topic or thread is muted, so the user was not pinged and may answer later) or `nobody_can_answer_now`. Then collect the answer with `wait`, or ask in the conversation and `rescind` the message (reason resolved_elsewhere) once that is handled.',
 			'Use `blocking` when you cannot continue and `deferrable` when you can do other work if the user defers. Offer `choices` for options, `allowReply` for free text; with neither the user sees Approve and Deny.',
 			TITLE_RULE,
 			STEPS_RULE,
@@ -385,14 +385,14 @@ export const TOOL_SPECS: ToolSpec[] = [
 	{
 		name: 'wait',
 		description:
-			'Wait for the answer to a message you sent earlier, typically after `ask` returned `deferred` and you finished the work that needed no input. Returns the answer, `deferred` again, a closed status (dismissed, withdrawn, expired), or "no answer yet": the message is not withdrawn, so you can call `wait` again or ask in the conversation.',
+			'Wait for the answer to a message you sent earlier, typically after `ask` returned `deferred` and you finished the work that needed no input. Returns the answer, `deferred` again, a closed status (dismissed, withdrawn, expired), or "no answer yet": the message stays open, so you can call `wait` again, or ask in the conversation and `rescind` it once that is handled.',
 		schema: waitInputSchema,
 		inputSchema: toInputSchema(waitInputSchema),
 	},
 	{
 		name: 'rescind',
 		description:
-			'Withdraw your own open message(s) because they no longer need the user. Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
+			'Withdraw your own open message(s) because they no longer need the user. Withdrawn means you asked: Gentbox never withdraws a message on your behalf, not on a timeout, a cancel or a muted topic. Give exactly one of `messageId` or `correlationKeys`: by `messageId` (from notify or ask), or by `correlationKeys` for every open message of this conversation with those keys. Use `reason` resolved_elsewhere when you or the user handled it in the session, obsolete when it no longer matters, superseded when a newer message replaces it.',
 		schema: rescindInputSchema,
 		inputSchema: toInputSchema(rescindInputSchema),
 	},

@@ -152,8 +152,18 @@ async function notify(
 	if (!posted.ok) return failureResult(posted.error);
 	const { id, type, urgent, blocking, state, topicId, threadId, warnings } =
 		posted.value.record;
+	const isMuted = warnings?.some((warning) => warning.code === 'muted');
 	return jsonResult(
-		{ messageId: id, type, urgent, blocking, state, topicId, threadId },
+		{
+			messageId: id,
+			type,
+			urgent,
+			blocking,
+			state,
+			topicId,
+			threadId,
+			...(isMuted === true ? { muted: true } : {}),
+		},
 		warnings,
 	);
 }
@@ -184,11 +194,11 @@ async function ask(
 		...deps.wait,
 	});
 	if (!asked.ok) return failureResult(asked.error);
-	const { ingest, outcome, didRescind } = asked.value;
-	return describeAskOutcome(ingest.id, outcome, didRescind, ingest.warnings);
+	const { ingest, outcome } = asked.value;
+	return describeAskOutcome(ingest.id, outcome, ingest.warnings);
 }
 
-/** Collects the answer to a message sent earlier; unlike `ask` it never withdraws the message. */
+/** Collects the answer to a message sent earlier. Like `ask`, it never withdraws the message. */
 async function wait(
 	input: WaitInput,
 	client: HubClient,
@@ -200,13 +210,15 @@ async function wait(
 		signal,
 		...deps.wait,
 	});
-	return describeAskOutcome(input.messageId, outcome, false, undefined);
+	return describeAskOutcome(input.messageId, outcome, undefined);
 }
+
+const KEEP_OPEN_ADVICE =
+	'Call `wait` with this messageId to collect the answer later, or ask the user in the conversation and `rescind` the message (reason resolved_elsewhere) once that is handled.';
 
 function describeAskOutcome(
 	messageId: string,
 	outcome: AskOutcome,
-	didRescind: boolean,
 	warnings: IngestWarning[] | undefined,
 ): CallToolResult {
 	switch (outcome.kind) {
@@ -236,16 +248,23 @@ function describeAskOutcome(
 			);
 		case 'closed':
 			return jsonResult(closedStatus(messageId, outcome.response), warnings);
+		case 'muted':
+			return jsonResult(
+				{
+					status: 'no_answer',
+					messageId,
+					reason: 'muted',
+					instruction: `Your message was delivered to the inbox, but its topic or thread is muted, so the user wasn't pinged and may answer later. The message stays open. ${KEEP_OPEN_ADVICE}`,
+				},
+				warnings,
+			);
 		case 'timed_out':
 			return jsonResult(
 				{
 					status: 'no_answer',
 					messageId,
 					reason: 'timed_out',
-					messageWithdrawn: didRescind,
-					instruction: didRescind
-						? 'No answer arrived in time and the message was withdrawn. Ask the user in the conversation instead.'
-						: 'No answer yet; the message is still open. Call `wait` again later, or ask the user in the conversation.',
+					instruction: `No answer yet; the message stays open in the user's inbox. ${KEEP_OPEN_ADVICE}`,
 				},
 				warnings,
 			);
@@ -255,9 +274,7 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'nobody_can_answer_now',
-					messageWithdrawn: didRescind,
-					instruction:
-						'Gentbox has no channel that can take an answer right now (the user may be in the very app you run in). Ask in the conversation instead.',
+					instruction: `Gentbox has no channel that can take an answer right now (the user may be in the very app you run in). The message stays open in the inbox. Ask the user in the conversation and \`rescind\` the message (reason resolved_elsewhere) once that is handled.`,
 				},
 				warnings,
 			);
@@ -267,7 +284,7 @@ function describeAskOutcome(
 					status: 'no_answer',
 					messageId,
 					reason: 'cancelled',
-					messageWithdrawn: didRescind,
+					instruction: `The wait was cancelled; the message stays open. ${KEEP_OPEN_ADVICE}`,
 				},
 				warnings,
 			);
@@ -277,7 +294,7 @@ function describeAskOutcome(
 				content: [
 					{
 						type: 'text',
-						text: `${describeHubFailure(outcome.failure)}\nThe answer is unknown (message ${messageId}${didRescind ? ', withdrawn' : ''}). Ask the user in the conversation instead.`,
+						text: `${describeHubFailure(outcome.failure)}\nThe answer is unknown (message ${messageId} is still open). ${KEEP_OPEN_ADVICE}`,
 					},
 				],
 			};
@@ -426,7 +443,7 @@ export function formatWarnings(
 		(warning) =>
 			`- [${warning.code}]${warning.field === undefined ? '' : ` ${warning.field}`}: ${warning.message}`,
 	);
-	return `Gentbox warnings (what the hub changed; fix this next time):\n${lines.join('\n')}`;
+	return `Gentbox warnings (what the hub changed or held back; heed them):\n${lines.join('\n')}`;
 }
 
 function jsonResult(

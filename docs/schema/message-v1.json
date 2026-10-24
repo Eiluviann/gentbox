@@ -150,7 +150,7 @@
 			"enum": ["resolved_elsewhere", "obsolete", "superseded"]
 		},
 		"rescindRequest": {
-			"description": "Body of DELETE /v1/messages/{id} (reason only) and of POST /v1/conversations/{agent}/{id}/rescind (reason and correlation keys); also the `rescinds` field of a message.",
+			"description": "Body of DELETE /v1/messages/{id} (reason only) and of POST /v1/conversations/{agent}/{id}/rescind (reason and correlation keys); also the `rescinds` field of a message. Withdrawn means the agent asked: only an explicit rescind from the sender withdraws a message, never a timeout, a cancel or a mute.",
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["reason"],
@@ -902,7 +902,7 @@
 					"type": "boolean"
 				},
 				"warnings": {
-					"description": "Changes the hub made, for the sender to learn from (e.g. the title guard).",
+					"description": "Changes the hub made or things it held back, for the sender to learn from (e.g. the title guard, or `muted`: delivered to the inbox without a ping because the topic, thread or a rule mutes it; the message stays open).",
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -918,7 +918,8 @@
 									"normalized",
 									"steps_missing",
 									"step_rewritten",
-									"secret_redacted"
+									"secret_redacted",
+									"muted"
 								]
 							},
 							"field": {

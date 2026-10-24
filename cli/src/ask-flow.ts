@@ -2,6 +2,7 @@ import type { HubClient, HubFailure } from './hub-client.ts';
 import type {
 	ActionResponse,
 	IngestResponse,
+	IngestWarning,
 	MessageV1,
 } from './message-types.ts';
 import { fail, type Result, succeed } from './result.ts';
@@ -105,20 +106,22 @@ function canRetry(failure: HubFailure, consecutiveFailures: number): boolean {
 	);
 }
 
-export type AskOutcome = WaitOutcome | { kind: 'not_waiting' };
+export type AskOutcome =
+	| WaitOutcome
+	| { kind: 'not_waiting' }
+	/** Delivered to the inbox, but a mute held back the ping: nobody is waiting and the message stays open. */
+	| { kind: 'muted'; messageId: string; detail: string };
 
 export type AskResult = {
 	ingest: IngestResponse;
 	outcome: AskOutcome;
-	/** True when this call withdrew the message because the sender stopped waiting. */
-	didRescind: boolean;
 };
 
 /**
- * Sends a message that awaits a response and waits for it. When the sender
- * stops waiting (deadline, cancel, error, or the hub says nobody can answer)
- * the message is withdrawn as `resolved_elsewhere`, as the architecture
- * requires, so no stale popup is left behind; a deferral leaves it open.
+ * Sends a message that awaits a response and waits for it. Only the agent's
+ * own `rescind` withdraws a message: when the wait ends without an answer
+ * (deadline, cancel, error, nobody can answer, or a mute) the message stays
+ * open in the inbox.
  */
 export async function askAndWait(
 	client: HubClient,
@@ -132,15 +135,10 @@ export async function askAndWait(
 		return succeed(await settleWithoutWaiting(client, ingest));
 	}
 	const outcome = await waitForAnswer(client, ingest.id, options);
-	const shouldWithdraw =
-		outcome.kind === 'timed_out' ||
-		outcome.kind === 'cancelled' ||
-		outcome.kind === 'failed';
-	const didRescind = shouldWithdraw && (await withdraw(client, ingest.id));
-	return succeed({ ingest, outcome, didRescind });
+	return succeed({ ingest, outcome });
 }
 
-/** `shouldWait: false`: either nobody can answer now, or an idempotent retry hit a message that already closed. */
+/** `shouldWait: false`: a mute, nobody can answer now, or an idempotent retry hit a message that already closed. */
 async function settleWithoutWaiting(
 	client: HubClient,
 	ingest: IngestResponse,
@@ -151,10 +149,24 @@ async function settleWithoutWaiting(
 	if (hasClosed) {
 		const polled = await client.getResponse(ingest.id, 0);
 		const outcome = polled.ok ? outcomeOf(polled.value) : undefined;
-		if (outcome !== undefined) return { ingest, outcome, didRescind: false };
+		if (outcome !== undefined) return { ingest, outcome };
 	}
-	const didRescind = await withdraw(client, ingest.id);
-	return { ingest, outcome: { kind: 'not_waiting' }, didRescind };
+	const mutedWarning = ingest.warnings?.find(isMutedWarning);
+	if (mutedWarning !== undefined) {
+		return {
+			ingest,
+			outcome: {
+				kind: 'muted',
+				messageId: ingest.id,
+				detail: mutedWarning.message,
+			},
+		};
+	}
+	return { ingest, outcome: { kind: 'not_waiting' } };
+}
+
+function isMutedWarning(warning: IngestWarning): boolean {
+	return warning.code === 'muted';
 }
 
 function outcomeOf(response: ActionResponse): WaitOutcome | undefined {
@@ -171,17 +183,6 @@ function outcomeOf(response: ActionResponse): WaitOutcome | undefined {
 		case 'gone':
 			return { kind: 'closed', response };
 	}
-}
-
-async function withdraw(
-	client: HubClient,
-	messageId: string,
-): Promise<boolean> {
-	const rescinded = await client.rescindMessage(
-		messageId,
-		'resolved_elsewhere',
-	);
-	return rescinded.ok;
 }
 
 function defaultSleep(milliseconds: number): Promise<void> {

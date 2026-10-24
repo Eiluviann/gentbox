@@ -61,7 +61,7 @@ override = true
 
 ### Rescind
 
-An agent withdraws its own messages:
+An agent withdraws its own messages. Withdrawn means the agent asked: nothing else withdraws a message on its behalf, not a timeout, a cancel, a muted topic or a missing answer channel (amended 2026-10-24).
 
 - `DELETE /v1/messages/{id}` with `{ "reason": … }`. With no body the reason is `resolved_elsewhere`.
 - `POST /v1/conversations/{agent}/{id}/rescind` with `{ "reason": …, "correlationKeys": [ … ] }`.
@@ -89,7 +89,7 @@ Effects:
 - **Supersede** (same correlation key) rescinds the old message with reason `superseded`, replacing it in place.
 - **A `task_completed` message** rescinds the conversation's open `blocking` and `deferrable` messages that have no live waiter, with reason `obsolete`. `non_blocking` ones survive.
 - **Conversation progress** (`POST …/progress`) rescinds the conversation's `blocking` and `deferrable` messages without a live waiter, and its `idle` item, with reason `resolved_elsewhere`.
-- **A hook that stops waiting** deletes its own message with reason `resolved_elsewhere`. This replaces `POST /v1/messages/{id}/resolve`.
+- **A hook that stops waiting** deletes its own message with reason `resolved_elsewhere`. This replaces `POST /v1/messages/{id}/resolve`. (Amended 2026-10-24, see Amendments: a sender that stops waiting no longer rescinds.)
 
 ### Policy key
 
@@ -137,3 +137,7 @@ Permission prompts become `decision_required` + `blocking` + not urgent. That se
   - sorting above non-urgent items.
 
   Native notifications, which have no badge slot, lead the subtitle with "Urgent ·", before the blocking badge ("Urgent · Waiting on you · topic · thread"). The type's title phrase is never changed by urgency.
+- **2026-10-24: withdrawn means the agent asked.** The user decided: "Withdrawn is only to be used when the model asks to withdraw the notification. The model should be notified that their notification came through but it is muted." This supersedes the line above that had a hook delete its own message when it stops waiting (kept for history):
+  - A sender that stops waiting (deadline, cancel, error, no answer channel) does **not** rescind. The waiter lapses after 10 s and the message becomes an ordinary inbox item (architecture §5.2).
+  - A message delivered into a muted topic or thread (or muted by a rule) stays open, and the ingest response carries the warning `muted` so the sender knows it arrived without a ping. `shouldWait` stays `false`.
+  - The rescind rules above and the implicit rescinds are otherwise unchanged. Whether supersede, completion and progress should keep marking rows "Withdrawn" is still open.

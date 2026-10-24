@@ -120,3 +120,7 @@ topic = { key = "project:{project}", title = "{project}", kind = "project" }
 - **Nested topics:** not needed, and they complicate mute and close.
 - **Implicit topics as a UI-only fiction:** mute, mark read and `thread-id` would need special cases; a real hub-managed record keeps every topic alike.
 - **Per-agent topic keys:** safer against collisions, but defeats topics shared across agents.
+
+## Amendments
+
+- **2026-10-24: a muted message reports the mute and stays open.** Where this ADR says senders of muted messages get `shouldWait: false` so a hook falls back at once: that is unchanged, but the sender is no longer left to withdraw the message. The ingest response carries the warning `muted` ("Delivered to the inbox without a ping: topic 'X' is muted"), and the message stays open for the user to answer later; the sender may collect the answer with a poll or rescind it itself. Withdrawn means the agent asked (ADR 0007, amendments).

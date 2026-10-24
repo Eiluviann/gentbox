@@ -361,6 +361,7 @@ export const KNOWN_WARNING_CODES = [
 	'steps_missing',
 	'step_rewritten',
 	'secret_redacted',
+	'muted',
 ] as const;
 
 export const ingestWarningSchema = z.object({

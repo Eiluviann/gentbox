@@ -143,11 +143,11 @@ Response body of `POST /v1/messages`:
 { "id": "01JBM3Z8Q7Y4K2N6P0R5T9VWXA", "type": "decision_required", "urgent": false, "blocking": "blocking", "fieldSources": { "type": "declared", "urgent": "default", "blocking": "declared" }, "topicId": "01JBM6R3K9P2W5X8Z1C4V7N0QD", "threadId": "01JBM9P3H4S5E6J7N8G9E0S1TQ", "state": "open", "shouldWait": true, "warnings": [] }
 ```
 
-The full shape is `$defs/ingestResponse` in the schema; `warnings` reports what the hub changed, such as a title the guard rewrote (§5.5).
+The full shape is `$defs/ingestResponse` in the schema; `warnings` reports what the hub changed or held back, such as a title the guard rewrote (§5.5) or a mute: a non-urgent message delivered to the inbox without a ping because its topic, thread or a rule mutes it carries the warning `muted`, naming what is muted (any type, notify and ask alike; urgent messages break through and get none).
 
 `id` is a ULID the hub assigns. It is the only message id in URLs and in `actionResponse.messageId`; the sender's `idempotencyKey` only deduplicates retries.
 
-`shouldWait` tells a waiting sender whether long-polling is worthwhile. It is `false` when no channel can answer (every answer channel is muted, or the user is at the very app the agent runs in and the policy says not to interrupt there, §6.2), so a hook falls back to the agent's own prompt at once instead of holding it.
+`shouldWait` tells a waiting sender whether long-polling is worthwhile. It is `false` when no channel can answer (every answer channel is muted, or the user is at the very app the agent runs in and the policy says not to interrupt there, §6.2), so a hook falls back to the agent's own prompt at once instead of holding it. A mute makes it `false` too; there the message stays open in the inbox and the sender learns why from the `muted` warning, so it can collect the answer later with a poll.
 
 ### 5.2 States
 
@@ -178,14 +178,14 @@ stateDiagram-v2
 - **Deferred** is not a state: Defer on a `deferrable` message records `deferredAt`, sets `blocking` to `non_blocking` and re-runs the policy (the popup closes, re-pings stop); the message stays open or acknowledged and still awaits the real answer.
 - `answered`: an answer action was taken (`approve`, `deny`, `choice`, `reply`, `done`).
 - `dismissed`: you cleared the message from the inbox without answering. An `action_required` message is never cleared: it is closed with Done.
-- `rescinded`, with a reason: `resolved_elsewhere`, `obsolete` or `superseded` (§7).
+- `rescinded`, with a reason: `resolved_elsewhere`, `obsolete` or `superseded` (§7). Withdrawn means the agent asked: a sender that stops waiting does not withdraw its message.
 - `expired`: `expiresAt` passed while open or acknowledged.
 
 Closing a popup or a notification only acknowledges.
 
 **Answers and non-answers.** `approve`, `deny`, `choice`, `reply` and `done` are answers: the first one closes the message as `answered` and wakes the waiter. `defer` is an answer that does not close (above). **Done is always offered on `action_required`, with or without a live waiter:** with one the agent hears it at once; without one it closes the item locally and records the answer, so the agent's next poll returns `answered` with `actionKind: done`. `open` and `snooze` are non-answers: `open` acknowledges and brings the conversation forward, `snooze` acknowledges with `snoozedUntil = now + value` minutes (default 15). Neither is ever returned to a waiting sender.
 
-**Live waiter.** A message has a live waiter while a long-poll for it is in flight or ended less than 10 s ago (the gap between two polls). `awaitsResponse` only declares the intent; it is the live waiter that counts everywhere below (answer buttons, supersede, implicit rescinds). A sender that stops waiting (deadline, error, fallback to its own prompt) rescinds its message with `DELETE /v1/messages/{id}` (`resolved_elsewhere`); if it dies without doing so, the waiter lapses after 10 s and the message becomes an ordinary item that completion or progress can rescind.
+**Live waiter.** A message has a live waiter while a long-poll for it is in flight or ended less than 10 s ago (the gap between two polls). `awaitsResponse` only declares the intent; it is the live waiter that counts everywhere below (answer buttons, supersede, implicit rescinds). A sender that stops waiting (deadline, error, cancel, fallback to its own prompt) no longer rescinds its message (amended 2026-10-24: withdrawn means the agent asked). The waiter lapses after 10 s and the message becomes an ordinary item that stays in the inbox; the no-waiter popup with "Clear" covers it, and completion or progress can still rescind it (§7).
 
 **What the long-poll returns** (`actionResponse.status`):
 
@@ -326,7 +326,7 @@ By blocking level (for `decision_required` and `action_required`) and type:
 | `non_blocking` | Native banner and inbox, no re-ping | Silent-then-ping |
 | `task_completed` | Transient rich toast (6 s); suppressed when the conversation's app is frontmost; auto-acknowledged when you bring the conversation forward | Silent-then-ping |
 | `generic` | Inbox only, silent | Never |
-| Any non-urgent message in a muted topic or thread | Inbox only, silent, no re-ping; `shouldWait: false` for its sender | Never |
+| Any non-urgent message in a muted topic or thread | Inbox only, silent, no re-ping; `shouldWait: false` and a `muted` warning for its sender; the message stays open | Never |
 
 `urgent` modifies every row above:
 
@@ -369,7 +369,7 @@ All within one conversation (`source.agent` + `conversation.id`). Rules are appl
 4. **Dedupe.** If the superseding message has the same fields, title and summary as the old one and arrives within 10 s, it is dropped and only a repeat counter increases.
 5. **Completion rescinds what waited on it.** A `task_completed` message rescinds, as `obsolete`, the conversation's `open`/`acknowledged` `blocking` and `deferrable` messages that have no live waiter. A message with a live waiter stays open (the agent cannot have finished while it waits); `non_blocking` messages survive the end of the turn.
 6. **Progress rescinds.** `POST /v1/conversations/{agent}/{id}/progress` (Claude Code: async `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` hooks) rescinds, as `resolved_elsewhere`, the conversation's `idle` item and its `blocking` and `deferrable` items without a live waiter: something happened, so whatever they asked for was handled in the session. This covers a permission answered or denied in the terminal.
-7. **Explicit rescind.** `DELETE /v1/messages/{id}`, `POST /v1/conversations/{agent}/{id}/rescind`, or the `rescinds` field on a new message, with a reason (ADR 0007). Effects in every channel: popup and toast removed; Mac native notification removed; inbox row kept and marked "Withdrawn" with the reason in words (superseded rows fold into their successor instead); the own iPhone app removes the delivered notification through a background push and `removeDeliveredNotifications`, falling back after 60 s to a passive "Withdrawn" replacement under the same collapse id; the ntfy fallback cannot remove or update a delivered notification, so the hub publishes a min-priority "Withdrawn" notice only when the original had pinged, and ignores taps on the stale buttons.
+7. **Explicit rescind.** Withdrawn means the agent asked (amended 2026-10-24): a sender that times out, is cancelled or fails, a muted message and a missing answer channel never withdraw a message; only the agent's own call does. `DELETE /v1/messages/{id}`, `POST /v1/conversations/{agent}/{id}/rescind`, or the `rescinds` field on a new message, with a reason (ADR 0007). Effects in every channel: popup and toast removed; Mac native notification removed; inbox row kept and marked "Withdrawn" with the reason in words (superseded rows fold into their successor instead); the own iPhone app removes the delivered notification through a background push and `removeDeliveredNotifications`, falling back after 60 s to a passive "Withdrawn" replacement under the same collapse id; the ntfy fallback cannot remove or update a delivered notification, so the hub publishes a min-priority "Withdrawn" notice only when the original had pinged, and ignores taps on the stale buttons.
 8. **Topics and threads never coalesce.** Two conversations in one thread keep separate slots, popups and rescinds; only the inbox and the lock screen group them (§5.4).
 9. **Popup coalescing.** The Mac shows at most one persistent popup per conversation (its newest `blocking` or `deferrable` item) and stacks at most 3 conversations; more collapse into "+N waiting" which opens the inbox.
 
@@ -443,7 +443,7 @@ sequenceDiagram
 
 - **First answer wins.** The hub actor accepts the first answer and closes the message; later answers (the other device, a re-tap) get 409 and the UI shows "Already answered on <channel>".
 - **Answer buttons need a live waiter** (§5.2). Without one, approve/deny/reply/choice and Defer are hidden (and disappear from an open popup when the waiter lapses) and only open and snooze remain, plus Done on an `action_required` message, which closes the item locally and records `done` for a later poll, so a button never pretends to do something it cannot.
-- **The hook cleans up.** Whenever it stops waiting without an answer it calls `DELETE /v1/messages/{id}` (`resolved_elsewhere`) before printing nothing, so the popup closes as the agent's own prompt takes over.
+- **The hook leaves the message open.** Whenever it stops waiting without an answer it prints nothing and does not rescind (amended 2026-10-24: withdrawn means the agent asked). The waiter lapses after 10 s and the item becomes an ordinary one, which the no-waiter popup's "Clear" or the next progress call closes (§7.6).
 - **Mapping for Claude Code `PermissionRequest`** (Phase 4): `approve` → `{"behavior": "allow"}`; `deny` → `{"behavior": "deny", "message": "Denied from Gentbox"}`; `reply` → `deny` with your text as `message`, which tells Claude what to do instead.
 - **Timeouts.** Command hooks default to a 600 s timeout and are cancelled at it, output discarded; no maximum is documented [CC-hooks › Common fields, Timeouts]. The hook sets its own deadline below its configured `timeout` and exits with no output, which leaves the permission flow unchanged [CC-hooks › PermissionRequest decision control].
 - **Fallback.** No answer by the deadline, `shouldWait: false`, hub unreachable, or any error → the hook prints nothing and Claude Code shows its own prompt. Gentbox never decides on its own.

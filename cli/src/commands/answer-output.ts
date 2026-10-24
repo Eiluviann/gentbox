@@ -12,7 +12,6 @@ export function reportOutcome(
 	context: CommandContext,
 	messageId: string,
 	outcome: AskOutcome,
-	extra: { didRescind?: boolean } = {},
 ): ExitCode {
 	switch (outcome.kind) {
 		case 'answered': {
@@ -49,7 +48,7 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'timed_out',
-				...withdrawn(extra),
+				note: 'No answer yet; the message stays open. Run `gentbox wait` to collect the answer later, or ask in the conversation and `gentbox rescind` the message once that is handled.',
 			});
 			return EXIT.noAnswer;
 		case 'not_waiting':
@@ -57,7 +56,15 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'nobody_can_answer_now',
-				...withdrawn(extra),
+				note: 'No channel can take an answer right now; the message stays open in the inbox. Ask in the conversation and `gentbox rescind` the message once that is handled.',
+			});
+			return EXIT.noAnswer;
+		case 'muted':
+			printJson(context, {
+				messageId,
+				status: 'no_answer',
+				reason: 'muted',
+				note: `The message was delivered to the inbox, but its topic or thread is muted, so the user wasn't pinged and may answer later. The message stays open. Run \`gentbox wait\` to collect the answer, or ask in the conversation and \`gentbox rescind\` the message (--reason resolved_elsewhere) once that is handled.`,
 			});
 			return EXIT.noAnswer;
 		case 'cancelled':
@@ -65,17 +72,15 @@ export function reportOutcome(
 				messageId,
 				status: 'no_answer',
 				reason: 'cancelled',
-				...withdrawn(extra),
+				note: 'The wait was cancelled; the message stays open.',
 			});
 			return EXIT.noAnswer;
 		case 'failed':
-			printJson(context, { messageId, status: 'unknown', ...withdrawn(extra) });
+			printJson(context, {
+				messageId,
+				status: 'unknown',
+				note: 'The answer is unknown; the message stays open.',
+			});
 			return hubError(context, outcome.failure);
 	}
-}
-
-function withdrawn(extra: { didRescind?: boolean }): {
-	messageWithdrawn: boolean;
-} {
-	return { messageWithdrawn: extra.didRescind === true };
 }
