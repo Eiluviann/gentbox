@@ -83,6 +83,16 @@ pub enum HubError {
     /// Agents may not edit an implicit topic or thread (409).
     #[error("implicit topics and threads are managed by the hub")]
     ImplicitGroup,
+    /// A topic or thread closes only when nothing in it is open (409).
+    #[error("{count} item(s) still open; a topic or thread closes only when nothing in it is open")]
+    HasOpenMessages {
+        /// How many messages are open in it (snoozed and deferred included).
+        count: u32,
+    },
+    /// An agent's General topic holds its simple conversations and never
+    /// closes; its threads do (409).
+    #[error("the General topic cannot be closed; close its threads instead")]
+    GeneralTopic,
     /// A key or default-thread uniqueness rule (409).
     #[error(transparent)]
     Conflict(Conflict),
@@ -855,38 +865,6 @@ impl HubHandle {
         request: MessageThreadMove,
     ) -> Result<MessageGrouping, HubError> {
         self.call(move |hub| hub.move_message(&id, &request, None))
-            .await
-    }
-
-    /// You close a topic, and so its open threads, from the Mac. With
-    /// `dismiss_open_messages` its open messages are dismissed: waiting senders
-    /// hear `dismissed`, never `rescinded`, which only an agent's own withdrawal
-    /// produces. `action_required` messages stay open; only Done closes them.
-    ///
-    /// # Errors
-    ///
-    /// [`HubError::TopicNotFound`].
-    pub async fn close_topic_for_user(
-        &self,
-        id: TopicId,
-        dismiss_open_messages: bool,
-    ) -> Result<TopicRecord, HubError> {
-        self.call(move |hub| hub.close_topic_for_user(&id, dismiss_open_messages))
-            .await
-    }
-
-    /// You close a thread from the Mac; see
-    /// [`HubHandle::close_topic_for_user`].
-    ///
-    /// # Errors
-    ///
-    /// [`HubError::ThreadNotFound`].
-    pub async fn close_thread_for_user(
-        &self,
-        id: ThreadId,
-        dismiss_open_messages: bool,
-    ) -> Result<ThreadRecord, HubError> {
-        self.call(move |hub| hub.close_thread_for_user(&id, dismiss_open_messages))
             .await
     }
 

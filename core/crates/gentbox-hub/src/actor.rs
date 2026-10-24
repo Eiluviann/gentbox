@@ -19,7 +19,7 @@ use gentbox_core::item::{DeliveredSurfaces, OpenItem};
 use gentbox_core::lifecycle::{
     ActionOutcome, ActionPress, LifecycleEvent, LifecycleState, apply_event, dismiss, press_action,
 };
-use gentbox_core::message::{Action, ActionKind, Conversation, Message, MessageInput, MessageType};
+use gentbox_core::message::{Action, ActionKind, Conversation, Message, MessageInput};
 use gentbox_core::policy::{
     DeliveryPlan, MacSurface, Policy, PolicyContext, Presence, PresenceState, decide,
 };
@@ -670,6 +670,33 @@ impl HubState {
     }
 
     /// The withdrawals a close asks for, if any.
+    /// A group closes only when nothing in it stays open: every live message
+    /// (snoozed and deferred included) must be among those the close
+    /// withdraws. Checked before anything is written, so a refused close
+    /// withdraws nothing.
+    fn check_nothing_left_open(
+        &self,
+        filter: &MessageFilter,
+        rescissions: &[Rescission],
+    ) -> Result<(), HubError> {
+        let open = self.store.repository().list_messages(filter)?;
+        let left_open = open
+            .iter()
+            .filter(|message| {
+                !rescissions
+                    .iter()
+                    .any(|rescission| rescission.message_id == message.id)
+            })
+            .count();
+        if left_open == 0 {
+            Ok(())
+        } else {
+            Err(HubError::HasOpenMessages {
+                count: u32::try_from(left_open).unwrap_or(u32::MAX),
+            })
+        }
+    }
+
     fn close_rescissions(
         &self,
         filter: MessageFilter,
@@ -790,11 +817,15 @@ impl HubState {
         requester: Option<&Requester>,
     ) -> Result<TopicRecord, HubError> {
         let now = self.now();
+        if self.store.repository().topic(id)?.implicit {
+            return Err(HubError::GeneralTopic);
+        }
         let filter = MessageFilter {
             topic_id: Some(id.clone()),
             ..MessageFilter::default()
         };
-        let rescissions = self.close_rescissions(filter, request, requester, now)?;
+        let rescissions = self.close_rescissions(filter.clone(), request, requester, now)?;
+        self.check_nothing_left_open(&filter, &rescissions)?;
         // The close and its withdrawals commit together or not at all.
         let (closed_threads, withdrawn) = self.store.transaction(|repo| {
             let closed_threads = repo.close_topic(id, now)?;
@@ -954,7 +985,8 @@ impl HubState {
             thread_id: Some(id.clone()),
             ..MessageFilter::default()
         };
-        let rescissions = self.close_rescissions(filter, request, requester, now)?;
+        let rescissions = self.close_rescissions(filter.clone(), request, requester, now)?;
+        self.check_nothing_left_open(&filter, &rescissions)?;
         let withdrawn = self.store.transaction(|repo| {
             repo.close_thread(id, now)?;
             close_withdrawn(repo, &rescissions, now)
@@ -962,49 +994,6 @@ impl HubState {
         self.finish_withdrawals(withdrawn, now);
         self.dispatcher.send(HubEvent::ThreadChanged(id.clone()));
         Ok(self.store.repository().thread_record(id)?)
-    }
-
-    pub(crate) fn close_topic_for_user(
-        &mut self,
-        id: &TopicId,
-        dismiss_open_messages: bool,
-    ) -> Result<TopicRecord, HubError> {
-        self.close_topic(id, &CloseRequest::default(), None)?;
-        if dismiss_open_messages {
-            self.dismiss_open_messages(MessageFilter {
-                topic_id: Some(id.clone()),
-                ..MessageFilter::default()
-            })?;
-        }
-        Ok(self.store.repository().topic_record(id)?)
-    }
-
-    pub(crate) fn close_thread_for_user(
-        &mut self,
-        id: &ThreadId,
-        dismiss_open_messages: bool,
-    ) -> Result<ThreadRecord, HubError> {
-        self.close_thread(id, &CloseRequest::default(), None)?;
-        if dismiss_open_messages {
-            self.dismiss_open_messages(MessageFilter {
-                thread_id: Some(id.clone()),
-                ..MessageFilter::default()
-            })?;
-        }
-        Ok(self.store.repository().thread_record(id)?)
-    }
-
-    /// Dismisses the live messages the filter matches, in this actor turn;
-    /// `action_required` ones stay open, since only Done closes them.
-    fn dismiss_open_messages(&mut self, filter: MessageFilter) -> Result<(), HubError> {
-        let open = self.store.repository().list_messages(&filter)?;
-        for message in open
-            .iter()
-            .filter(|message| message.message_type != MessageType::ActionRequired)
-        {
-            self.dismiss(&message.id)?;
-        }
-        Ok(())
     }
 
     pub(crate) fn reopen_thread(&mut self, id: &ThreadId) -> Result<ThreadRecord, HubError> {

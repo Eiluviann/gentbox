@@ -77,7 +77,7 @@ async fn creates_need_the_agent_and_record_it() {
 }
 
 #[tokio::test]
-async fn closing_withdraws_open_messages_only_when_asked() {
+async fn closing_is_refused_while_messages_are_open() {
     let server = Server::start().await;
     let mut prompt = blocking_prompt();
     prompt["topic"] = json!({ "key": "release-1.4" });
@@ -87,34 +87,19 @@ async fn closing_withdraws_open_messages_only_when_asked() {
     let topic = posted.body["topicId"].as_str().unwrap().to_owned();
     let thread = posted.body["threadId"].as_str().unwrap().to_owned();
 
-    let closed = server
-        .send_for("POST", &format!("/v1/topics/{topic}/close"), None)
-        .await;
-    assert_eq!(closed.status, 200);
-    assert_eq!(closed.body["status"], "closed");
-    let thread_record = server
-        .send("GET", &format!("/v1/threads/{thread}"), None)
-        .await;
-    assert_eq!(thread_record.body["status"], "closed");
+    for path in [
+        format!("/v1/topics/{topic}/close"),
+        format!("/v1/threads/{thread}/close"),
+    ] {
+        let refused = server.send_for("POST", &path, None).await;
+        assert_eq!(refused.status, 409, "{path}");
+        assert_eq!(refused.body["code"], "has_open_messages");
+        assert_eq!(refused.body["openMessages"], 1);
+    }
     assert_eq!(server.poll(&id, 0).await["status"], "pending");
 
-    // A message to the closed thread reopens it and its topic.
-    let mut again = prompt.clone();
-    again["thread"] = json!({ "id": thread });
-    again["conversation"] = json!({ "id": "conversation-2" });
-    let reopening = server.post_message(again).await;
-    assert_eq!(reopening.status, 201);
-    for path in [
-        format!("/v1/topics/{topic}"),
-        format!("/v1/threads/{thread}"),
-    ] {
-        assert_eq!(
-            server.send("GET", &path, None).await.body["status"],
-            "open",
-            "{path}"
-        );
-    }
-
+    // Withdrawing its own open messages lets the agent close; the waiter
+    // hears `rescinded`.
     let poll = {
         let client = server.client.clone();
         let url = server.url(&format!("/v1/messages/{id}/response?wait=30"));
@@ -140,9 +125,42 @@ async fn closing_withdraws_open_messages_only_when_asked() {
         )
         .await;
     assert_eq!(closed.status, 200);
+    assert_eq!(closed.body["status"], "closed");
     let woken = poll.await.unwrap();
     assert_eq!(woken["status"], "rescinded");
     assert_eq!(woken["rescindReason"], "obsolete");
+
+    // A message to the closed thread reopens it and its topic.
+    let mut again = prompt.clone();
+    again["thread"] = json!({ "id": thread });
+    again["conversation"] = json!({ "id": "conversation-2" });
+    let reopening = server.post_message(again).await;
+    assert_eq!(reopening.status, 201);
+    for path in [
+        format!("/v1/topics/{topic}"),
+        format!("/v1/threads/{thread}"),
+    ] {
+        assert_eq!(
+            server.send("GET", &path, None).await.body["status"],
+            "open",
+            "{path}"
+        );
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn the_general_topic_answers_409_to_close() {
+    let server = Server::start().await;
+    let posted = server
+        .post_message(json!({ "type": "task_completed", "title": "Docs build" }))
+        .await;
+    let topic = posted.body["topicId"].as_str().unwrap();
+    let refused = server
+        .send_for("POST", &format!("/v1/topics/{topic}/close"), None)
+        .await;
+    assert_eq!(refused.status, 409);
+    assert_eq!(refused.body["code"], "general_topic");
     server.stop().await;
 }
 
@@ -153,17 +171,6 @@ async fn reopen_and_rescind_routes() {
     prompt["topic"] = json!({ "key": "release-1.4" });
     let posted = server.post_message(prompt).await;
     let topic = posted.body["topicId"].as_str().unwrap().to_owned();
-    server
-        .send_for(
-            "POST",
-            &format!("/v1/topics/{topic}/close"),
-            Some(json!({})),
-        )
-        .await;
-    let reopened = server
-        .send("POST", &format!("/v1/topics/{topic}/reopen"), None)
-        .await;
-    assert_eq!(reopened.body["status"], "open");
     let rescinded = server
         .send_for(
             "POST",
@@ -173,6 +180,18 @@ async fn reopen_and_rescind_routes() {
         .await;
     assert_eq!(rescinded.status, 200);
     assert_eq!(rescinded.body["rescinded"], json!([id_of(&posted)]));
+    let closed = server
+        .send_for(
+            "POST",
+            &format!("/v1/topics/{topic}/close"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(closed.body["status"], "closed");
+    let reopened = server
+        .send("POST", &format!("/v1/topics/{topic}/reopen"), None)
+        .await;
+    assert_eq!(reopened.body["status"], "open");
     let listing = server.send("GET", "/v1/topics?status=open", None).await;
     assert_eq!(listing.body["topics"][0]["openMessages"], 0);
     let bad = server.send("GET", "/v1/topics?status=maybe", None).await;
