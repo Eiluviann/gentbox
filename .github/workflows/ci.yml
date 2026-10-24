@@ -108,5 +108,8 @@ jobs:
         if: failure()
         with:
           name: apple-test-results
-          path: apps/apple/build/results/ci.xcresult
+          # The result bundle, and the frames AnimationTrace recorded.
+          path: |
+            apps/apple/build/results/ci.xcresult
+            ~/Library/Application Support/Gentbox/UITests/trace
           retention-days: 7

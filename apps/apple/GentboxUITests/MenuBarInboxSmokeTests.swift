@@ -256,7 +256,12 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 				// That one swaps two cards of one height.
 				XCTAssertGreaterThan(Set(frames.map(\.panelHeight)).count, 3, "the panel did not move in \(step)")
 			}
-			for (previous, frame) in zip(frames, frames.dropFirst()) {
+			// A capture taken while SwiftUI redraws can miss the marker (-99);
+			// CI's screen recording showed the marker on the panel's edge at
+			// such a frame. One per step is a capture glitch, more is a gap.
+			let unreadable = frames.filter { $0.gap <= -99 }
+			XCTAssertLessThanOrEqual(unreadable.count, 1, "\(step): the content's bottom is cut off at \(unreadable.map(\.ms)) ms")
+			for (previous, frame) in zip(frames, frames.dropFirst()) where frame.gap > -99 {
 				let sampleMotion = Double(abs(frame.panelHeight - previous.panelHeight))
 				XCTAssertLessThanOrEqual(
 					abs(frame.gap), sampleMotion + 1.5,
