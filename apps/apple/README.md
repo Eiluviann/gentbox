@@ -24,3 +24,5 @@ cd apps/apple && xcodegen generate && xcodebuild -project Gentbox.xcodeproj -sch
 
 **The inbox is a panel, not a window.** `InboxPanel` is borderless and non-activating, at the pop-up menu level, on every Space and outside the window cycle. It reports `AXSystemDialog`, never `AXStandardWindow`, so tiling window managers such as AeroSpace leave it alone (`InboxPanelTests`; checked against AeroSpace 0.20.2-Beta, which lists no Gentbox window). Popups and toasts (PR 4) follow the same rule.
 
+**Checking the accordion's animation.** In debug builds, `GENTBOX_TRACE_DIR=<folder in the app's reach>` with `-GentboxOpenInboxAtLaunch YES` makes the app drive expand, collapse, expand-another and a refresh mid-spring itself, as clicks do, and record each frame. It writes the panel's frame and the content's height to `frames.csv`, plus a PNG of the panel per frame, without clicking or taking focus. `testThePanelHoldsItsHeightWhileTheAccordionSprings` reads that record. The panel holds its height while an item springs, and eases to fit only after the spring settles.
+

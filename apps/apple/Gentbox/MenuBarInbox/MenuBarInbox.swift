@@ -1,13 +1,18 @@
 import GentboxCore
 import SwiftUI
 
-/// The menu-bar inbox (design: `mac-popover`): the message an agent is
-/// blocked on as the full card on white, everything else as a two-line list
-/// on light grey with a rule between items, urgent first, then waiting. Topic
-/// and thread show only in each row's breadcrumb; no section titles, no
-/// counters. The popover lists only open, unhandled items.
+/// The menu-bar inbox (design: `mac-popover`): every open message on one
+/// white surface with a rule between items, urgent first, then waiting, one
+/// of them expanded into the full card. Topic and thread show only in each
+/// row's breadcrumb; no section titles, no counters.
+///
+/// In the panel the content hangs from the top and the list fills the rest
+/// and scrolls, so a change of the panel's height never moves the header.
+/// Measuring (`isMeasuring`), the list takes its ideal height instead, which
+/// is how the panel learns the size that fits.
 struct MenuBarInbox: View {
 	let app: AppModel
+	var isMeasuring = false
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -19,10 +24,11 @@ struct MenuBarInbox: View {
 			case .failed(let reason):
 				InboxNotice(symbol: "xmark", title: "Gentbox could not start", caption: reason)
 			case .running(let inbox):
-				InboxContent(inbox: inbox)
+				InboxContent(inbox: inbox, isMeasuring: isMeasuring)
 			}
 		}
 		.frame(width: Tokens.popoverWidth)
+		.frame(maxHeight: isMeasuring ? nil : .infinity, alignment: .top)
 	}
 }
 
@@ -68,8 +74,16 @@ private struct InboxHeader: View {
 /// The list as an accordion (design: `mac-popover`): every open message in
 /// order, one of them expanded in place into the full card (by default the
 /// next-up one), the rest as two-line rows; then the foot.
+///
+/// One animation source: the expansion animates through the list's
+/// `.animation(_:value:)` alone. Scrolling the expanded item into view waits
+/// until the spring has settled and the panel has fitted, and moves only when
+/// the item is out of view.
 private struct InboxContent: View {
 	let inbox: InboxModel
+	let isMeasuring: Bool
+	/// The spring's settling time (`.spring` is 0.5 s) plus a margin.
+	static let settle: Duration = .milliseconds(550)
 
 	var body: some View {
 		if let snapshot = inbox.inbox {
@@ -88,23 +102,25 @@ private struct InboxContent: View {
 									// `.pp-line + .pp-line` (an.css:1140): a rule between items.
 									Tokens.line.frame(height: 1)
 								}
-								Group {
-									if inbox.isExpanded(message.id) {
-										MessageCard(message: message, moveTargets: snapshot.moveTargets, inbox: inbox)
-									} else {
-										MessageRow(message: message, moveTargets: snapshot.moveTargets, inbox: inbox)
-									}
-								}
+								InboxItem(
+									message: message,
+									isExpanded: inbox.isExpanded(message.id),
+									moveTargets: snapshot.moveTargets,
+									inbox: inbox,
+								)
 								.id(message.id)
 							}
 						}
 						.animation(.spring, value: inbox.expanded)
 					}
-					.frame(maxHeight: Tokens.listMaxHeight)
-					.fixedSize(horizontal: false, vertical: true)
-					.onChange(of: inbox.expanded) { _, expanded in
-						guard let id = expanded?.messageId else { return }
-						withAnimation(.spring) { proxy.scrollTo(id) }
+					.frame(maxHeight: isMeasuring ? Tokens.listMaxHeight : .infinity)
+					.fixedSize(horizontal: false, vertical: isMeasuring)
+					.task(id: inbox.expanded) {
+						guard let id = inbox.expanded?.messageId,
+							(try? await Task.sleep(for: Self.settle + .milliseconds(250))) != nil
+						else { return }
+						// No anchor: the least scroll that shows it, none if it shows.
+						proxy.scrollTo(id)
 					}
 				}
 			}
@@ -128,7 +144,7 @@ private struct FilterBanner: View {
 				.foregroundStyle(.secondary)
 				.frame(maxWidth: .infinity, alignment: .leading)
 				.accessibilityIdentifier("inbox.filter")
-			Button("Show all") { withAnimation(.spring) { inbox.clearFilter() } }
+			Button("Show all") { inbox.clearFilter() }
 				.buttonStyle(.plain)
 				.font(.system(size: 12))
 				.foregroundStyle(Color.accentColor)

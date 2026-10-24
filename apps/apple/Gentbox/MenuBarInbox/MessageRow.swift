@@ -102,23 +102,71 @@ struct RowContext: View {
 	}
 }
 
-/// A collapsed item: type icon, title, breadcrumb, and the waiting mark,
-/// which the ellipsis menu replaces on hover. A click expands it in place
-/// into the full card and collapses the one that was open; ⌘-click picks it
-/// for a bulk Dismiss (never an `action_required` one). Right-click opens the
-/// item menu.
-struct MessageRow: View {
+/// One item of the accordion (design: `mac-popover`: "the active card keeps
+/// a row's order and adds its body below, so a row can grow into it").
+/// Collapsed, it is a two-line row: type icon, title, breadcrumb, and the
+/// waiting mark, which the ellipsis menu replaces on hover. Expanded, the
+/// same header grows (the title to 15 points, more padding) and the body and
+/// buttons are revealed below it, inside the item's own animated, clipped
+/// frame: one view throughout, so nothing cross-fades. Only the expanded item
+/// has buttons, so ↩, ⌘⌫ and R act on it alone.
+///
+/// A click on a collapsed item expands it (and collapses the open one); a
+/// click on the expanded item's header collapses it; ⌘-click picks a
+/// collapsed item for a bulk Dismiss (never an `action_required` one).
+/// The animation itself comes from the list, the one source for it.
+struct InboxItem: View {
 	let message: InboxMessage
+	let isExpanded: Bool
 	let moveTargets: [TopicChoice]
 	let inbox: InboxModel
 	@State private var isHovered = false
+	@State private var reply = ""
+	@State private var isReplying = false
 
 	var body: some View {
+		VStack(alignment: .leading, spacing: 0) {
+			header
+			if isExpanded {
+				details
+					.padding(.leading, Tokens.iconColumn + Tokens.columnGap)
+					.transition(Self.detailsTransition)
+			}
+		}
+		.padding(.horizontal, Tokens.rowHorizontalPadding)
+		.padding(.top, isExpanded ? 14 : 9)
+		.padding(.bottom, isExpanded ? 16 : 9)
+		.background(background)
+		.clipped()
+		.contentShape(Rectangle())
+		.onHover { isHovered = $0 }
+		.contextMenu {
+			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
+		}
+		.accessibilityElement(children: .contain)
+		.accessibilityAddTraits(isPicked ? [.isButton, .isSelected] : .isButton)
+		.accessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
+		.accessibilityIdentifier(isExpanded ? "card:\(message.title)" : "message:\(message.title)")
+		.onChange(of: isExpanded) {
+			isReplying = false
+			reply = ""
+		}
+	}
+
+	private var header: some View {
 		HStack(alignment: .top, spacing: Tokens.columnGap) {
 			TypeIcon(message: message)
-			VStack(alignment: .leading, spacing: 1) {
+			VStack(alignment: .leading, spacing: isExpanded ? 2 : 1) {
 				Text(message.title)
-					.font(.system(size: 13, weight: .medium))
+					// The same style in both states: any change to the title's font
+					// (a size or weight, animated or morphed) gives the text a
+					// transition of its own, and it drifts from its breadcrumb
+					// while the item springs. The card stands out by its body
+					// and padding instead of the board's 15-point headline.
+					.font(.system(size: 13, weight: .semibold))
+					// One line in both states, as titles are written to fit
+					// (ADR 0010): a title that rewrapped as it grew would
+					// cross-fade between layouts and shift the breadcrumb.
 					.lineLimit(1)
 					.truncationMode(.tail)
 				RowContext(message: message)
@@ -126,119 +174,78 @@ struct MessageRow: View {
 			.frame(maxWidth: .infinity, alignment: .leading)
 			ZStack {
 				WaitingMark(blocking: message.blocking)
-					.opacity(isHovered ? 0 : 1)
-				Menu {
-					ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
-				} label: {
-					Image(systemName: "ellipsis")
-						.foregroundStyle(.secondary)
+					.opacity(isHovered && !isExpanded ? 0 : 1)
+				if !isExpanded {
+					Menu {
+						ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
+					} label: {
+						Image(systemName: "ellipsis")
+							.foregroundStyle(.secondary)
+					}
+					.menuStyle(.borderlessButton)
+					.menuIndicator(.hidden)
+					.fixedSize()
+					.padding(3)
+					.background(Tokens.track, in: RoundedRectangle(cornerRadius: 6))
+					.opacity(isHovered ? 1 : 0)
+					.accessibilityLabel("More")
+					.accessibilityIdentifier("message-menu:\(message.title)")
 				}
-				.menuStyle(.borderlessButton)
-				.menuIndicator(.hidden)
-				.fixedSize()
-				.padding(3)
-				.background(Tokens.track, in: RoundedRectangle(cornerRadius: 6))
-				.opacity(isHovered ? 1 : 0)
-				.accessibilityLabel("More")
-				.accessibilityIdentifier("message-menu:\(message.title)")
 			}
 			.frame(width: 22)
 		}
-		.padding(.horizontal, Tokens.rowHorizontalPadding)
-		.padding(.vertical, 9)
-		.background(background)
 		.contentShape(Rectangle())
-		.onHover { isHovered = $0 }
 		.onTapGesture {
-			if NSEvent.modifierFlags.contains(.command) {
+			if !isExpanded, NSEvent.modifierFlags.contains(.command) {
 				inbox.toggleSelection(of: message)
 			} else {
-				withAnimation(.spring) { inbox.toggleExpansion(of: message.id) }
+				inbox.toggleExpansion(of: message.id)
 			}
 		}
-		.contextMenu {
-			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
-		}
-		.accessibilityElement(children: .contain)
-		.accessibilityAddTraits(isPicked ? [.isButton, .isSelected] : .isButton)
-		.accessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
-		.accessibilityIdentifier("message:\(message.title)")
 	}
+
+	private var details: some View {
+		VStack(alignment: .leading, spacing: 0) {
+			if let summary = message.summary {
+				Text(summary)
+					.font(.system(size: 13))
+					.foregroundStyle(.secondary)
+					.padding(.top, 6)
+			}
+			if let body = message.body {
+				// Commands, paths and raw input live only in the body
+				// (ADR 0010); the card shows its start in `.pp-cmd`.
+				Text(body)
+					.font(.system(size: 12, design: .monospaced))
+					.lineLimit(4)
+					.textSelection(.enabled)
+					.frame(maxWidth: .infinity, alignment: .leading)
+					.padding(.horizontal, 9)
+					.padding(.vertical, 6)
+					.background(Tokens.codeBox, in: RoundedRectangle(cornerRadius: 6))
+					.padding(.top, 8)
+			}
+			actionBar
+				.padding(.top, 12)
+		}
+	}
+
+	/// An inserted view appears at its final place while its neighbours are
+	/// still moving, so the body fades in only once the spring has mostly
+	/// settled, and fades out at once on collapse, before the rows slide up:
+	/// it never draws over a moving header.
+	private static let detailsTransition = AnyTransition.asymmetric(
+		insertion: .opacity.animation(.easeOut(duration: 0.15).delay(0.3)),
+		removal: .opacity.animation(.easeOut(duration: 0.08)),
+	)
 
 	private var isPicked: Bool {
 		inbox.selection.contains(message.id)
 	}
 
 	private var background: some View {
-		Tokens.row
-			.overlay(isPicked ? Tokens.picked : (isHovered ? Tokens.hover : .clear))
-	}
-}
-
-/// The expanded item (design: "Next up"): a row's order (type icon, title,
-/// breadcrumb, state) with its body and buttons below. Only the expanded item
-/// has buttons, so ↩, ⌘⌫ and R act on it alone. A click on its header
-/// collapses it.
-struct MessageCard: View {
-	let message: InboxMessage
-	let moveTargets: [TopicChoice]
-	let inbox: InboxModel
-	@State private var reply = ""
-	@State private var isReplying = false
-
-	var body: some View {
-		VStack(alignment: .leading, spacing: 0) {
-			HStack(alignment: .top, spacing: Tokens.columnGap) {
-				TypeIcon(message: message, size: 15)
-				VStack(alignment: .leading, spacing: 2) {
-					Text(message.title)
-						.font(.system(size: 15, weight: .semibold))
-						.fixedSize(horizontal: false, vertical: true)
-					RowContext(message: message)
-				}
-				.frame(maxWidth: .infinity, alignment: .leading)
-				WaitingMark(blocking: message.blocking)
-			}
-			.contentShape(Rectangle())
-			.onTapGesture { withAnimation(.spring) { inbox.toggleExpansion(of: message.id) } }
-			.accessibilityAddTraits(.isButton)
-			.accessibilityIdentifier("card-header:\(message.title)")
-			VStack(alignment: .leading, spacing: 0) {
-				if let summary = message.summary {
-					Text(summary)
-						.font(.system(size: 13))
-						.foregroundStyle(.secondary)
-						.padding(.top, 6)
-				}
-				if let body = message.body {
-					// Commands, paths and raw input live only in the body
-					// (ADR 0010); the card shows its start.
-					Text(body)
-						.font(.system(size: 12, design: .monospaced))
-						.lineLimit(4)
-						.textSelection(.enabled)
-						.frame(maxWidth: .infinity, alignment: .leading)
-						.padding(.horizontal, 9)
-						.padding(.vertical, 6)
-						.background(Tokens.codeBox, in: RoundedRectangle(cornerRadius: 6))
-						.padding(.top, 8)
-				}
-				actionBar
-					.padding(.top, 12)
-			}
-			.padding(.leading, Tokens.iconColumn + Tokens.columnGap)
-		}
-		.padding(EdgeInsets(top: 14, leading: Tokens.rowHorizontalPadding, bottom: 16, trailing: Tokens.rowHorizontalPadding))
-		.background(Tokens.card)
-		.contextMenu {
-			ItemMenu(message: message, moveTargets: moveTargets, inbox: inbox)
-		}
-		.accessibilityElement(children: .contain)
-		.accessibilityIdentifier("card:\(message.title)")
-		.onChange(of: message.id) {
-			isReplying = false
-			reply = ""
-		}
+		(isExpanded ? Tokens.card : Tokens.row)
+			.overlay(isPicked ? Tokens.picked : (isHovered && !isExpanded ? Tokens.hover : .clear))
 	}
 
 	@ViewBuilder private var actionBar: some View {

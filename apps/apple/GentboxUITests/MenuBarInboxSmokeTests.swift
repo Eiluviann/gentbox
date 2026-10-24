@@ -174,8 +174,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(element("message:Allow Bash to run the ingest tests?").exists)
 		XCTAssertTrue(element("action:Dismiss").isHittable)
 		attachSnapshot(named: "Expanded row")
-		// Its header collapses it, leaving nothing expanded.
-		element("card-header:Search filters persist in the URL; 18 tests pass").click()
+		// Its header (here, the breadcrumb in it) collapses it, leaving
+		// nothing expanded.
+		element("context:Search filters persist in the URL; 18 tests pass").click()
 		XCTAssertTrue(picked.waitForNonExistence(timeout: 5))
 		attachSnapshot(named: "All collapsed")
 		element("message:Allow Bash to run the ingest tests?").click()
@@ -217,6 +218,49 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		done.click()
 		XCTAssertTrue(row.waitForNonExistence(timeout: 5))
 		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
+	}
+
+	/// The accordion springs inside a panel that holds its height: a panel
+	/// that jumped to its end size while the content was mid-spring is what
+	/// made it glitch. XCUITest waits for animations to end before it reads
+	/// anything, so the app records its own frames (`AnimationTrace`, debug
+	/// builds) while it expands, collapses, expands another and refreshes
+	/// mid-spring, and this test reads that record.
+	func testThePanelHoldsItsHeightWhileTheAccordionSprings() throws {
+		app.terminate()
+		let trace = stateFolder.appendingPathComponent("trace", isDirectory: true)
+		app.launchEnvironment["GENTBOX_TRACE_DIR"] = trace.path
+		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
+			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
+		}
+		let launchedAt = Date()
+		app.launch()
+		try waitForTheHub(startedAfter: launchedAt)
+		for index in 1...5 {
+			try post([
+				"type": "task_completed", "title": "Completed task number \(index)",
+				"body": "line one\nline two\nline three",
+				"conversation": ["id": "session-\(index)"],
+				"topic": ["key": "web", "title": "Web"],
+				"thread": ["key": "t\(index)", "title": "Thread \(index)"],
+			])
+		}
+		let csv = trace.appendingPathComponent("frames.csv")
+		let deadline = Date().addingTimeInterval(40)
+		while !FileManager.default.fileExists(atPath: csv.path), Date() < deadline {
+			Thread.sleep(forTimeInterval: 0.5)
+		}
+		let rows = try String(contentsOf: csv, encoding: .utf8)
+			.split(separator: "\n").dropFirst()
+			.map { $0.split(separator: ",").map(String.init) }
+		let steps = Dictionary(grouping: rows) { $0[1] }
+		XCTAssertEqual(Set(steps.keys), ["expand-row", "collapse", "expand-another", "expand-then-refresh"])
+		for (step, frames) in steps {
+			XCTAssertGreaterThan(frames.count, 5, step)
+			let duringSpring = frames.filter { (Int($0[2]) ?? 0) < 500 }
+			let heights = Set(duringSpring.map { $0[4] })
+			XCTAssertEqual(heights.count, 1, "the panel changed height mid-spring in \(step): \(heights)")
+		}
 	}
 
 	// MARK: Helpers
