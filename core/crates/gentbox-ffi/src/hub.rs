@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use gentbox_core::classify::RuleSet;
 use gentbox_core::ids::{MessageId, ThreadId, TopicId};
 use gentbox_core::response::AnsweredVia;
-use gentbox_core::topic::{CloseRequest, ThreadIdRef, ThreadRef, TopicIdRef, TopicRef};
+use gentbox_core::topic::{ThreadIdRef, ThreadRef, TopicIdRef, TopicRef};
 use gentbox_hub::{
     ActionRequest, Hub, HubConfig, HubError, HubHandle, MessageThreadMove, ThreadMove,
 };
@@ -277,8 +277,10 @@ impl GentboxHub {
             .map(drop)
     }
 
-    /// Closes a topic and its open threads; with `withdraw_open_messages`,
-    /// also withdraws their open messages (every agent's).
+    /// Closes a topic and its open threads; with `dismiss_open_messages`,
+    /// also dismisses their open messages, so waiting senders hear
+    /// `dismissed`. Nothing on the Mac withdraws: "Withdrawn" is only the
+    /// agent's own word. `action_required` messages stay open for Done.
     ///
     /// # Errors
     ///
@@ -286,13 +288,12 @@ impl GentboxHub {
     pub async fn close_topic(
         &self,
         topic_id: String,
-        withdraw_open_messages: bool,
+        dismiss_open_messages: bool,
     ) -> Result<(), GentboxError> {
         let handle = self.handle.clone();
-        let request = close_request(withdraw_open_messages);
         self.run(async move {
             handle
-                .close_topic(TopicId::new(topic_id), request, None)
+                .close_topic_for_user(TopicId::new(topic_id), dismiss_open_messages)
                 .await
         })
         .await
@@ -311,8 +312,8 @@ impl GentboxHub {
             .map(drop)
     }
 
-    /// Closes a thread; with `withdraw_open_messages`, also withdraws its
-    /// open messages.
+    /// Closes a thread; with `dismiss_open_messages`, also dismisses its open
+    /// messages (see [`GentboxHub::close_topic`]).
     ///
     /// # Errors
     ///
@@ -320,13 +321,12 @@ impl GentboxHub {
     pub async fn close_thread(
         &self,
         thread_id: String,
-        withdraw_open_messages: bool,
+        dismiss_open_messages: bool,
     ) -> Result<(), GentboxError> {
         let handle = self.handle.clone();
-        let request = close_request(withdraw_open_messages);
         self.run(async move {
             handle
-                .close_thread(ThreadId::new(thread_id), request, None)
+                .close_thread_for_user(ThreadId::new(thread_id), dismiss_open_messages)
                 .await
         })
         .await
@@ -452,13 +452,6 @@ impl Drop for GentboxHub {
         if tokio::runtime::Handle::try_current().is_err() {
             self.stop();
         }
-    }
-}
-
-fn close_request(withdraw_open_messages: bool) -> CloseRequest {
-    CloseRequest {
-        rescind_open_messages: withdraw_open_messages,
-        reason: None,
     }
 }
 

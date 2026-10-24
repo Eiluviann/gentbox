@@ -444,3 +444,57 @@ fn a_second_hub_on_the_same_folder_is_refused_and_stop_removes_the_port() {
     let again = GentboxHub::start(options(state.path()), Arc::new(Recorder::default()));
     assert!(again.is_ok());
 }
+
+#[test]
+fn next_up_is_a_prompt_whose_sender_still_waits() {
+    let fixture = Fixture::start();
+    // Urgent and blocking, but nobody waits for it: only Snooze is offered.
+    fixture.post(json!({
+        "conversation": { "id": "session-1" },
+        "type": "decision_required", "blocking": "blocking", "urgent": true,
+        "title": "Allow Bash to delete the build folder?",
+        "actions": [{ "id": "allow", "label": "Approve", "kind": "approve" }]
+    }));
+    fixture.post(json!({
+        "conversation": { "id": "session-2" },
+        "type": "decision_required", "blocking": "blocking", "awaitsResponse": true,
+        "title": "Allow editing cart.ts?",
+        "actions": [{ "id": "allow", "label": "Approve", "kind": "approve" }]
+    }));
+    let inbox = fixture.inbox();
+    let next_up = inbox.next_up.unwrap();
+    assert_eq!(next_up.title, "Allow editing cart.ts?");
+    assert!(next_up.has_live_waiter);
+    // The list keeps urgency first.
+    assert_eq!(
+        inbox.items[0].title,
+        "Allow Bash to delete the build folder?"
+    );
+}
+
+#[test]
+fn closing_from_the_mac_dismisses_its_messages_and_never_withdraws() {
+    let fixture = Fixture::start();
+    fixture.post(json!({
+        "topic": { "key": "gentbox", "title": "Gentbox" },
+        "thread": { "key": "v1-0", "title": "v1.0" },
+        "type": "task_completed", "title": "v1.0 tagged"
+    }));
+    let thread_id = fixture.inbox().items[0].thread_id.clone();
+    fixture
+        .block_on(fixture.hub.close_thread(thread_id, true))
+        .unwrap();
+    let events = fixture.recorder.events.lock().unwrap();
+    assert!(
+        !events
+            .iter()
+            .any(|(event, _)| matches!(event, HubEvent::Withdrawn { .. }))
+    );
+    assert!(events.iter().any(|(event, _)| matches!(
+        event,
+        HubEvent::Closed {
+            state: gentbox_ffi::LifecycleState::Dismissed,
+            ..
+        }
+    )));
+}

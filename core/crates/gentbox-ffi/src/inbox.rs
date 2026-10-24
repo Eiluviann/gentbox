@@ -7,10 +7,12 @@
 //! - **Order.** Urgent first, then what an agent is blocked on, then what it
 //!   paused for, then newest. In the groups a thread sorts by its most
 //!   pressing message and a topic by its most pressing thread.
-//! - **Next up.** The most pressing message an agent is blocked on, for the
-//!   popover's full card.
-//! - **Closed.** Closed topics and threads, and their open messages, leave the
-//!   list; they are listed apart for History and Settings.
+//! - **Next up.** For the popover's full card: the most pressing message an
+//!   agent is blocked on whose sender still waits, else the most pressing one
+//!   whose waiter lapsed.
+//! - **Closed.** Messages of closed topics and threads leave the list, the
+//!   next-up card and the counts. The closed groups themselves are listed
+//!   apart, without their messages, for History and Settings.
 //! - **Mute** only changes delivery: muted messages stay listed and the muted
 //!   groups are named in the footer.
 
@@ -166,9 +168,12 @@ pub(crate) fn build_inbox(snapshot: &InboxSnapshot) -> Inbox {
     let has_unread = messages
         .iter()
         .any(|message| message.state == LifecycleState::Open);
+    // A prompt whose sender still waits can be answered now; one whose waiter
+    // lapsed offers only Snooze, so it yields the card.
     let next_up = messages
         .iter()
-        .find(|message| is_blocked_on(message))
+        .filter(|message| is_blocked_on(message))
+        .min_by_key(|message| !message.has_live_waiter)
         .cloned();
     Inbox {
         next_up,
