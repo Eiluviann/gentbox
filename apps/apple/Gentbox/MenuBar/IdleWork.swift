@@ -47,8 +47,13 @@ enum IdleWork {
 		}
 	}
 
+	/// Never while a menu or a drag tracks the mouse (the main queue runs
+	/// then too); the queued input is looked for in the mode the run loop is
+	/// in, so looking runs no other mode's sources.
 	private static var isQuiet: Bool {
-		ProcessInfo.processInfo.systemUptime >= heldUntil
-			&& NSApp.nextEvent(matching: input, until: .distantPast, inMode: .default, dequeue: false) == nil
+		let mode = RunLoop.current.currentMode ?? .default
+		return mode != .eventTracking
+			&& ProcessInfo.processInfo.systemUptime >= heldUntil
+			&& NSApp.nextEvent(matching: input, until: .distantPast, inMode: mode, dequeue: false) == nil
 	}
 }

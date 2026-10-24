@@ -452,15 +452,11 @@ final class InboxContentView: FlippedView {
 			if isOpen {
 				parked[id] = row
 			}
-			let wasShown = rows[id] === row
-			guard wasShown else {
-				// Parked under a filter and closed meanwhile: it goes. One
-				// still leaving (taken out ahead of the hub, which has now
-				// closed it) fades out first.
-				if !isOpen, !row.isLeaving { row.removeFromSuperview() }
-				continue
+			switch UnclaimedRowFate.of(wasShown: rows[id] === row, isOpen: isOpen, isParked: row.isHidden) {
+			case .leave: send(row, isAnimated: isAnimated)
+			case .remove: row.removeFromSuperview()
+			case .keep: break
 			}
-			send(row, isAnimated: isAnimated)
 		}
 		rows = kept
 		parkedRows = parked

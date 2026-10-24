@@ -69,6 +69,8 @@ targets:
       - path: Gentbox/MenuBar/InboxPanel.swift
       - path: Gentbox/MenuBar/LayerMotion.swift
       - path: Gentbox/MenuBarInbox/Controls.swift
+      - path: Gentbox/MenuBarInbox/CardKeyGate.swift
+      - path: Gentbox/MenuBarInbox/UnclaimedRowFate.swift
       - path: Gentbox/MenuBarInbox/ReplyField.swift
       - path: Gentbox/Tokens.swift
       # The entitlement variants, checked as data.

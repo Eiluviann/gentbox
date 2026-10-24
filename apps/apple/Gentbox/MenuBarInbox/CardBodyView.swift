@@ -32,17 +32,14 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		didSet {
 			guard isActive != oldValue else { return }
 			if isActive {
-				keysFrom = CACurrentMediaTime() + Tokens.motionDuration
+				keys.cardShown(at: CACurrentMediaTime())
 			}
 			setAccessibilityElement(isActive)
 			showBar()
 		}
 	}
 
-	/// A card that has just shown, often handed over from one just answered,
-	/// takes keys only once its motion is over: a second ↩ meant for the
-	/// card that left must not answer one not yet seen.
-	private var keysFrom: CFTimeInterval = 0
+	private var keys = CardKeyGate()
 
 	init(inbox: InboxModel) {
 		self.inbox = inbox
@@ -58,6 +55,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	}
 
 	func show(message: InboxMessage, replyDraft: InboxModel.ReplyDraft?) {
+		keys.show(messageId: message.id, isShown: isActive, at: CACurrentMediaTime())
 		if message != self.message {
 			self.message = message
 			summary.stringValue = message.summary ?? ""
@@ -179,7 +177,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			for view in bar.allViews {
 				let isShown = shown.contains { $0 === view }
 				view.alphaValue = isShown ? 1 : 0
-				view.setAccessible(isShown)
+				view.setInReach(isShown)
 			}
 		}
 		if isActive, isReplying, let field = controls?.replyField {
@@ -212,7 +210,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	}
 
 	override func performKeyEquivalent(with event: NSEvent) -> Bool {
-		guard isActive, !event.isARepeat, CACurrentMediaTime() >= keysFrom else { return false }
+		guard isActive, !event.isARepeat, keys.isOpen(at: CACurrentMediaTime()) else { return false }
 		return shownViews.contains { $0.performKeyEquivalent(with: event) }
 	}
 
@@ -229,6 +227,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			inbox.startReply(on: message.id)
 		} else {
 			Interactions.untilNextFrame("Action")
+			keys.answered()
 			inbox.takeOutAhead(message, for: action)
 			Task { await inbox.press(action, on: message) }
 		}
@@ -237,6 +236,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	func dismiss() {
 		guard let message else { return }
 		Interactions.untilNextFrame("Action")
+		keys.answered()
 		inbox.takeOutAhead(message)
 		Task { await inbox.dismiss(message) }
 	}
@@ -244,6 +244,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	func snooze() {
 		guard let message else { return }
 		Interactions.untilNextFrame("Action")
+		keys.answered()
 		inbox.takeOutAhead(message)
 		Task { await inbox.snooze(message) }
 	}
@@ -280,6 +281,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
 		guard !text.isEmpty else { return }
 		hasSent = true
+		keys.answered()
 		inbox.endReply()
 		Interactions.untilNextFrame("Action")
 		inbox.takeOutAhead(message, for: action)
@@ -353,7 +355,7 @@ final class ActionControls {
 		guard !factories.isEmpty else { return false }
 		let view = factories.removeFirst()(self, body)
 		view.alphaValue = 0
-		view.setAccessible(false)
+		view.setInReach(false)
 		body.addSubview(view)
 		return !factories.isEmpty
 	}

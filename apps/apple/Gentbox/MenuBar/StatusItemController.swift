@@ -195,7 +195,7 @@ final class StatusItemController: NSObject {
 			under: anchor, in: visibleFrame,
 		)
 		placement = (frame.minX, frame.maxY, maxHeight)
-		panel.place(card: frame, bottom: visibleFrame.minY)
+		panel.place(card: frame, maxCardHeight: maxHeight)
 	}
 
 	/// A display was added, removed or rearranged while the panel shows: its

@@ -240,23 +240,30 @@ class FlippedView: NSView {
 
 extension NSView {
 	/// Shown, or kept drawn at zero opacity, out of reach of clicks (in a
-	/// `FlippedView`) and VoiceOver: showing it again costs no drawing, which
-	/// `isHidden` would put off until then.
+	/// `FlippedView`), focus and VoiceOver: showing it again costs no
+	/// drawing, which `isHidden` would put off until then.
 	func setConcealed(_ isConcealed: Bool) {
 		alphaValue = isConcealed ? 0 : 1
-		setAccessible(!isConcealed)
+		setInReach(!isConcealed)
 	}
 
-	/// In or out of VoiceOver's reach. A control's element is its cell (a
+	/// In or out of reach of focus and VoiceOver. Out of reach, a control
+	/// refuses focus: a panel that becomes key on macOS 15 focuses the first
+	/// view that takes it, and a concealed reply field would take the keys
+	/// meant for the card. A control's accessibility element is its cell (a
 	/// button's role and actions are the cell's); the control view stays
 	/// out, or it would be a second element, of no role, over the cell.
-	func setAccessible(_ isAccessible: Bool) {
-		guard let cell = (self as? NSControl)?.cell else {
-			setAccessibilityElement(isAccessible)
+	func setInReach(_ isInReach: Bool) {
+		guard let control = self as? NSControl, let cell = control.cell else {
+			setAccessibilityElement(isInReach)
 			return
 		}
+		control.refusesFirstResponder = !isInReach
+		if !isInReach, let window, window.firstResponder === control.currentEditor() ?? control {
+			window.makeFirstResponder(nil)
+		}
 		setAccessibilityElement(false)
-		cell.setAccessibilityElement(isAccessible)
+		cell.setAccessibilityElement(isInReach)
 	}
 
 	/// Moves the view only when it isn't there already: AppKit redoes its

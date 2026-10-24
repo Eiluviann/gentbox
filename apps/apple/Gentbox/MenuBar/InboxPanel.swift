@@ -17,22 +17,26 @@ class InboxPanel: NSPanel {
 		.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary,
 	]
 	static let cornerRadius: CGFloat = 12
-	/// Room around the card for its drawn shadow.
+	/// Room around the card for its drawn shadow, above and beside it.
 	static let margin: CGFloat = 24
+	/// Room below the card for its shadow, which falls 6 points down.
+	static let bottomRoom: CGFloat = shadowOffset + shadowPadding
 
-	/// The window holds still: it spans from just above the card down to the
-	/// bottom of the screen, transparent, and only the card drawn in it
-	/// changes height. Resizing a window each frame makes AppKit lay out its
-	/// whole view tree and the window server rebuild its surface and shadow;
-	/// moving a few layers costs neither. Clicks on the transparent part pass
-	/// through to the windows below.
+	/// The window hugs the card and its shadow, so the window server gives
+	/// the card every click by itself, with no pointer tracking, and clicks
+	/// below the shadow reach the windows under it. Its top never moves. It
+	/// is resized at most twice per motion, never each frame: grown before a
+	/// motion that grows the card, shrunk after one that shrinks it. Resizing
+	/// a window each frame makes AppKit lay out its whole view tree and the
+	/// window server rebuild its surface; moving a few layers costs neither.
 	///
 	/// The card is three layers the render server draws cheaply as they
 	/// move: the surface, card-sized and rounded by its own corners (a mask
 	/// layer would be an offscreen pass each frame), a hairline ring, and a
 	/// shadow drawn once and stretched (a live shadow would be blurred again
-	/// each frame). The content inside the surface is laid out for the whole
-	/// column and hangs from the top, so the card's height never lays it out.
+	/// each frame). The content inside the surface is laid out for the
+	/// tallest card and hangs from the top, so the card's height never lays
+	/// it out.
 	private let stage = StageView()
 	private let surface = SurfaceView()
 	private let ring = CALayer()
@@ -86,54 +90,39 @@ class InboxPanel: NSPanel {
 		surface.frame = card
 		ring.frame = card
 		shadow.frame = card.offsetBy(dx: 0, dy: Self.shadowOffset).insetBy(dx: -Self.shadowPadding, dy: -Self.shadowPadding)
+		// Grown first, so the card never shows cut; shrunk only once it has.
+		fitWindow(cardHeight: animated ? max(height, windowCardHeight) : height)
 		motion.commit(animated: animated)
 		CATransaction.commit()
 		// Clicks reach the card as it will be: the motion is a quarter second.
 		stage.card = card
-		updateMouseTaking()
-		if animated {
+		windowFitGeneration += 1
+		if animated, windowCardHeight > height {
+			let generation = windowFitGeneration
 			DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration) { [weak self] in
-				MainActor.assumeIsolated { self?.updateMouseTaking() }
+				MainActor.assumeIsolated {
+					guard let self, self.windowFitGeneration == generation else { return }
+					self.fitWindow(cardHeight: self.cardHeight)
+				}
 			}
 		}
 	}
 
-	// MARK: Clicks below the card
+	// MARK: The window around the card
 
-	/// Mouse-moved monitors while it shows: the panel takes the mouse only
-	/// with the pointer over the card, so clicks and scrolls below the card
-	/// reach the windows under it. A transparent part of a window still
-	/// takes its own clicks.
-	private var pointerMonitors: [Any] = []
+	/// Each shrink waits for the motion before it; a later change cancels it.
+	private var windowFitGeneration = 0
 
-	private func followPointer() {
-		if pointerMonitors.isEmpty {
-			acceptsMouseMovedEvents = true
-			let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
-				MainActor.assumeIsolated { self?.updateMouseTaking() }
-			}
-			let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-				MainActor.assumeIsolated { self?.updateMouseTaking() }
-				return event
-			}
-			pointerMonitors = [global, local].compactMap { $0 }
-		}
-		updateMouseTaking()
+	/// The card height the window has room for now.
+	private var windowCardHeight: CGFloat {
+		frame.height - Self.margin - Self.bottomRoom
 	}
 
-	private func stopFollowingPointer() {
-		pointerMonitors.forEach(NSEvent.removeMonitor)
-		pointerMonitors = []
-	}
-
-	/// Over the card as it shows now or as it settles, the panel takes the
-	/// mouse; anywhere else in its column it lets it through.
-	private func updateMouseTaking() {
-		guard !isDespawning, !pointerMonitors.isEmpty else { return }
-		let pointer = NSEvent.mouseLocation
-		let isOverCard = cardFrameOnScreen.contains(pointer) || presentedCardFrameOnScreen.contains(pointer)
-		if ignoresMouseEvents == isOverCard {
-			ignoresMouseEvents = !isOverCard
+	/// Resizes the window to a card of `height`, its top held.
+	private func fitWindow(cardHeight height: CGFloat) {
+		let fitted = Self.windowFrame(card: NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.margin - height, width: Tokens.popoverWidth, height: height))
+		if fitted != frame {
+			setFrame(fitted, display: false, animate: false)
 		}
 	}
 
@@ -173,6 +162,7 @@ class InboxPanel: NSPanel {
 		ringHost.hostedLayer.addSublayer(ring)
 		stage.addSubview(ringHost)
 		stage.onAppearanceChange = { [weak self] in self?.paint() }
+		stage.onClickBesideCard = { [weak self] in self?.onClose?() }
 	}
 
 	/// The surface and ring colours in the panel's appearance, and the
@@ -230,17 +220,17 @@ class InboxPanel: NSPanel {
 		return image
 	}
 
-	/// Sizes the window to the column the card can fill and lays the surface
-	/// over all of it; the card's height is set apart.
-	func place(card: NSRect, bottom: CGFloat) {
+	/// Hangs the window around `card` and lays the content out for the
+	/// tallest card, `maxCardHeight`; the card's height is set apart.
+	func place(card: NSRect, maxCardHeight: CGFloat) {
 		// A frame set through a scaled layer lands off its place: the last
 		// despawn left the stage at 0.98.
 		resetStage(opacity: 0)
-		let window = Self.windowFrame(card: card, bottom: bottom)
-		setFrame(window, display: false, animate: false)
-		content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: window.height - Self.margin)
+		setFrame(Self.windowFrame(card: card), display: false, animate: false)
+		content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: maxCardHeight)
 		for host in [shadowHost, ringHost] {
 			host.frame = stage.bounds
+			host.autoresizingMask = [.width, .height]
 		}
 		paint()
 		setCardHeight(card.height)
@@ -261,7 +251,6 @@ class InboxPanel: NSPanel {
 		despawnGeneration += 1
 		isDespawning = false
 		ignoresMouseEvents = false
-		followPointer()
 		let presentation = layer.presentation()
 		let fromOpacity = isVisible ? (presentation?.opacity ?? layer.opacity) : 0
 		let fromScale = isVisible ? Self.scale(of: presentation?.transform ?? layer.transform) : (reduceMotion ? 1 : 0.96)
@@ -274,7 +263,6 @@ class InboxPanel: NSPanel {
 		guard let layer = stage.layer else { return completion() }
 		isDespawning = true
 		ignoresMouseEvents = true
-		stopFollowingPointer()
 		despawnGeneration += 1
 		let generation = despawnGeneration
 		let presentation = layer.presentation()
@@ -349,12 +337,11 @@ class InboxPanel: NSPanel {
 		transform.m11
 	}
 
-	/// The window for a card: the card's column with room for its shadow, from
-	/// just above the card down to `bottom`.
-	static func windowFrame(card: NSRect, bottom: CGFloat) -> NSRect {
+	/// The window for a card: the card with room for its shadow.
+	static func windowFrame(card: NSRect) -> NSRect {
 		NSRect(
-			x: card.minX - margin, y: bottom,
-			width: card.width + 2 * margin, height: card.maxY + margin - bottom,
+			x: card.minX - margin, y: card.minY - bottomRoom,
+			width: card.width + 2 * margin, height: card.height + margin + bottomRoom,
 		)
 	}
 
@@ -378,6 +365,18 @@ class InboxPanel: NSPanel {
 	override func keyDown(with event: NSEvent) {
 		if !performKeyEquivalent(with: event) {
 			super.keyDown(with: event)
+		}
+	}
+
+	/// Only an open reply box holds focus. On macOS 15 a window that
+	/// becomes key focuses the first view in its key loop that takes it, and
+	/// a focused text field would take the card's R and ↩ as text.
+	override func becomeKey() {
+		super.becomeKey()
+		if let editor = firstResponder as? NSTextView, editor.isFieldEditor,
+		   let field = editor.delegate as? NSTextField, !field.isEditable || field.alphaValue == 0
+		{
+			makeFirstResponder(nil)
 		}
 	}
 
@@ -424,16 +423,26 @@ class InboxPanel: NSPanel {
 }
 
 /// The panel's content view: flipped, so the card hangs from the top, and
-/// transparent outside the card, where clicks fall through to the windows
-/// below.
+/// transparent around the card, where its shadow falls. A click there is a
+/// click beside the card, which closes the panel as one anywhere else does.
 final class StageView: NSView {
 	var card: NSRect = .zero
 	var onAppearanceChange: (() -> Void)?
+	var onClickBesideCard: (() -> Void)?
 
 	override var isFlipped: Bool { true }
 
 	override func hitTest(_ point: NSPoint) -> NSView? {
-		card.contains(convert(point, from: superview)) ? super.hitTest(point) : nil
+		guard bounds.contains(convert(point, from: superview)) else { return nil }
+		return card.contains(convert(point, from: superview)) ? super.hitTest(point) : self
+	}
+
+	override func mouseDown(with _: NSEvent) {
+		onClickBesideCard?()
+	}
+
+	override func rightMouseDown(with _: NSEvent) {
+		onClickBesideCard?()
 	}
 
 	override func viewDidChangeEffectiveAppearance() {

@@ -71,7 +71,7 @@ final class InboxPanelTests: XCTestCase {
 	/// the card grows down and out from under the status item.
 	func testTheSpawnScaleHoldsTheCardsTopCentre() {
 		let panel = InboxPanel(content: NSView())
-		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), bottom: 0)
+		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), maxCardHeight: 700)
 		let cardTopCentre = CGPoint(x: panel.frame.width / 2, y: panel.frame.height - InboxPanel.margin)
 		for scale in [0.96, 0.98, 1.0] {
 			let moved = cardTopCentre.applying(CATransform3DGetAffineTransform(panel.cardTopTransform(scale: scale)))
@@ -84,7 +84,7 @@ final class InboxPanelTests: XCTestCase {
 	/// content's curve; without motion it jumps, dropping any motion left.
 	func testTheCardsHeightAnimatesFromWhereItShows() throws {
 		let panel = InboxPanel(content: NSView())
-		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), bottom: 0)
+		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), maxCardHeight: 700)
 		// Shadow, surface, ring: the ring's own view stays on top.
 		let ring = try XCTUnwrap(panel.contentView?.subviews.last?.layer?.sublayers?.first)
 		XCTAssertEqual(ring.borderWidth, 0.5)
@@ -106,7 +106,7 @@ final class InboxPanelTests: XCTestCase {
 
 	func testSpawnAndDespawnFadeAndScaleAndReduceMotionOnlyFades() throws {
 		let panel = InboxPanel(content: NSView())
-		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), bottom: 0)
+		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), maxCardHeight: 700)
 		panel.spawn(reduceMotion: false)
 		let spawn = try XCTUnwrap(panel.contentView?.layer?.animation(forKey: "spawn") as? CAAnimationGroup)
 		XCTAssertEqual(spawn.duration, 0.18, accuracy: 0.001)
@@ -129,8 +129,90 @@ final class InboxPanelTests: XCTestCase {
 
 		panel.spawn(reduceMotion: false)
 		XCTAssertFalse(panel.isDespawning, "a re-open turns the despawn back")
-		// Input again, where the pointer is over the card; below it, clicks
-		// pass through to the windows under the panel.
-		XCTAssertEqual(panel.ignoresMouseEvents, !panel.cardFrameOnScreen.contains(NSEvent.mouseLocation))
+		XCTAssertFalse(panel.ignoresMouseEvents, "input again, wherever the pointer is")
+	}
+
+	/// The window hugs the card, with room for its shadow, so the window
+	/// server gives the card every click with no pointer tracking, and
+	/// everything below the shadow passes through. Its top never moves; it
+	/// grows before a motion that grows the card and shrinks after one that
+	/// shrinks it, so the card always fits.
+	func testTheWindowHugsTheCardAndHoldsItsTop() {
+		let panel = InboxPanel(content: NSView())
+		let card = NSRect(x: 900, y: 400, width: 380, height: 300)
+		panel.place(card: card, maxCardHeight: 700)
+		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.margin)
+		XCTAssertEqual(panel.frame.height, 300 + InboxPanel.margin + InboxPanel.bottomRoom)
+		XCTAssertEqual(panel.cardFrameOnScreen, card)
+
+		panel.setCardHeight(400, animated: true)
+		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.margin)
+		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.margin + InboxPanel.bottomRoom, "grown before the motion")
+
+		panel.setCardHeight(250, animated: true)
+		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.margin + InboxPanel.bottomRoom, "kept while the card shrinks")
+		let settled = expectation(description: "shrunk once the motion is over")
+		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration + 0.1) { settled.fulfill() }
+		wait(for: [settled], timeout: 2)
+		XCTAssertEqual(panel.frame.height, 250 + InboxPanel.margin + InboxPanel.bottomRoom)
+		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.margin)
+
+		panel.setCardHeight(180, animated: false)
+		XCTAssertEqual(panel.frame.height, 180 + InboxPanel.margin + InboxPanel.bottomRoom)
+	}
+
+	/// A shrink that a later growth overtakes never cuts the card short.
+	func testAGrowthOvertakesAPendingShrink() {
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: NSRect(x: 900, y: 400, width: 380, height: 300), maxCardHeight: 700)
+		panel.setCardHeight(200, animated: true)
+		panel.setCardHeight(350, animated: true)
+		let settled = expectation(description: "past the first motion")
+		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration + 0.1) { settled.fulfill() }
+		wait(for: [settled], timeout: 2)
+		XCTAssertEqual(panel.frame.height, 350 + InboxPanel.margin + InboxPanel.bottomRoom)
+	}
+
+	/// Becoming key leaves no text focused but an open reply box: a
+	/// selectable code line or a concealed reply field would take R and ↩.
+	func testBecomingKeyFocusesOnlyAnOpenReply() {
+		let content = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 300))
+		let code = NSTextField(labelWithString: "cargo test -p gentbox-hub")
+		code.isSelectable = true
+		let concealed = ReplyField()
+		concealed.alphaValue = 0
+		let reply = ReplyField()
+		for view in [code, concealed, reply] {
+			content.addSubview(view)
+		}
+		let panel = InboxPanel(content: content)
+		panel.place(card: NSRect(x: 900, y: 400, width: 380, height: 300), maxCardHeight: 700)
+		for view in [code, concealed] {
+			XCTAssertTrue(panel.makeFirstResponder(view))
+			panel.becomeKey()
+			XCTAssertTrue(panel.firstResponder === panel, "\(view) kept focus")
+		}
+		XCTAssertTrue(panel.makeFirstResponder(reply))
+		panel.becomeKey()
+		XCTAssertNotNil(reply.currentEditor(), "the open reply lost focus")
+	}
+
+	/// The room around the card is the panel's own, not the card's: a click
+	/// there closes the panel, as a click anywhere else would.
+	func testAClickBesideTheCardCloses() throws {
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: NSRect(x: 900, y: 400, width: 380, height: 300), maxCardHeight: 700)
+		var closes = 0
+		panel.onClose = { closes += 1 }
+		let stage = try XCTUnwrap(panel.contentView)
+		let belowTheCard = NSPoint(x: InboxPanel.margin + 100, y: InboxPanel.margin + 300 + 10)
+		let hit = try XCTUnwrap(stage.hitTest(stage.convert(belowTheCard, to: stage.superview)))
+		XCTAssertTrue(hit === stage)
+		let click = try XCTUnwrap(NSEvent.mouseEvent(
+			with: .leftMouseDown, location: stage.convert(belowTheCard, to: nil), modifierFlags: [], timestamp: 0,
+			windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1,
+		))
+		hit.mouseDown(with: click)
+		XCTAssertEqual(closes, 1)
 	}
 }
