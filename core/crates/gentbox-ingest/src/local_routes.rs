@@ -367,9 +367,14 @@ async fn post_message(State(state): State<ApiState>, body: JsonBody) -> Result<R
         .ok_or_else(|| ApiError::schema_invalid("", "a JSON body is required"))?;
     // The limit is per agent and conversation, so it reads them before the
     // full validation; a body without them fails validation anyway.
+    // Only well-formed ids get buckets: anything else fails validation below
+    // without growing the limiter.
     let agent = value["source"]["agent"].as_str().unwrap_or_default();
     let conversation = value["conversation"]["id"].as_str().unwrap_or_default();
-    if let Err(retry_after) = state.limits.check_message(agent, conversation) {
+    if is_agent(agent)
+        && is_token(conversation)
+        && let Err(retry_after) = state.limits.check_message(agent, conversation)
+    {
         return Err(ApiError::rate_limited(retry_after));
     }
     let input: MessageInput = JsonBody(Some(value)).parse(BodyShape::Message)?;

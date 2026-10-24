@@ -45,6 +45,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features
+      - name: gentboxd smoke test (curl)
+        run: cargo build -p gentboxd && tests/http/smoke.sh
 
   node:
     name: Node

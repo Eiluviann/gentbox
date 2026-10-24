@@ -394,3 +394,17 @@ async fn the_socket_serves_the_whole_api() {
     assert_eq!((status, body["status"].as_str()), (200, Some("pending")));
     server.stop().await;
 }
+
+#[tokio::test]
+async fn malformed_ids_are_422_and_never_fill_the_rate_limiter() {
+    let server = Server::start().await;
+    for index in 0..60 {
+        let refused = server
+            .post_message(json!({ "source": { "agent": format!("Bad Agent {index}") } }))
+            .await;
+        assert_eq!(refused.status, 422, "{index}: {refused:?}");
+    }
+    let accepted = server.post_message(json!({})).await;
+    assert_eq!(accepted.status, 201);
+    server.stop().await;
+}
