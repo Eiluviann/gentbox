@@ -26,11 +26,11 @@ enum Interactions {
 @MainActor
 private final class FrameEnd: NSObject {
 	static let shared = FrameEnd()
-	private var waiting: [(name: StaticString, state: OSSignpostIntervalState)] = []
+	private var waiting: [(name: StaticString, state: OSSignpostIntervalState, start: CFTimeInterval)] = []
 	private var link: CADisplayLink?
 
 	func add(name: StaticString, state: OSSignpostIntervalState) {
-		waiting.append((name, state))
+		waiting.append((name, state, CACurrentMediaTime()))
 		guard link == nil, let panel = Interactions.panel else { return }
 		let link = panel.displayLink(target: self, selector: #selector(frame(_:)))
 		link.add(to: .main, forMode: .common)
@@ -40,9 +40,31 @@ private final class FrameEnd: NSObject {
 	@objc private func frame(_ link: CADisplayLink) {
 		for span in waiting {
 			Interactions.signposter.endInterval(span.name, span.state)
+			#if DEBUG || GENTBOX_HOOKS
+			Self.log(span.name, milliseconds: (CACurrentMediaTime() - span.start) * 1000)
+			#endif
 		}
 		waiting = []
 		link.invalidate()
 		self.link = nil
 	}
+
+	#if DEBUG || GENTBOX_HOOKS
+	/// `GENTBOX_SIGNPOST_LOG=<file>`: each span's name and length, a line
+	/// each, for tests that bound them.
+	private static let logURL = ProcessInfo.processInfo.environment["GENTBOX_SIGNPOST_LOG"]
+		.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+
+	private static func log(_ name: StaticString, milliseconds: Double) {
+		guard let logURL else { return }
+		let line = Data(String(format: "%@,%.1f\n", "\(name)", milliseconds).utf8)
+		if let handle = try? FileHandle(forWritingTo: logURL) {
+			handle.seekToEndOfFile()
+			handle.write(line)
+			try? handle.close()
+		} else {
+			try? line.write(to: logURL)
+		}
+	}
+	#endif
 }

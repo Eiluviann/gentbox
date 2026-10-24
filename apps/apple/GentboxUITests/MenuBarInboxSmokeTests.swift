@@ -298,11 +298,27 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			logMotionCheck("\(step): checked, \(before) → \(after) pt with \(between.count) frames between")
 		}
 		XCTAssertGreaterThan(movingStepsSampled, 0, "no step that changed height was sampled in motion")
-		// Responsiveness: the first frame after a click lands within 50 ms.
+		// Responsiveness: the first frame after a click lands within two
+		// display frames, and after it no frame of the motion comes late.
+		let frame = Self.displayFrameMilliseconds
 		for step in ["expand-row", "collapse", "expand-another"] {
 			let latency = try XCTUnwrap(steps[step]?.latencyMs, step)
-			XCTAssertLessThanOrEqual(latency, 50, "\(step): \(latency) ms to the first frame")
+			XCTAssertLessThanOrEqual(Double(latency), 2 * frame + 1, "\(step): \(latency) ms to the first frame")
+			let moving = frames.filter { $0.step == step && $0.ms <= Int(Self.motionMilliseconds) }
+			let late = zip(moving, moving.dropFirst()).filter { Double($1.ms - $0.ms) > 1.5 * frame }.map(\.1.ms)
+			// Samples are display frames only where the display link runs at
+			// its rate: a Mac with a display, not a CI virtual machine.
+			if frame <= 1000.0 / 119 {
+				XCTAssertEqual(late, [], "\(step): late frames at these ms")
+			} else {
+				logMotionCheck("\(step): late frames not checked at \(Int(1000 / frame)) Hz (\(late.count) gaps)")
+			}
 		}
+	}
+
+	/// One frame of the main display, in milliseconds.
+	private static var displayFrameMilliseconds: Double {
+		1000 / Double(max(NSScreen.main?.maximumFramesPerSecond ?? 60, 1))
 	}
 
 	/// Spawn and despawn happen in place: the card's frame never changes,
@@ -312,7 +328,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		defer { app.launchEnvironment["GENTBOX_REDUCE_MOTION"] = nil }
 		let frames = try traceFrames(in: "spawn-in-place")
 		let steps = try traceSteps(in: "spawn-in-place")
-		XCTAssertLessThanOrEqual(steps["spawn"]?.latencyMs ?? .max, 50, "the panel's first frame came late")
+		XCTAssertLessThanOrEqual(
+			Double(steps["spawn"]?.latencyMs ?? .max), 2 * Self.displayFrameMilliseconds + 1, "the panel's first frame came late",
+		)
 		let byStep = Dictionary(grouping: frames) { $0.step }
 		for step in Self.spawnSteps {
 			let frames = try XCTUnwrap(byStep[step], step)
@@ -352,11 +370,14 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	}
 
 	/// Expanding a row, measured by the app's `Expand` signpost: from the
-	/// click to the next display frame. Instruments and Xcode show the
-	/// figures; the project is generated, so baselines live with whoever
-	/// records them.
+	/// click to the next display frame, within two display frames each time.
+	/// Instruments and Xcode show the same spans.
 	func testExpandingARowIsMeasured() throws {
 		app.terminate()
+		let log = stateFolder.deletingLastPathComponent().appendingPathComponent("signposts.csv")
+		try? FileManager.default.removeItem(at: log)
+		app.launchEnvironment["GENTBOX_SIGNPOST_LOG"] = log.path
+		defer { app.launchEnvironment["GENTBOX_SIGNPOST_LOG"] = nil }
 		if !app.launchArguments.contains("-GentboxOpenInboxAtLaunch") {
 			app.launchArguments += ["-GentboxOpenInboxAtLaunch", "YES"]
 		}
@@ -381,6 +402,12 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			}
 			_ = element("card:\(title)").waitForExistence(timeout: 2)
 		}
+		let expands = try String(contentsOf: log, encoding: .utf8)
+			.split(separator: "\n").filter { $0.hasPrefix("Expand,") }
+			.compactMap { Double($0.split(separator: ",").last ?? "") }
+		XCTAssertGreaterThanOrEqual(expands.count, 5, "the Expand signpost was not recorded")
+		let bound = 2 * Self.displayFrameMilliseconds + 1
+		XCTAssertEqual(expands.filter { $0 > bound }, [], "expands longer than two display frames (\(bound) ms)")
 	}
 
 	/// The panel's window reaches the bottom of the screen, transparent below
@@ -394,7 +421,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		openInbox()
 		let row = element("message:Click-through check")
 		XCTAssertTrue(row.waitForExistence(timeout: 10))
-		let panel = app.windows["gentbox.inbox"]
+		// A system dialog, not a window, to accessibility (it never tiles).
+		let panel = element("gentbox.inbox")
 		XCTAssertTrue(panel.exists)
 		// Well below the card's last row, inside the panel's window.
 		row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 1)).withOffset(CGVector(dx: 0, dy: 140)).click()
@@ -441,6 +469,65 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 
 	/// The card's keys work in the panel, which never activates the app: ↩
 	/// approves, ⌘⌫ denies, R opens the reply field, where typing and ↩ send.
+	/// Close on another thread's row filters the list to that thread: the
+	/// prompt's card, hidden now, answers no key (B1).
+	func testACardTheFilterHidesTakesNoKeys() throws {
+		let prompt = try post([
+			"type": "decision_required", "blocking": "blocking", "awaitsResponse": true, "title": "Allow editing x.ts?",
+			"conversation": ["id": "hidden-1"], "topic": ["key": "web", "title": "Web"], "thread": ["key": "tx", "title": "Thread X"],
+			"actions": [["id": "allow", "label": "Approve", "kind": "approve"], ["id": "deny", "label": "Deny", "kind": "deny"]],
+		])
+		for index in 1...2 {
+			try post([
+				"type": "task_completed", "title": "Other thread task \(index)", "conversation": ["id": "hidden-\(index + 1)"],
+				"topic": ["key": "web", "title": "Web"], "thread": ["key": "ty", "title": "Thread Y"],
+			])
+		}
+		let waiter = try longPoll(prompt)
+		defer { waiter.terminate() }
+		openInbox()
+		let card = element("card:Allow editing x.ts?")
+		if !card.waitForExistence(timeout: 3) {
+			element("message:Allow editing x.ts?").click()
+		}
+		XCTAssertTrue(element("action:Approve").waitForExistence(timeout: 10))
+		element("message:Other thread task 1").rightClick()
+		app.menuItems["Close thread"].click()
+		XCTAssertTrue(element("inbox.filter").waitForExistence(timeout: 5))
+		XCTAssertTrue(card.waitForNonExistence(timeout: 5), "the filter left the prompt's card expanded")
+		app.typeKey(.return, modifierFlags: [])
+		Thread.sleep(forTimeInterval: 1.5)
+		XCTAssertTrue(waiter.isRunning, "a key answered the card the filter hides")
+	}
+
+	/// ↩ twice in quick succession answers the card that showed, not the one
+	/// that takes its place before it is seen (B2).
+	func testASecondReturnDoesNotAnswerTheNextCardUnseen() throws {
+		var waiters: [Process] = []
+		for (index, title) in ["Allow editing first.ts?", "Allow editing second.ts?"].enumerated() {
+			let id = try post([
+				"type": "decision_required", "blocking": "blocking", "awaitsResponse": true, "title": title,
+				"conversation": ["id": "twice-\(index)"],
+				"actions": [["id": "allow", "label": "Approve", "kind": "approve"], ["id": "deny", "label": "Deny", "kind": "deny"]],
+			])
+			waiters.append(try longPoll(id))
+		}
+		defer { waiters.forEach { $0.terminate() } }
+		openInbox()
+		let titles = ["Allow editing first.ts?", "Allow editing second.ts?"]
+		let shown = try XCTUnwrap(titles.first { element("card:\($0)").waitForExistence(timeout: 5) }, "no card expanded")
+		let card = element("card:\(shown)")
+		XCTAssertTrue(element("action:Approve").waitForExistence(timeout: 5))
+		card.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.9)).click()
+		Thread.sleep(forTimeInterval: 0.4)
+		app.typeKey(.return, modifierFlags: [])
+		app.typeKey(.return, modifierFlags: [])
+		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
+		Thread.sleep(forTimeInterval: 1.5)
+		let stillWaiting = waiters.filter(\.isRunning).count
+		XCTAssertEqual(stillWaiting, 1, "the second ↩ answered the card that had just taken the first one's place")
+	}
+
 	func testTheCardsKeysAnswerInThePanel() throws {
 		let prompts = [
 			("Allow editing a.ts?", "approve"),

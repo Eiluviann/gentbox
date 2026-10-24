@@ -6,8 +6,9 @@ import GentboxCore
 /// the inbox opened at launch), it drives the inbox exactly as clicks do
 /// and waits for what the UI test sends, then records every display frame
 /// for a moment after each step: the panel's left edge, top and height, the
-/// content's natural height, where the content's bottom is drawn (`gap`),
-/// and a PNG. It never clicks or types, so it steals no focus.
+/// content's natural height and where the content's bottom is drawn
+/// (`gap`), with a PNG of each step's first frame and of where it settled.
+/// It never clicks or types, so it steals no focus.
 ///
 /// The steps: expand, collapse, expand another, a refresh mid-motion, a
 /// removal; then, each after it writes `awaiting-<step>`, an arrival (the
@@ -22,11 +23,11 @@ import GentboxCore
 /// from the content's presentation layers.
 ///
 /// `gap` is the distance in points from the content's bottom, marked by
-/// `AnimationTraceMarker`, to the panel's bottom edge, read from the frame
-/// the panel draws: 0 when the panel's height moves with the content,
-/// positive when the panel is taller, negative when it is shorter and cuts
-/// the content off (down to -`AnimationTraceMarker.height`). `missing` when
-/// the frame shows no marker at all.
+/// `AnimationTraceMarker`, to the panel's bottom edge, both as presented in
+/// that frame: 0 when the panel's height moves with the content, positive
+/// when the panel is taller, negative when it is shorter and cuts the
+/// content off. `missing` when no marker is shown. The PNG beside it shows
+/// the marker in magenta.
 @MainActor
 final class AnimationTrace: NSObject {
 	private let directory: URL
@@ -40,9 +41,12 @@ final class AnimationTrace: NSObject {
 	/// the change the first sample came.
 	private var steps = "step,beforeHeight,latencyMs\n"
 	private var frame = 0
-	/// Captured in memory and analysed after each step, so the work never
-	/// slows the frames being recorded.
-	private var captures: [(name: String, line: String, bitmap: NSBitmapImageRep)] = []
+	/// Each sample's line, kept in memory and written after each step, so
+	/// the work never slows the frames being recorded.
+	private var lines: [String] = []
+	/// A picture of each step's first frame and of where it settled: drawing
+	/// one costs milliseconds, so the frames in between are not pictured.
+	private var pictures: [(name: String, bitmap: NSBitmapImageRep)] = []
 	private var link: CADisplayLink?
 	private var frameWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -141,18 +145,20 @@ final class AnimationTrace: NSObject {
 		await nextFrame()
 		let start = Date()
 		steps += "\(name),\(Int(beforeHeight)),\(Int(start.timeIntervalSince(changedAt) * 1000))\n"
+		var isFirst = true
 		while Date().timeIntervalSince(start) < 0.6 {
 			await nextFrame()
-			record(name, at: Date().timeIntervalSince(start))
+			record(name, at: Date().timeIntervalSince(start), pictured: isFirst)
+			isFirst = false
 		}
-		for capture in captures {
-			let scale = CGFloat(capture.bitmap.pixelsHigh) / max(capture.bitmap.size.height, 1)
-			let parts = capture.line.split(separator: "|", maxSplits: 1).map(String.init)
-			log += "\(parts[0]),\(Self.gap(in: capture.bitmap)),\(scale),\(parts.count > 1 ? parts[1] : "0,0")\n"
-			try? capture.bitmap.representation(using: .png, properties: [:])?
-				.write(to: directory.appendingPathComponent(capture.name))
+		picture(String(format: "%04d-%@-settled.png", frame, name))
+		log += lines.joined()
+		for picture in pictures {
+			try? picture.bitmap.representation(using: .png, properties: [:])?
+				.write(to: directory.appendingPathComponent(picture.name))
 		}
-		captures.removeAll()
+		lines.removeAll()
+		pictures.removeAll()
 		try? await Task.sleep(for: .milliseconds(300))
 	}
 
@@ -182,7 +188,7 @@ final class AnimationTrace: NSObject {
 		waiters.forEach { $0.resume() }
 	}
 
-	private func record(_ name: String, at seconds: TimeInterval) {
+	private func record(_ name: String, at seconds: TimeInterval, pictured: Bool) {
 		let card = panel.presentedCardFrameOnScreen
 		frame += 1
 		let line = [
@@ -191,10 +197,19 @@ final class AnimationTrace: NSObject {
 		].joined(separator: ",")
 		let spawn = panel.presentedSpawn
 		let spawnColumns = String(format: "%.3f,%.4f", spawn.opacity, spawn.scale)
-		// The content as presented now, cut to the card as drawn now.
-		guard let bitmap = Self.presented(panel.content, height: card.height, scale: panel.backingScaleFactor)
-		else { return }
-		captures.append((String(format: "%04d-%@.png", frame, name), line + "|" + spawnColumns, bitmap))
+		let gap = (panel.content as? InboxContentView)?.presentedContentBottom
+			.map { String(format: "%.2f", card.height - $0) } ?? "missing"
+		lines.append("\(line),\(gap),\(panel.backingScaleFactor),\(spawnColumns)\n")
+		if pictured {
+			picture(String(format: "%04d-%@.png", frame, name))
+		}
+	}
+
+	/// The content as presented now, cut to the card as drawn now.
+	private func picture(_ name: String) {
+		let card = panel.presentedCardFrameOnScreen
+		guard let bitmap = Self.presented(panel.content, height: card.height, scale: panel.backingScaleFactor) else { return }
+		pictures.append((name, bitmap))
 	}
 
 	/// The top `height` points of `view` as its layers show mid-motion: a
@@ -217,13 +232,6 @@ final class AnimationTrace: NSObject {
 		return bitmap
 	}
 
-	/// Points from the content's bottom down to the panel's bottom edge,
-	/// from where the marker's centre is drawn, or `missing`.
-	private static func gap(in bitmap: NSBitmapImageRep) -> String {
-		guard let markerAboveBottom = TraceMarkerScan.markerCentreAboveBottom(in: bitmap) else { return "missing" }
-		let centreAboveContentBottom = AnimationTraceMarker.height + AnimationTraceMarker.thickness / 2
-		return String(format: "%.2f", markerAboveBottom - centreAboveContentBottom)
-	}
 }
 
 /// A two-point magenta line `height` points above the content's bottom
