@@ -7,7 +7,7 @@
 //! process squatting on a port left behind by a crash cannot compute it.
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Request, State};
 use axum::response::{IntoResponse, Response};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 use crate::error::ApiError;
-use crate::local_routes::ApiState;
+use crate::local_routes::{ApiState, JsonBody};
 
 /// The shortest nonce accepted: 128 bits as base64url.
 pub const MIN_NONCE_CHARS: usize = 22;
@@ -54,23 +54,26 @@ pub fn hello_proof(token: &str, nonce: &str) -> String {
     URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes())
 }
 
-pub(crate) async fn hello(
-    State(state): State<ApiState>,
-    body: crate::local_routes::JsonBody,
-) -> Response {
-    match answer(&state, body) {
+/// A `hello` body is a nonce: anything larger than this is refused.
+pub const MAX_HELLO_BODY_BYTES: usize = 1024;
+
+/// The rate limit comes first, so an unauthenticated caller cannot make the
+/// hub read anything once the bucket is empty.
+pub(crate) async fn hello(State(state): State<ApiState>, request: Request) -> Response {
+    if let Err(retry_after) = state.limits.check_hello() {
+        return ApiError::rate_limited(retry_after).into_response();
+    }
+    let answer = match JsonBody::read(request, MAX_HELLO_BODY_BYTES).await {
+        Ok(body) => answer(&state, body),
+        Err(error) => Err(error),
+    };
+    match answer {
         Ok(response) => Json(response).into_response(),
         Err(error) => error.into_response(),
     }
 }
 
-fn answer(
-    state: &ApiState,
-    body: crate::local_routes::JsonBody,
-) -> Result<HelloResponse, ApiError> {
-    if let Err(retry_after) = state.limits.check_hello() {
-        return Err(ApiError::rate_limited(retry_after));
-    }
+fn answer(state: &ApiState, body: JsonBody) -> Result<HelloResponse, ApiError> {
     let request: HelloRequest = body.parse_unvalidated()?;
     let length = request.nonce.chars().count();
     if !(MIN_NONCE_CHARS..=MAX_NONCE_CHARS).contains(&length) {

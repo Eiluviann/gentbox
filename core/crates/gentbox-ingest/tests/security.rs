@@ -454,3 +454,81 @@ async fn a_client_stalled_mid_request_cannot_hold_the_shutdown() {
     assert!(!api.join("port").exists());
     drop(stalled);
 }
+
+#[tokio::test]
+async fn every_error_has_the_json_shape_and_cache_busters_are_ignored() {
+    let server = Server::start().await;
+    let unknown_query = server.send("GET", "/v1/topics?foo=1", None).await;
+    assert_eq!(unknown_query.status, 400);
+    assert_eq!(unknown_query.body["code"], "invalid_query");
+    let wrong_method = server.send("GET", "/v1/messages", None).await;
+    assert_eq!(wrong_method.status, 405);
+    assert_eq!(wrong_method.body["code"], "method_not_allowed");
+    let id = support::id_of(&server.post_message(blocking_prompt()).await);
+    let busted = server
+        .send(
+            "GET",
+            &format!("/v1/messages/{id}/response?wait=0&_=1712"),
+            None,
+        )
+        .await;
+    assert_eq!(busted.status, 200, "{busted:?}");
+    assert_eq!(busted.body["status"], "pending");
+    let bad_wait = server
+        .send(
+            "GET",
+            &format!("/v1/messages/{id}/response?wait=soon"),
+            None,
+        )
+        .await;
+    assert_eq!(bad_wait.status, 400);
+    assert_eq!(bad_wait.body["code"], "invalid_wait");
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn debug_output_never_shows_the_token() {
+    let server = Server::start().await;
+    let ingest = server.ingest.as_ref().unwrap();
+    for printed in [format!("{ingest:?}"), format!("{:?}", ingest.api_dir())] {
+        assert!(!printed.contains(&server.token), "{printed}");
+        assert!(printed.contains("redacted"), "{printed}");
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn hello_checks_its_rate_limit_before_reading_and_takes_small_bodies_only() {
+    let limits = Limits {
+        hello_burst: 1.0,
+        hello_refill_per_second: 0.01,
+        ..Limits::default()
+    };
+    let server = Server::start_with(|_| {}, limits).await;
+    let big = json!({ "nonce": "q8F3kz0WmPz1vN7yT2cR5aLx", "padding": "x".repeat(4096) });
+    let too_big = reply(
+        server
+            .client
+            .post(server.url("/v1/hello"))
+            .json(&big)
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(too_big.status, 413, "hello bodies are capped small");
+    // The bucket is empty now: a huge body is refused unread.
+    let huge = json!({ "nonce": "x".repeat(100 * 1024) });
+    let limited = reply(
+        server
+            .client
+            .post(server.url("/v1/hello"))
+            .json(&huge)
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(limited.status, 429);
+    server.stop().await;
+}

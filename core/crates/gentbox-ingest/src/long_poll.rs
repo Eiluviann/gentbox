@@ -6,18 +6,18 @@
 use std::time::Duration;
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::response::{IntoResponse, Response};
 use gentbox_core::response::ActionResponse;
 use gentbox_hub::{MAX_WAIT, WaitStart};
 use serde::Deserialize;
 
 use crate::error::ApiError;
-use crate::local_routes::{ApiState, message_id_from_path};
+use crate::local_routes::{ApiPath, ApiQuery, ApiState, message_id_from_path};
 
-/// The query of a long-poll.
+/// The query of a long-poll. Other parameters (a client's cache-buster) are
+/// ignored.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct WaitQuery {
     /// Seconds to hold; capped at 55.
     #[serde(default)]
@@ -26,8 +26,8 @@ pub(crate) struct WaitQuery {
 
 pub(crate) async fn response(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
-    Query(query): Query<WaitQuery>,
+    ApiPath(id): ApiPath<String>,
+    ApiQuery(query): ApiQuery<WaitQuery>,
 ) -> Result<Response, ApiError> {
     let id = message_id_from_path(&id)?;
     let wait = wait_duration(query.wait.as_deref())?;

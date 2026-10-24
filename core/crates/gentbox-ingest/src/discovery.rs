@@ -33,11 +33,29 @@ pub struct DiscoveryError {
     pub source: std::io::Error,
 }
 
+/// The sender token. Its `Debug` output is redacted, so a struct that holds
+/// it can be logged without leaking it.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SenderToken(String);
+
+impl SenderToken {
+    /// The token's text: the bearer value and the `hello` HMAC key.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Debug for SenderToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SenderToken(<redacted>)")
+    }
+}
+
 /// The prepared discovery folder and the token in it.
 #[derive(Debug, Clone)]
 pub struct ApiDir {
     path: PathBuf,
-    token: String,
+    token: SenderToken,
 }
 
 impl ApiDir {
@@ -79,7 +97,10 @@ impl ApiDir {
                 token
             }
         };
-        Ok(Self { path, token })
+        Ok(Self {
+            path,
+            token: SenderToken(token),
+        })
     }
 
     /// The folder.
@@ -89,7 +110,7 @@ impl ApiDir {
 
     /// The sender token.
     pub fn token(&self) -> &str {
-        &self.token
+        self.token.as_str()
     }
 
     /// Where the socket goes.

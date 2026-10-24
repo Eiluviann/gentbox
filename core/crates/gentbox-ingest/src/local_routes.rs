@@ -13,7 +13,9 @@
 
 use std::sync::Arc;
 
-use axum::extract::{FromRequest, Path, Query, Request, State};
+use axum::extract::rejection::{PathRejection, QueryRejection};
+use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
+use axum::http::request::Parts;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
@@ -113,6 +115,7 @@ pub fn local_router(state: ApiState, transport: Transport) -> Router {
         .route("/v1/hello", post(hello))
         .merge(authenticated)
         .fallback(not_found)
+        .method_not_allowed_fallback(method_not_allowed)
         .with_state(state);
     match transport {
         Transport::UnixSocket => router,
@@ -122,6 +125,56 @@ pub fn local_router(state: ApiState, transport: Transport) -> Router {
 
 async fn not_found() -> ApiError {
     ApiError::not_found("no such route")
+}
+
+async fn method_not_allowed() -> ApiError {
+    ApiError::new(
+        StatusCode::METHOD_NOT_ALLOWED,
+        "method_not_allowed",
+        "this route does not take this method",
+    )
+}
+
+/// `Query` whose rejection is a JSON 400 `invalid_query`.
+#[derive(Debug)]
+pub(crate) struct ApiQuery<T>(pub(crate) T);
+
+impl<T, S> FromRequestParts<S> for ApiQuery<T>
+where
+    T: DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, ApiError> {
+        Query::<T>::from_request_parts(parts, state)
+            .await
+            .map(|Query(query)| Self(query))
+            .map_err(|rejection: QueryRejection| {
+                ApiError::bad_request("invalid_query", rejection.body_text())
+            })
+    }
+}
+
+/// `Path` whose rejection is a JSON 400 `invalid_path`.
+#[derive(Debug)]
+pub(crate) struct ApiPath<T>(pub(crate) T);
+
+impl<T, S> FromRequestParts<S> for ApiPath<T>
+where
+    T: DeserializeOwned + Send,
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, ApiError> {
+        Path::<T>::from_request_parts(parts, state)
+            .await
+            .map(|Path(path)| Self(path))
+            .map_err(|rejection: PathRejection| {
+                ApiError::bad_request("invalid_path", rejection.body_text())
+            })
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -137,7 +190,18 @@ impl FromRequest<ApiState> for JsonBody {
     type Rejection = ApiError;
 
     async fn from_request(request: Request, state: &ApiState) -> Result<Self, ApiError> {
-        let limit = state.limits.limits().body_bytes;
+        Self::read(request, state.limits.limits().body_bytes).await
+    }
+}
+
+impl JsonBody {
+    /// Reads a body of at most `limit` bytes.
+    ///
+    /// # Errors
+    ///
+    /// 413 over the limit, 415 for another content type, 400 for bad JSON
+    /// or a body that cannot be read.
+    pub async fn read(request: Request, limit: usize) -> Result<Self, ApiError> {
         let is_json = request
             .headers()
             .get(header::CONTENT_TYPE)
@@ -168,9 +232,7 @@ impl FromRequest<ApiState> for JsonBody {
             .map_err(|error| ApiError::bad_request("invalid_json", error.to_string()))?;
         Ok(Self(Some(value)))
     }
-}
 
-impl JsonBody {
     /// Validates the body against the schema, then reads it.
     ///
     /// # Errors
@@ -405,7 +467,7 @@ async fn post_message(State(state): State<ApiState>, body: JsonBody) -> Result<R
 
 async fn delete_message(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
@@ -438,7 +500,7 @@ struct MessagePlace {
 
 async fn move_message(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
@@ -470,7 +532,7 @@ struct ConversationRecord {
 
 async fn put_conversation(
     State(state): State<ApiState>,
-    Path((agent, id)): Path<(String, String)>,
+    ApiPath((agent, id)): ApiPath<(String, String)>,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let key = conversation_from_path(&agent, &id)?;
@@ -495,7 +557,7 @@ async fn put_conversation(
 
 async fn rescind_conversation(
     State(state): State<ApiState>,
-    Path((agent, id)): Path<(String, String)>,
+    ApiPath((agent, id)): ApiPath<(String, String)>,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let key = conversation_from_path(&agent, &id)?;
@@ -506,7 +568,7 @@ async fn rescind_conversation(
 
 async fn progress(
     State(state): State<ApiState>,
-    Path((agent, id)): Path<(String, String)>,
+    ApiPath((agent, id)): ApiPath<(String, String)>,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let key = conversation_from_path(&agent, &id)?;
@@ -576,7 +638,7 @@ async fn create_topic(
 
 async fn list_topics(
     State(state): State<ApiState>,
-    Query(query): Query<GroupQuery>,
+    ApiQuery(query): ApiQuery<GroupQuery>,
 ) -> Result<Response, ApiError> {
     if query.topic.is_some() {
         return Err(ApiError::bad_request(
@@ -591,7 +653,7 @@ async fn list_topics(
 
 async fn get_topic(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> Result<Response, ApiError> {
     let id = topic_id_from_path(&id)?;
     Ok(Json(state.hub.topic(id).await?).into_response())
@@ -599,7 +661,7 @@ async fn get_topic(
 
 async fn patch_topic(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let id = topic_id_from_path(&id)?;
@@ -609,7 +671,7 @@ async fn patch_topic(
 
 async fn close_topic(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
@@ -623,7 +685,7 @@ async fn close_topic(
 
 async fn reopen_topic(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> Result<Response, ApiError> {
     let id = topic_id_from_path(&id)?;
     Ok(Json(state.hub.reopen_topic(id).await?).into_response())
@@ -631,7 +693,7 @@ async fn reopen_topic(
 
 async fn rescind_topic(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
@@ -669,7 +731,7 @@ async fn create_thread(
 
 async fn list_threads(
     State(state): State<ApiState>,
-    Query(query): Query<GroupQuery>,
+    ApiQuery(query): ApiQuery<GroupQuery>,
 ) -> Result<Response, ApiError> {
     let status = status_from_query(query.status.as_deref())?;
     let topic = query.topic.as_deref().map(topic_id_from_path).transpose()?;
@@ -679,7 +741,7 @@ async fn list_threads(
 
 async fn get_thread(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> Result<Response, ApiError> {
     let id = thread_id_from_path(&id)?;
     Ok(Json(state.hub.thread(id).await?).into_response())
@@ -687,7 +749,7 @@ async fn get_thread(
 
 async fn patch_thread(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
     let id = thread_id_from_path(&id)?;
@@ -697,7 +759,7 @@ async fn patch_thread(
 
 async fn close_thread(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
@@ -711,7 +773,7 @@ async fn close_thread(
 
 async fn reopen_thread(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
 ) -> Result<Response, ApiError> {
     let id = thread_id_from_path(&id)?;
     Ok(Json(state.hub.reopen_thread(id).await?).into_response())
@@ -719,7 +781,7 @@ async fn reopen_thread(
 
 async fn rescind_thread(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {
@@ -736,7 +798,7 @@ async fn rescind_thread(
 
 async fn move_thread(
     State(state): State<ApiState>,
-    Path(id): Path<String>,
+    ApiPath(id): ApiPath<String>,
     headers: HeaderMap,
     body: JsonBody,
 ) -> Result<Response, ApiError> {

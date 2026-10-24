@@ -33,7 +33,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 pub use auth::is_token;
-pub use discovery::{ApiDir, DiscoveryError};
+pub use discovery::{ApiDir, DiscoveryError, SenderToken};
 pub use error::{ApiError, ErrorBody};
 pub use hello::{HelloResponse, hello_proof};
 pub use limits::{Limits, RateLimiter};
