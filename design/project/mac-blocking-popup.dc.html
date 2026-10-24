@@ -21,22 +21,20 @@ body{margin:0}
 .note{position:absolute;left:28px;bottom:24px;width:320px}
 </style>
 </helmet>
-<div class="board desk bp-board">
+<div data-theme="light" class="board desk bp-board">
 	<div class="menubar" style="justify-content: flex-end">
-		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">1</span></span>
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock dot-wait" d="{{ic.agent_dot}}"></path></svg><span class="mb-count">1</span></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
 		<span>Fri 18:44</span>
 	</div>
 
 	<div class="panel bp ripple-panel">
 		<div class="bp-head">
-			<span class="icol"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg><svg class="i urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.figure_walk_motion}}"></path></svg></span>
-			<div>
-				<div class="headline">Your input is needed</div>
-				<div class="tags" style="margin-top: 2px"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · Phase 3 · ingest</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude Code · Ghostty · 2 min</span></div>
-			</div>
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div class="headline bp-title">Your input is needed<span class="tag urgent-tag">Urgent</span></div>
 			<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 		</div>
+		<div class="tags bp-tags"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · Phase 3 · ingest</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude Code · Ghostty · 2 min</span></div>
 		<div class="title" style="font-size: 15px; line-height: 20px">Allow Bash to run the ingest tests?</div>
 		<div class="code">cargo test -p ingest -- --nocapture</div>
 		<div class="body">Run the ingest tests with output</div>
@@ -56,7 +54,7 @@ body{margin:0}
 
 	<div class="note">
 		<div class="board-label">Decision required · blocking · urgent</div>
-		<div class="caption" style="color: var(--ink-2)">A non-activating panel that floats above every Space; closing it only acknowledges. Urgent makes the whole popup ripple, red because the agent waits, and lets it through quiet hours. Snooze only reminds you later; a blocking item has no Defer. ⌘↩ approves, ⌘⌫ denies, ⌘R replies</div>
+		<div class="caption" style="color: var(--ink-2)">A non-activating panel that floats above every Space; closing it only acknowledges. Urgent shows as an URGENT tag next to the title, makes the whole popup ripple, red because the agent waits, and lets it through quiet hours. Snooze only reminds you later; a blocking item has no Defer. ⌘↩ approves, ⌘⌫ denies, ⌘R replies</div>
 	</div>
 </div>
 </x-dc>

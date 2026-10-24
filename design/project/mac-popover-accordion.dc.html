@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popover accordion</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./an.css">
+<script src="./sf-symbols.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.pp-board{height:760px}
+</style>
+</helmet>
+<div data-theme="light" class="board desk pp-board">
+	<div class="menubar" style="justify-content: flex-end">
+		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock dot-wait" d="{{ic.agent_dot}}"></path></svg><span class="mb-count">1</span></span>
+		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
+		<span>Fri 18:45</span>
+	</div>
+
+	<div class="popover pp-pop">
+		<div class="pp-head">
+			<div class="title" style="flex: 1">Inbox</div>
+			<button class="btn plain icon" aria-label="Filter"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.line_3_horizontal_decrease_circle}}"></path></svg></button>
+			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
+		</div>
+
+		<div class="pp-line">
+			<span class="icol"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg><svg class="i urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.figure_walk_motion}}"></path></svg></span>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Allow Bash to run the ingest tests?</div>
+				<div class="pp-ctx">Gentbox › Phase 3 <span class="pp-dot">·</span> ingest <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>2 min ago</div>
+			</div>
+			<svg class="i pp-state-icon c-wait" viewBox="0 0 100 100" aria-label="Agent waiting"><path d="{{ic.pause_circle}}"></path></svg>
+		</div>
+		<div class="pp-line">
+			<span class="icol"><svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg><svg class="i urgent-mark" viewBox="0 0 100 100" aria-label="Urgent"><path d="{{ic.figure_walk_motion}}"></path></svg></span>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Ingest auth accepts rotated tokens; 12 tests pass</div>
+				<div class="pp-ctx">Gentbox › Phase 3 <span class="pp-dot">·</span> ingest <span class="pp-dot">·</span> <span class="i agent-mark round" role="img" aria-label="Codex"></span>40 min ago</div>
+			</div>
+			<span></span>
+		</div>
+		<div class="pp-line">
+			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Sign in to the payments sandbox</div>
+				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>9 min ago</div>
+			</div>
+			<svg class="i pp-state-icon c-paused" viewBox="0 0 100 100" aria-label="Paused, can defer"><path d="{{ic.pause_circle}}"></path></svg>
+		</div>
+		<div class="pp-line">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Which cluster gets the new certificates first?</div>
+				<div class="pp-ctx">infra <span class="pp-dot">·</span> rotate staging certs <span class="pp-dot">·</span> <span class="i agent-mark round" role="img" aria-label="Codex"></span>6 min ago</div>
+			</div>
+			<svg class="i pp-state-icon c-paused" viewBox="0 0 100 100" aria-label="Paused, can defer"><path d="{{ic.pause_circle}}"></path></svg>
+		</div>
+		<div class="pp-hero">
+			<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="headline">Which title for the 1.1 release notes?</div>
+				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>12 min ago</div>
+			</div>
+			<span></span>
+			<div class="pp-hero-body">
+				<div class="body" style="margin-top: 6px">Two candidates from the changelog; the agent keeps drafting meanwhile</div>
+				<div class="pp-acts">
+					<button class="btn">Topics and threads</button>
+					<button class="btn">Quieter by default</button>
+					<button class="btn">Reply<span class="kbd">R</span></button>
+				</div>
+			</div>
+		</div>
+		<div class="pp-line">
+			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
+			<div style="min-width: 0">
+				<div class="pp-one" style="font-weight: 500">Search filters persist in the URL; 18 tests pass</div>
+				<div class="pp-ctx">web <span class="pp-dot">·</span> WEB-139 search filters <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>20 min ago</div>
+			</div>
+			<span></span>
+		</div>
+
+		<div class="pp-foot">
+			<span class="pp-keys">↑ ↓ to move · ↩ to answer · Space to open</span>
+			<a class="link" href="mac-topic.dc.html" style="font-size: 12px">Open Gentbox</a>
+		</div>
+	</div>
+
+	<div class="pp-note">
+		<div class="board-label">Accordion · another item opened</div>
+		<div class="caption">Clicking a row opens it in place as the full card and folds the open one back into its row, so only one card shows at a time. Order never changes: urgent and waiting stay on top. Closing the popover returns it to next up</div>
+	</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":460,"height":760}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return { ic: window.SF_SYMBOLS || {}, bm: window.BRAND_MARKS || { claude: {}, codex: {} } };
+	}
+}
+</script>
+</body>
+</html>

@@ -1,45 +1,126 @@
 /* Gentbox mockup styles: shared by every artboard. */
+
+/* Colour tokens hold their light and dark value as light-dark(light, dark). A page follows
+   prefers-color-scheme; data-theme="light" or "dark" on any element pins it and everything inside */
+:root {
+	color-scheme: light dark;
+}
+[data-theme="light"] {
+	color-scheme: light;
+}
+[data-theme="dark"] {
+	color-scheme: dark;
+}
 :root {
 	--font:
 		-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
 		sans-serif;
 	--mono: ui-monospace, "SF Mono", Menlo, monospace;
-	--ink: #1d1d1f;
-	--ink-2: #48484a;
-	--ink-3: #636366;
-	--surface: #ffffff;
-	--sidebar: #f5f5f7;
-	--track: #f2f2f7;
-	--line: #e0e0e0;
-	--line-faint: #ececee;
-	--control-line: #d1d1d6;
-	--accent: #007aff;
-	--accent-ink: #0062cc;
-	--danger: #d70015;
-	--desk: #d8dde4;
-	/* Classes: one colour and one symbol each, on every surface */
-	--block: #d70015;
-	--block-ink: #a8000f;
-	--block-soft: #fdecee;
-	--ask: #e8710a;
-	--ask-ink: #a64b00;
-	--ask-soft: #fff2e6;
-	--done: #2e9e4f;
-	--done-ink: #146c2f;
-	--done-soft: #e7f4ea;
-	--info: #8e8e93;
-	--info-ink: #636366;
-	--info-soft: #f2f2f7;
+
+	/* Ink */
+	--ink: light-dark(#1d1d1f, #f5f5f7);
+	--ink-2: light-dark(#48484a, #c7c7cc);
+	--ink-3: light-dark(#636366, #aeaeb2);
+	--on-fill: #ffffff;
+
+	/* Surfaces, lowest first: in dark, each raised surface is lighter than the one below */
+	--board: light-dark(#fbfbfd, #161617);
+	--desk: light-dark(#d8dde4, #1b2028);
+	--surface: light-dark(#ffffff, #1e1e1e);
+	--sidebar: light-dark(#f5f5f7, #28282a);
+	--card: light-dark(#ffffff, #262628);
+	--elevated: light-dark(#ffffff, #2c2c2e);
+	--menu: light-dark(rgba(250, 250, 250, 0.98), rgba(53, 53, 55, 0.98));
+	--banner: light-dark(rgba(246, 246, 248, 0.96), rgba(46, 46, 48, 0.96));
+	--control: light-dark(#ffffff, #3a3a3c);
+	--field: light-dark(#ffffff, #1e1e1e);
+	--seg-on: light-dark(#ffffff, #636366);
+	--chip: light-dark(#ffffff, rgba(255, 255, 255, 0.04));
+
+	/* Fills */
+	--track: light-dark(#f2f2f7, rgba(255, 255, 255, 0.08));
+	--hover: light-dark(rgba(0, 0, 0, 0.035), rgba(255, 255, 255, 0.05));
+	--sel: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.07));
+	--accent-soft: light-dark(rgba(0, 122, 255, 0.07), rgba(10, 132, 255, 0.18));
+	--toggle-off: light-dark(#e0e0e5, #48484a);
+	--scrim: light-dark(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.5));
+	--code-on-tint: light-dark(rgba(255, 255, 255, 0.7), rgba(0, 0, 0, 0.25));
+
+	/* Rules */
+	--line: light-dark(#e0e0e0, rgba(255, 255, 255, 0.12));
+	--line-faint: light-dark(#ececee, rgba(255, 255, 255, 0.07));
+	--control-line: light-dark(#d1d1d6, rgba(255, 255, 255, 0.16));
+	--panel-line: light-dark(#e0e0e0, rgba(255, 255, 255, 0.14));
+	--dot: light-dark(#c7c7cc, #636366);
+	--strike: light-dark(rgba(0, 0, 0, 0.25), rgba(255, 255, 255, 0.3));
+
+	/* Accent (controls only) and the system red for Deny */
+	--accent: light-dark(#007aff, #0a84ff);
+	--accent-ink: light-dark(#0062cc, #409cff);
+	--accent-fill: light-dark(#0070eb, #0a6fdf);
+	--focus-ring: light-dark(rgba(0, 122, 255, 0.22), rgba(10, 132, 255, 0.4));
+	--danger: light-dark(#d70015, #ff453a);
+	--danger-ink: light-dark(#d70015, #ff7f77);
+	--badge: light-dark(#d70015, #e0201a);
+	--badge-grey: light-dark(#d1d1d6, #48484a);
+
+	/* Message model: type (colour and symbol), blocking level (label), urgent (red figure.walk.motion).
+	   Each colour has an icon value, an ink for text and a soft tint the ink sits on */
+	--dec: light-dark(#5856d6, #7d7aff);
+	--dec-ink: light-dark(#4644b8, #bdbcff);
+	--dec-soft: light-dark(#efeffd, #2f2e55);
+	--act: light-dark(#0a8270, #2ec5ac);
+	--act-ink: light-dark(#076b5c, #7fe3d2);
+	--act-soft: light-dark(#e3f4f1, #163b35);
+	--done: light-dark(#2e9e4f, #30d158);
+	--done-ink: light-dark(#146c2f, #84e3a0);
+	--done-soft: light-dark(#e7f4ea, #1a3a24);
+	--info: light-dark(#8e8e93, #98989d);
+	--info-ink: light-dark(#636366, #c7c7cc);
+	--info-soft: light-dark(#f2f2f7, #3a3a3c);
+	--wait: light-dark(#d70015, #ff453a);
+	--wait-ink: light-dark(#a8000f, #ffa59f);
+	--wait-soft: light-dark(#fdecee, #4a1e1d);
+	--paused: light-dark(#e06a00, #ff9f0a);
+	--paused-ink: light-dark(#a64b00, #ffc472);
+	--paused-soft: light-dark(#fff2e6, #47300f);
+	--warn-ink: light-dark(#8a5a00, #ffc472);
+	--warn-soft: light-dark(#fff4e0, #3b2e13);
+	/* Older names: blocking and deferrable share the waiting and paused colours */
+	--block: var(--wait);
+	--block-ink: var(--wait-ink);
+	--block-soft: var(--wait-soft);
+	--ask: var(--paused);
+	--ask-ink: var(--paused-ink);
+	--ask-soft: var(--paused-soft);
+
+	/* Topic icons */
+	--topic-release: light-dark(#957754, #c9ab80);
+	--topic-deps: light-dark(#5e6e82, #93a3b8);
+
+	/* Menu bar */
+	--menubar: light-dark(rgba(246, 246, 246, 0.86), rgba(30, 30, 32, 0.86));
+	--menubar-ink: light-dark(#000000, #ffffff);
+	--menubar-line: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.08));
+	--menubar-on: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.18));
+	--menubar-knock: light-dark(#f6f6f6, #1e1e20);
+	--menubar-on-knock: light-dark(#dddddd, #464648);
+
+	/* Shadows: dark mode leans on a stronger shadow and a light hairline instead */
 	--shadow-panel:
-		0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+		0 12px 32px light-dark(rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.5)),
+		0 2px 6px light-dark(rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.3));
 	--shadow-window:
-		0 22px 60px rgba(0, 0, 0, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+		0 22px 60px light-dark(rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.6)),
+		0 0 0 0.5px light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.8));
+	--shadow-raise: 0 1px 3px light-dark(rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.4));
 }
 
 body {
 	margin: 0;
 	font-family: var(--font);
 	color: var(--ink);
+	background: var(--board);
 	-webkit-font-smoothing: antialiased;
 }
 * {
@@ -57,7 +138,8 @@ button {
 .board {
 	position: relative;
 	overflow: hidden;
-	background: #fbfbfd;
+	background: var(--board);
+	color: var(--ink);
 	font-size: 13px;
 	line-height: 18px;
 }
@@ -146,11 +228,11 @@ button {
 	align-items: center;
 	gap: 14px;
 	padding: 0 10px;
-	background: rgba(246, 246, 246, 0.86);
-	border-bottom: 0.5px solid rgba(0, 0, 0, 0.12);
+	background: var(--menubar);
+	border-bottom: 0.5px solid var(--menubar-line);
 	font-size: 13px;
 	font-weight: 500;
-	color: #000;
+	color: var(--menubar-ink);
 }
 .menubar .spacer {
 	flex: 1;
@@ -164,15 +246,14 @@ button {
 	border-radius: 5px;
 }
 .menubar .mb-item.on {
-	background: rgba(0, 0, 0, 0.1);
+	background: var(--menubar-on);
 }
+/* A strip pinned to one appearance, whatever the board's */
 .menubar.dark {
-	background: rgba(30, 30, 32, 0.86);
-	color: #fff;
-	border-bottom-color: rgba(255, 255, 255, 0.08);
+	color-scheme: dark;
 }
-.menubar.dark .mb-item.on {
-	background: rgba(255, 255, 255, 0.18);
+.menubar.light {
+	color-scheme: light;
 }
 .mb-bell {
 	position: relative;
@@ -191,15 +272,15 @@ button {
 
 /* Floating surfaces */
 .popover {
-	background: rgba(255, 255, 255, 0.97);
-	border: 1px solid var(--line);
+	background: var(--elevated);
+	border: 1px solid var(--panel-line);
 	border-radius: 12px;
 	box-shadow: var(--shadow-panel);
 	overflow: hidden;
 }
 .panel {
-	background: rgba(255, 255, 255, 0.98);
-	border: 1px solid var(--line);
+	background: var(--elevated);
+	border: 1px solid var(--panel-line);
 	border-radius: 16px;
 	box-shadow: var(--shadow-panel);
 }
@@ -308,7 +389,7 @@ button {
 	color: var(--ink-3);
 }
 .row.sel {
-	background: rgba(0, 122, 255, 0.07);
+	background: var(--accent-soft);
 }
 .tags {
 	display: flex;
@@ -382,7 +463,7 @@ button {
 	padding: 0 12px;
 	border-radius: 7px;
 	border: 1px solid var(--control-line);
-	background: #fff;
+	background: var(--control);
 	font-size: 13px;
 	font-weight: 500;
 	color: var(--ink);
@@ -398,12 +479,17 @@ button {
 	gap: 4px;
 }
 .btn.primary {
-	background: var(--accent);
-	border-color: var(--accent);
-	color: #fff;
+	background: var(--accent-fill);
+	border-color: var(--accent-fill);
+	color: var(--on-fill);
 }
 .btn.danger {
-	color: var(--danger);
+	color: var(--danger-ink);
+}
+.btn:disabled,
+.btn.disabled {
+	color: var(--ink-3);
+	opacity: 0.6;
 }
 .btn.plain {
 	border-color: transparent;
@@ -419,7 +505,7 @@ button {
 .btn .kbd {
 	font-size: 11px;
 	font-weight: 400;
-	opacity: 0.72;
+	color: var(--ink-3);
 }
 .kbd {
 	font-family: var(--font);
@@ -434,7 +520,7 @@ button {
 	padding: 0 6px 0 9px;
 	border-radius: 6px;
 	border: 1px solid var(--control-line);
-	background: #fff;
+	background: var(--control);
 	font-size: 13px;
 	color: var(--ink);
 	white-space: nowrap;
@@ -452,7 +538,7 @@ button {
 	padding: 0 9px;
 	border-radius: 7px;
 	border: 1px solid var(--control-line);
-	background: #fff;
+	background: var(--field);
 	font-size: 13px;
 	color: var(--ink);
 }
@@ -467,13 +553,13 @@ button {
 }
 .field.focus {
 	border-color: var(--accent);
-	box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.22);
+	box-shadow: 0 0 0 3px var(--focus-ring);
 }
 .toggle {
 	width: 32px;
 	height: 19px;
 	border-radius: 999px;
-	background: #e0e0e5;
+	background: var(--toggle-off);
 	position: relative;
 	flex: none;
 }
@@ -512,17 +598,17 @@ button {
 	color: var(--ink-2);
 }
 .seg span.on {
-	background: #fff;
+	background: var(--seg-on);
 	color: var(--ink);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+	box-shadow: var(--shadow-raise);
 }
 .badge {
 	min-width: 18px;
 	height: 18px;
 	padding: 0 5px;
 	border-radius: 999px;
-	background: var(--block);
-	color: #fff;
+	background: var(--badge);
+	color: var(--on-fill);
 	font-size: 11px;
 	font-weight: 600;
 	display: inline-flex;
@@ -531,7 +617,7 @@ button {
 	font-variant-numeric: tabular-nums;
 }
 .badge.grey {
-	background: #d1d1d6;
+	background: var(--badge-grey);
 	color: var(--ink);
 }
 .progress {
@@ -550,7 +636,7 @@ button {
 .card {
 	border: 1px solid var(--line);
 	border-radius: 12px;
-	background: #fff;
+	background: var(--card);
 }
 .card-head {
 	display: grid;
@@ -590,7 +676,7 @@ button {
 	background: var(--block-soft);
 }
 .callout.warn {
-	background: #fff4e0;
+	background: var(--warn-soft);
 }
 
 /* Main window */
@@ -625,7 +711,7 @@ button {
 	white-space: nowrap;
 }
 .side-item.sel {
-	background: rgba(0, 0, 0, 0.07);
+	background: var(--sel);
 	font-weight: 500;
 }
 .side-head {
@@ -933,13 +1019,12 @@ button {
 
 /* Gentbox mark: bubble.left with a stroked prompt; the badge and slash knock out the glyph behind them */
 .prompt { fill: none; stroke: currentColor; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
-.knock { stroke: var(--knock, #fbfbfd); stroke-width: 9; paint-order: stroke; }
-.slash-knock { fill: none; stroke: var(--knock, #fbfbfd); stroke-width: 19; stroke-linecap: round; }
+.knock { stroke: var(--knock, var(--board)); stroke-width: 9; paint-order: stroke; }
+.slash-knock { fill: none; stroke: var(--knock, var(--board)); stroke-width: 19; stroke-linecap: round; }
 .slash { fill: none; stroke: currentColor; stroke-width: 7; stroke-linecap: round; }
-.menubar { --knock: #f6f6f6; }
-.menubar .mb-item.on { --knock: #dddddd; }
-.menubar.dark { --knock: #1e1e20; }
-.menubar.dark .mb-item.on { --knock: #464648; }
+.menubar { --knock: var(--menubar-knock); }
+.menubar .mb-item.on { --knock: var(--menubar-on-knock); }
+.dot-wait { fill: var(--wait); }
 .appicon svg { fill: currentColor; color: #fff; --knock: #1d1d1f; }
 
 /* Sidebar icons take the accent unless they carry a class colour */
@@ -960,10 +1045,10 @@ a.side-item { text-decoration: none; }
 .matrix .na { color: var(--ink-3); }
 .chips { display: flex; gap: 4px; }
 .chip { width: 26px; height: 24px; border-radius: 6px; background: var(--track); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--ink-2); }
-.chip.on { background: var(--accent); color: #fff; }
+.chip.on { background: var(--accent-fill); color: var(--on-fill); }
 .steps { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 12px; line-height: 18px; }
-.sheet-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.18); display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; }
-.sheet { width: 440px; background: #fff; border-radius: 14px; box-shadow: var(--shadow-window); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.sheet-scrim { position: absolute; inset: 0; background: var(--scrim); display: flex; align-items: flex-start; justify-content: center; padding-top: 60px; }
+.sheet { width: 440px; background: var(--elevated); border-radius: 14px; box-shadow: var(--shadow-window); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 
 /* Ripple: looped rings behind the class symbol of an important popup, in the class colour */
 .ripple { position: relative; display: block; width: 16px; height: 16px; flex: none; margin-top: 1px; }
@@ -992,13 +1077,6 @@ a.side-item { text-decoration: none; }
 .nc-head { position: relative; margin: 0 22px 8px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.85); display: flex; justify-content: space-between; }
 .faceid { position: absolute; left: 50%; top: 300px; width: 160px; height: 160px; margin-left: -80px; border-radius: 32px; background: rgba(40, 40, 44, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: 15px; font-weight: 500; }
 
-/* Message model: type (colour and symbol), blocking level (label), urgent (red figure.walk.motion) */
-:root {
-	--dec: #5856d6; --dec-ink: #4644b8; --dec-soft: #efeffd;
-	--act: #0a8270; --act-ink: #076b5c; --act-soft: #e3f4f1;
-	--wait: #d70015; --wait-ink: #a8000f; --wait-soft: #fdecee;
-	--paused: #e8710a; --paused-ink: #a64b00; --paused-soft: #fff2e6;
-}
 .c-dec { color: var(--dec); }
 .c-act { color: var(--act); }
 .c-wait { color: var(--wait); }
@@ -1010,9 +1088,8 @@ a.side-item { text-decoration: none; }
 .tag.wait { background: var(--wait-soft); color: var(--wait-ink); }
 .tag.paused { background: var(--paused-soft); color: var(--paused-ink); }
 .tag.working { background: var(--track); color: var(--ink-3); }
-.tag.urgent { background: var(--wait); color: #fff; }
 .tag.gone { background: var(--track); color: var(--ink-3); text-decoration: none; }
-.row.withdrawn .headline { color: var(--ink-3); text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, 0.25); }
+.row.withdrawn .headline { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--strike); }
 
 /* Ripple on an urgent popup: looped rings around the whole panel, red when the agent waits, orange when paused */
 .ripple-panel { --ripple: var(--wait); }
@@ -1022,7 +1099,6 @@ a.side-item { text-decoration: none; }
 @media (prefers-reduced-motion: reduce) { .ripple-panel::before { animation: none; opacity: 0.5; } }
 
 /* Topics: one grouping level; a header row, then its messages indented under it */
-:root { --topic-release: #a2845e; --topic-deps: #5e6e82; }
 .topic-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 10px 12px 6px; }
 .topic-row > .i { margin-top: 1px; width: 18px; height: 18px; }
 .topic-row + .row { border-top: none; }
@@ -1034,14 +1110,14 @@ a.side-item { text-decoration: none; }
 .topic-sep { border-top: 1px solid var(--line); }
 .topic-row.closed { color: var(--ink-3); padding-bottom: 10px; }
 .topic-row.closed .topic-title { color: var(--ink-3); font-weight: 600; }
-.tag.topic { background: #fff; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); }
+.tag.topic { background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); }
 .tag.kind { background: none; padding: 0; color: var(--ink-3); font-weight: 400; }
 .tag.muted { background: var(--track); color: var(--ink-3); }
 .c-release { color: var(--topic-release); }
 .c-deps { color: var(--topic-deps); }
-.menu-pop { position: absolute; width: 220px; background: rgba(250, 250, 250, 0.98); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-panel); padding: 5px; font-size: 13px; }
+.menu-pop { position: absolute; width: 220px; background: var(--menu); border: 1px solid var(--panel-line); border-radius: 10px; box-shadow: var(--shadow-panel); padding: 5px; font-size: 13px; }
 .menu-pop div { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 6px; }
-.menu-pop div.hl { background: var(--accent); color: #fff; }
+.menu-pop div.hl { background: var(--accent-fill); color: var(--on-fill); }
 .menu-pop hr { border: none; border-top: 1px solid var(--line); margin: 4px 6px; }
 
 /* Urgent: shown only by the red figure.walk.motion badge under the type icon (see .urgent-mark below) */
@@ -1079,20 +1155,20 @@ a.side-item { text-decoration: none; }
 .pp-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 10px 14px; border-bottom: 1px solid var(--line); }
 .pp-seg { display: inline-flex; background: var(--track); border-radius: 7px; padding: 2px; font-size: 11px; line-height: 16px; font-weight: 500; }
 .pp-seg span { padding: 1px 8px; border-radius: 5px; color: var(--ink-3); }
-.pp-seg .on { background: #fff; color: var(--ink); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08); }
+.pp-seg .on { background: var(--seg-on); color: var(--ink); box-shadow: var(--shadow-raise); }
 .pp-sec { padding: 12px 14px 4px; font-size: 11px; line-height: 16px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
 .pp-sec.ruled { border-top: 1px solid var(--line); margin-top: 6px; }
 .pp-item { display: grid; grid-template-columns: 16px minmax(0, 1fr) 22px; column-gap: 10px; padding: 9px 8px 9px 14px; align-items: start; position: relative; }
 .pp-item > .i { margin-top: 1px; }
 .pp-item .menu { visibility: hidden; margin-top: -2px; }
-.pp-item.hover { background: rgba(0, 0, 0, 0.035); }
+.pp-item.hover { background: var(--hover); }
 .pp-item.hover .menu { visibility: visible; }
 .pp-ctx { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 16px; color: var(--ink-3); white-space: nowrap; }
 .pp-ctx .i { width: 11px; height: 11px; }
 .pp-one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pp-quiet { font-weight: 500; }
 .pp-acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-.pp-foot { display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 14px; border-top: 1px solid var(--line); background: #fafafa; }
+.pp-foot { display: flex; align-items: center; gap: 8px; padding: 9px 12px 9px 14px; border-top: 1px solid var(--line); }
 .pp-note { position: absolute; left: 40px; bottom: 24px; width: 380px; }
 .pp-note .caption { color: var(--ink-2); }
 .pp-note ul { margin: 4px 0 0; padding-left: 16px; font-size: 11px; line-height: 16px; color: var(--ink-2); }
@@ -1104,7 +1180,7 @@ a.side-item { text-decoration: none; }
 .pp-hero .headline { font-size: 15px; line-height: 20px; }
 .pp-cmd { font-family: var(--mono); font-size: 12px; line-height: 17px; color: var(--ink-2); margin-top: 6px; }
 .pp-hero .pp-acts { margin-top: 12px; }
-.pp-hero .kbd { color: inherit; opacity: 0.6; font-weight: 400; }
+.pp-hero .kbd { font-weight: 400; }
 .pp-line { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 10px; padding: 7px 14px; align-items: start; position: relative; }
 .pp-line > .i { margin-top: 1px; }
 .pp-state { font-size: 11px; line-height: 18px; font-weight: 600; white-space: nowrap; }
@@ -1141,11 +1217,7 @@ a.side-item { text-decoration: none; }
 .pp-hero .pp-acts { margin-left: 26px; }
 /* State on the right of a popover row: an icon only for paused (orange) and waiting (red), centred on the row */
 .pp-state-icon { align-self: center; }
-.pp-ctx .i[aria-label="Codex"] { color: var(--ink-2); }
-.pp-dot { font-size: 14px; font-weight: 700; line-height: 0; color: #c7c7cc; }
-/* The top card is the active item on white; the rest of the list sits on a very light grey */
-.pp-hero { background: #fff; }
-.pp-line { background: #f8f8fa; }
+.pp-dot { font-size: 14px; font-weight: 700; line-height: 0; color: var(--dot); }
 .pp-cmd { background: var(--track); border-radius: 6px; padding: 6px 9px; margin-top: 8px; color: var(--ink); }
 /* The active card keeps a row's order (icon, title, breadcrumb, state) and adds its body below, so a row can grow into it */
 .pp-hero { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 10px; align-items: start; padding: 12px 14px 14px; }
@@ -1165,7 +1237,35 @@ a.side-item { text-decoration: none; }
 .pp-step-text { font-weight: 500; }
 .pp-step-detail { font-size: 11px; line-height: 16px; color: var(--ink-3); margin-top: 2px; }
 .pp-step.done .pp-step-text { color: var(--ink-3); }
-.pp-actbar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--line); background: #fff; }
+.pp-actbar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--line); }
 .pp-back { text-decoration: none; }
-.pp-actbar .kbd { color: inherit; opacity: 0.6; font-weight: 400; }
-.pp-hero-body .btn:not(.primary) .kbd { color: var(--ink-3); opacity: 1; }
+.pp-actbar .kbd { font-weight: 400; }
+/* Shortcut hints stay at full opacity so they keep AA: grey on bordered buttons, white on primary ones */
+.btn.primary .kbd { color: var(--on-fill); }
+
+/* Agent marks: neutral placeholders on the boards; the app shows the real Claude and Codex marks */
+.agent-mark { display: inline-block; width: 11px; height: 11px; flex: none; border-radius: 3px; border: 1.5px solid var(--ink-3); background: var(--track); }
+.agent-mark.round { border-radius: 50%; }
+.agent-mark.i { width: 16px; height: 16px; border-radius: 4px; }
+.agent-mark.i22 { width: 22px; height: 22px; border-radius: 6px; border-width: 2px; }
+.agent-mark.round.i, .agent-mark.round.i22 { border-radius: 50%; }
+.pp-ctx .agent-mark { width: 11px; height: 11px; border-radius: 3px; border-width: 1.5px; }
+.pp-ctx .agent-mark.round { border-radius: 50%; }
+.tag .agent-mark { width: 10px; height: 10px; border-radius: 3px; border-width: 1.5px; }
+.tag .agent-mark.round { border-radius: 50%; }
+
+/* Menu extras: a count or shortcut on the right, and disabled items */
+.menu-pop .menu-aside { margin-left: auto; font-size: 12px; color: var(--ink-3); }
+.menu-pop div.hl .menu-aside { color: inherit; }
+.menu-pop div.off { color: var(--ink-3); }
+
+/* Selecting several popover items to dismiss: a selection circle before the type symbol */
+.pp-line.pick { grid-template-columns: 16px 16px minmax(0, 1fr) auto; }
+.pp-line.pick > .i { margin-top: 1px; }
+.pp-line.picked { background: var(--accent-soft); }
+.pp-callout { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--track); }
+
+/* Popups: the header is symbol, title and menu; its tags run underneath at the panel's left edge. An urgent popup tags its title URGENT */
+.tags.bp-tags { margin-top: -4px; }
+.bp-title { display: flex; align-items: center; gap: 6px; }
+.tag.urgent-tag { background: var(--wait-soft); color: var(--wait-ink); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }

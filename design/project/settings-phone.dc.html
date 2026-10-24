@@ -18,7 +18,7 @@ body{margin:0}
 .planned .caption{max-width:420px;font-size:12px;line-height:17px}
 </style>
 </helmet>
-<div class="board desk set-board spp-board">
+<div data-theme="light" class="board desk set-board spp-board">
 	<div class="window set-win win">
 		<nav class="sidebar" aria-label="Settings">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
@@ -34,7 +34,7 @@ body{margin:0}
 		<main class="content">
 			<div class="toolbar"><div class="headline" style="font-size: 15px; flex: 1">iPhone</div><span class="tag">Planned</span></div>
 			<div class="planned">
-				<svg class="i i32" viewBox="0 0 100 100" aria-hidden="true" style="color: #c7c7cc"><path d="{{ic.iphone}}"></path></svg>
+				<svg class="i i32" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--dot)"><path d="{{ic.iphone}}"></path></svg>
 				<div class="headline" style="margin-top: 4px">Coming with the mobile release</div>
 				<div class="caption">This version of Gentbox works on the Mac alone: popups, sounds and the inbox. Notifications on your iPhone and Apple Watch, with answers from there, come in a later release</div>
 			</div>

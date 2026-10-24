@@ -12,8 +12,8 @@
 <helmet>
 <style>
 body{margin:0}
-.rs-board{width:1040px;height:620px}
-.frame{position:absolute;top:24px;width:300px;height:300px;border-radius:12px;overflow:hidden;background:var(--desk);border:1px solid rgba(0,0,0,.06)}
+.rs-board{width:1040px;height:680px}
+.frame{position:absolute;top:24px;width:300px;height:300px;border-radius:12px;overflow:hidden;background:var(--desk);border:1px solid var(--line-faint)}
 .frame .bp{position:absolute;top:30px;right:12px;width:270px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .bp-head{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:8px;align-items:start}
 .step{position:absolute;top:334px;width:300px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3)}
@@ -21,10 +21,11 @@ body{margin:0}
 .inbox{position:absolute;left:28px;right:28px;top:404px}
 </style>
 </helmet>
-<div class="board rs-board">
+<div data-theme="light" class="board rs-board">
 	<div class="frame" style="left: 28px">
 		<div class="panel bp">
-			<div class="bp-head"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg><div><div class="headline">Your input is needed</div><div class="tags" style="margin-top: 2px"><span class="tag paused">Paused · can defer</span></div></div></div>
+			<div class="bp-head"><svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg><div class="headline">Your input is needed</div></div>
+			<div class="tags bp-tags"><span class="tag paused">Paused · can defer</span></div>
 			<div class="headline">Which cluster gets the new certificates first?</div>
 			<div style="display: flex; gap: 6px"><button class="btn sm">staging-eu</button><button class="btn sm">staging-us</button><button class="btn sm">Defer</button></div>
 		</div>
@@ -33,12 +34,13 @@ body{margin:0}
 	<svg class="i i20 arrow" viewBox="0 0 100 100" aria-hidden="true" style="left: 338px"><path d="{{ic.chevron_right}}"></path></svg>
 
 	<div class="frame" style="left: 370px">
-		<div class="panel bp" style="opacity: 0.45; transform: translateX(24px)">
-			<div class="bp-head"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><div><div class="headline">Withdrawn by agent</div><div class="caption">Handled in the session</div></div></div>
+		<div class="panel bp" style="transform: translateX(24px)">
+			<div class="bp-head"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg><div class="headline">Withdrawn by agent</div></div>
+			<div class="caption" style="margin-top: -4px">No longer needed</div>
 			<div class="headline" style="color: var(--ink-3)">Which cluster gets the new certificates first?</div>
 		</div>
 	</div>
-	<div class="step" style="left: 370px">2 · withdrawn: the panel says why and slides out</div>
+	<div class="step" style="left: 370px">2 · the panel says why and slides out</div>
 	<svg class="i i20 arrow" viewBox="0 0 100 100" aria-hidden="true" style="left: 680px"><path d="{{ic.chevron_right}}"></path></svg>
 
 	<div class="frame" style="left: 712px"></div>
@@ -47,20 +49,25 @@ body{margin:0}
 	<div class="inbox popover">
 		<div class="row withdrawn">
 			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>
-			<div><div class="headline">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag gone">Withdrawn · Handled in the session</span><span class="tag plain">18:52</span></div></div>
+			<div><div class="headline">Which cluster gets the new certificates first?</div><div class="tags"><span class="tag gone">Withdrawn · No longer needed</span><span class="tag plain">18:52</span></div></div>
 			<span></span>
 		</div>
 		<div class="row withdrawn">
 			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_uturn_backward_circle}}"></path></svg>
-			<div><div class="headline">Allow fetching a page from docs.rs?</div><div class="tags"><span class="tag gone">Withdrawn · No longer needed</span><span class="tag plain">18:40</span></div></div>
+			<div><div class="headline">Allow fetching a page from docs.rs?</div><div class="tags"><span class="tag gone">Withdrawn · Found it in the local docs</span><span class="tag plain">18:40</span></div></div>
 			<span></span>
 		</div>
-		<div class="row"><span></span><div class="caption">A superseded message folds into the one that replaced it; a late tap on a withdrawn one answers “Withdrawn”</div><span></span></div>
+		<div class="row">
+			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
+			<div><div class="headline" style="font-weight: 500">Allow Bash to run the end-to-end tests?</div><div class="tags"><span class="tag"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.terminal}}"></path></svg>Handled in the session</span><span class="tag plain">18:20</span></div></div>
+			<span></span>
+		</div>
+		<div class="row"><span></span><div class="caption">Withdrawn only when the agent withdraws it, with its reason; when the agent just moved on or finished, the row reads Handled in the session and is not struck through. A superseded message folds into the one that replaced it</div><span></span></div>
 		</div>
 	</div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":620}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":680}}'>
 class Component extends DCLogic {
 	renderVals() {
 		return { ic: window.SF_SYMBOLS || {} };

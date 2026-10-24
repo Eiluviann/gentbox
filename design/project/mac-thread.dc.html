@@ -19,7 +19,7 @@ body{margin:0}
 .acts{display:flex;gap:6px;margin-top:8px}
 </style>
 </helmet>
-<div class="board desk th-board">
+<div data-theme="light" class="board desk th-board">
 	<div class="window win">
 		<nav class="sidebar" aria-label="Sidebar">
 			<div class="lights" style="padding: 4px 6px 14px"><span></span><span></span><span></span></div>
@@ -44,7 +44,7 @@ body{margin:0}
 					<div class="caption">Opened by Claude Code</div>
 				</div>
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.bell_slash}}"></path></svg>Mute</button>
-				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close thread</button>
+				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close thread…<span class="kbd">1 open</span></button>
 				<button class="btn icon" aria-label="More"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 			</div>
 

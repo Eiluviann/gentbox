@@ -21,9 +21,9 @@ body{margin:0}
 .lbl{font-size:11px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:-8px}
 </style>
 </helmet>
-<div class="board desk bn-board">
+<div data-theme="light" class="board desk bn-board">
 	<div class="menubar" style="justify-content: flex-end">
-		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">1</span></span>
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock dot-wait" d="{{ic.agent_dot}}"></path></svg><span class="mb-count">1</span></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
 		<span>Fri 18:52</span>
 	</div>
@@ -33,12 +33,10 @@ body{margin:0}
 		<div class="panel bp">
 			<div class="bp-head">
 				<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_triangle_branch}}"></path></svg>
-				<div>
-					<div class="headline">Your input is needed</div>
-					<div class="tags" style="margin-top: 2px"><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude desktop</span><span class="tag plain">1 min</span></div>
-				</div>
+				<div class="headline">Your input is needed</div>
 				<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 			</div>
+			<div class="tags bp-tags"><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude desktop</span><span class="tag plain">1 min</span></div>
 			<div class="title" style="font-size: 15px; line-height: 20px">Choose a payment provider for the test run</div>
 			<div class="callout">
 				<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
@@ -48,7 +46,7 @@ body{margin:0}
 			<div class="bp-acts">
 				<button class="btn primary"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg>Open conversation</button>
 				<button class="btn"><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon_zzz}}"></path></svg>Snooze</button>
-				<button class="btn">Mark done</button>
+				<button class="btn">Clear</button>
 			</div>
 		</div>
 
@@ -56,12 +54,10 @@ body{margin:0}
 		<div class="panel bp" style="gap: 8px">
 			<div class="bp-head">
 				<svg class="i c-accent" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark}}"></path></svg>
-				<div>
-					<div class="headline">Answered in the terminal at 18:43</div>
-					<div class="tags" style="margin-top: 2px"><span class="tag plain">Allow Bash to run the ingest tests</span></div>
-				</div>
+				<div class="headline">Answered in the terminal at 18:43</div>
 				<button class="btn plain sm icon" aria-label="Close"><svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></button>
 			</div>
+			<div class="tags bp-tags"><span class="tag plain">Allow Bash to run the ingest tests</span></div>
 			<div class="progress"><span style="width: 45%; background: var(--accent)"></span></div>
 			<div class="caption">Closing; the first answer wins, so the buttons are gone</div>
 		</div>

@@ -20,7 +20,7 @@ body{margin:0}
 .note{position:absolute;left:28px;bottom:24px;width:300px}
 </style>
 </helmet>
-<div class="board desk ct-board">
+<div data-theme="light" class="board desk ct-board">
 	<div class="menubar" style="justify-content: flex-end">
 		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}"></path></svg></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
@@ -30,12 +30,10 @@ body{margin:0}
 	<div class="panel toast">
 		<div class="t-head">
 			<svg class="i c-done" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_circle}}"></path></svg>
-			<div>
-				<div class="headline">Task complete</div>
-				<div class="tags" style="margin-top: 2px"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · v1.1</span><span class="tag plain">now</span></div>
-			</div>
+			<div class="headline">Task complete</div>
 			<button class="btn plain sm icon" aria-label="Close"><svg class="i i12 c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.xmark}}"></path></svg></button>
 		</div>
+		<div class="tags bp-tags"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · v1.1</span><span class="tag plain">now</span></div>
 		<div class="body" style="color: var(--ink)">Cart totals now round once at checkout instead of per line; 31 tests pass</div>
 		<div class="t-foot">
 			<button class="btn sm"><svg class="i i12" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.arrow_up_forward_app}}"></path></svg>Open conversation</button>

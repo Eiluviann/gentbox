@@ -20,7 +20,7 @@ body{margin:0}
 .legend{position:absolute;left:20px;right:20px;bottom:40px;font-size:12px;line-height:16px;color:rgba(255,255,255,.82)}
 </style>
 </helmet>
-<div class="lock">
+<div data-theme="light" class="lock">
 	<div class="lock-date">Friday 23 October</div>
 	<div class="lock-time">18:47</div>
 	<div style="height: 96px"></div>
@@ -34,7 +34,7 @@ body{margin:0}
 			<div class="notif-body">Claude Code wants to run a command in api</div>
 			<div class="more">1 more notification</div>
 		</div>
-		<div class="thumb"><svg class="i i22" viewBox="{{bm.claude.vb}}" aria-hidden="true" style="fill: #d97757"><path d="{{bm.claude.d}}"></path></svg></div>
+		<div class="thumb"><span class="i i22 agent-mark" aria-hidden="true"></span></div>
 	</div>
 	<div class="under"></div>
 	<div class="under2"></div>
@@ -46,7 +46,7 @@ body{margin:0}
 			<div class="notif-sub">Paused · can defer · infra · rotate staging certs</div>
 			<div class="notif-body">Which cluster gets the new certificates first?</div>
 		</div>
-		<div class="thumb"><svg class="i i22" viewBox="{{bm.codex.vb}}" aria-hidden="true"><path d="{{bm.codex.d}}"></path></svg></div>
+		<div class="thumb"><span class="i i22 agent-mark round" aria-hidden="true"></span></div>
 	</div>
 
 	<div class="legend">Notifications stack by thread: Phase 3 · ingest groups its two sessions into one stack, and each General conversation stacks on its own. The subtitle reads blocking label · topic · thread, dropping repeats and the General topic; iOS cannot name the thread on the stack itself. Tap the stack to fan it out</div>

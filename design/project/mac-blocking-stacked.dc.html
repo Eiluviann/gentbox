@@ -20,13 +20,13 @@ body{margin:0}
 .bp-acts{display:flex;gap:6px;align-items:center}
 .mini{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:10px 12px 10px 14px}
 .mini > .i{margin-top:1px}
-.more{align-self:flex-end;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid var(--line);box-shadow:var(--shadow-panel);font-size:12px;font-weight:500}
+.more{align-self:flex-end;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:var(--elevated);border:1px solid var(--panel-line);box-shadow:var(--shadow-panel);font-size:12px;font-weight:500}
 .note{position:absolute;left:28px;bottom:24px;width:300px}
 </style>
 </helmet>
-<div class="board desk bs-board">
+<div data-theme="light" class="board desk bs-board">
 	<div class="menubar" style="justify-content: flex-end">
-		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock" d="{{ic.agent_dot}}" fill="#d70015"></path></svg><span class="mb-count">3</span></span>
+		<span class="mb-item"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="knock dot-wait" d="{{ic.agent_dot}}"></path></svg><span class="mb-count">3</span></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
 		<span>Fri 18:51</span>
 	</div>
@@ -35,12 +35,10 @@ body{margin:0}
 		<div class="panel bp">
 			<div class="bp-head">
 				<svg class="i c-dec" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.checkmark_shield}}"></path></svg>
-				<div>
-					<div class="headline">Your input is needed</div>
-					<div class="tags" style="margin-top: 2px"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · v1.1</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude desktop · now</span></div>
-				</div>
+				<div class="headline">Your input is needed</div>
 				<button class="btn plain sm icon" aria-label="More"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.ellipsis}}"></path></svg></button>
 			</div>
+			<div class="tags bp-tags"><span class="tag topic"><svg class="i" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--topic-release)"><path d="{{ic.shippingbox}}"></path></svg>Gentbox · v1.1</span><span class="tag wait"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.pause_circle}}"></path></svg>Agent waiting</span><span class="tag plain">Claude desktop · now</span></div>
 			<div class="title" style="font-size: 15px; line-height: 20px">Allow editing cart.ts?</div>
 			<div class="code">- const total = lines.reduce(sumRounded, 0);
 + const total = round(lines.reduce(sum, 0));</div>

@@ -15,11 +15,11 @@ body{margin:0}
 .pe-board{width:460px;height:440px}
 .pop{position:absolute;top:30px;left:40px;width:380px}
 .pop-head{display:flex;align-items:center;gap:8px;padding:12px 12px 8px 14px;border-bottom:1px solid var(--line)}
-.pop-foot{display:flex;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-top:1px solid var(--line);background:#fafafa}
+.pop-foot{display:flex;align-items:center;gap:8px;padding:9px 12px 9px 14px;border-top:1px solid var(--line)}
 .empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:36px 24px 40px;text-align:center}
 </style>
 </helmet>
-<div class="board desk pe-board">
+<div data-theme="light" class="board desk pe-board">
 	<div class="menubar" style="justify-content: flex-end">
 		<span class="mb-item on"><svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.agent_bubble}}"></path><path class="prompt" d="{{ic.agent_prompt}}"></path><path class="slash-knock" d="{{ic.agent_slash}}"></path><path class="slash" d="{{ic.agent_slash}}"></path></svg></span>
 		<svg class="i" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.wifi}}"></path></svg>
@@ -34,7 +34,7 @@ body{margin:0}
 			</div>
 			<button class="btn plain icon" aria-label="Settings"><svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.gearshape}}"></path></svg></button>
 		</div>
-		<div class="row" style="background: var(--track); margin: 0 10px; border-radius: 10px">
+		<div class="row" style="background: var(--track); margin: 10px 10px 0; border-radius: 10px">
 			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.moon}}"></path></svg>
 			<div>
 				<div class="headline">Quiet hours until 07:30</div>
@@ -43,7 +43,7 @@ body{margin:0}
 			<button class="btn sm">End now</button>
 		</div>
 		<div class="empty">
-			<svg class="i i32" viewBox="0 0 100 100" aria-hidden="true" style="color: #c7c7cc"><path d="{{ic.tray}}"></path></svg>
+			<svg class="i i32" viewBox="0 0 100 100" aria-hidden="true" style="color: var(--dot)"><path d="{{ic.tray}}"></path></svg>
 			<div class="headline" style="margin-top: 4px">No agent needs you</div>
 			<div class="caption">Finished work and silent updates stay in History</div>
 		</div>
