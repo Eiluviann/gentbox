@@ -152,7 +152,12 @@
 		"recordedRescindReason": {
 			"description": "Why a message was rescinded, as the hub reports it: any `rescindReason`, or `handled_in_session`, the hub's own clean-up when a completion or progress call showed the item was handled in the session. A sender never sends `handled_in_session`; apps show it as \"Handled in the session\" and every other reason as \"Withdrawn\".",
 			"type": "string",
-			"enum": ["resolved_elsewhere", "obsolete", "superseded", "handled_in_session"]
+			"enum": [
+				"resolved_elsewhere",
+				"obsolete",
+				"superseded",
+				"handled_in_session"
+			]
 		},
 		"rescindRequest": {
 			"description": "Body of DELETE /v1/messages/{id} (reason only) and of POST /v1/conversations/{agent}/{id}/rescind (reason and correlation keys); also the `rescinds` field of a message. Withdrawn means the agent asked: only an explicit rescind from the sender withdraws a message, never a timeout, a cancel or a mute.",
