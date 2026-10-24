@@ -30,14 +30,14 @@ body{margin:0}
 		</div>
 		<div class="pp-callout">
 			<svg class="i c-ink3" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.info_circle}}"></path></svg>
-			<div class="caption" style="color: var(--ink-2)">v1.1 closes once nothing in it is open. Answer these, or dismiss them: dismissing clears them without an answer and never refuses</div>
+			<div class="caption" style="color: var(--ink-2)">v1.1 closes once nothing in it is open. Answer these, or dismiss them: dismissing clears them without an answer and never refuses. Action items close only with Done</div>
 		</div>
-		<div class="pp-line pick picked">
-			<svg class="i c-accent" viewBox="0 0 100 100" aria-label="Selected"><path d="{{ic.checkmark_circle_fill}}"></path></svg>
+		<div class="pp-line pick">
+			<span></span>
 			<svg class="i c-act" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.hand_tap}}"></path></svg>
 			<div style="min-width: 0">
 				<div class="pp-one" style="font-weight: 500">Sign in to the payments sandbox</div>
-				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>9 min ago</div>
+				<div class="pp-ctx">Gentbox › v1.1 <span class="pp-dot">·</span> <span class="i agent-mark" role="img" aria-label="Claude Code"></span>9 min ago <span class="pp-dot">·</span> Closes with Done</div>
 			</div>
 			<svg class="i pp-state-icon c-paused" viewBox="0 0 100 100" aria-label="Paused, can defer"><path d="{{ic.pause_circle}}"></path></svg>
 		</div>
@@ -60,7 +60,7 @@ body{margin:0}
 			<span></span>
 		</div>
 		<div class="pp-actbar">
-			<button class="btn primary">Dismiss 2</button>
+			<button class="btn primary">Dismiss 1</button>
 			<button class="btn">Cancel</button>
 			<span style="flex: 1"></span>
 			<button class="btn disabled" disabled><svg class="i i14" viewBox="0 0 100 100" aria-hidden="true"><path d="{{ic.archivebox}}"></path></svg>Close thread</button>
@@ -72,6 +72,7 @@ body{margin:0}
 		<ul>
 			<li>Close on a thread or topic with open items opens this list of them; Close stays off until none are left. The General topic has no Close</li>
 			<li>Select to dismiss, in any message's menu, opens the same selection over the whole inbox. Dismiss is a separate action from Close</li>
+			<li>Action items are never dismissed: they close only with Done, so they get no selection circle and Select all skips them</li>
 			<li>Dismissed items go through the 3 s undo, read Dismissed in History, and the agent is never told no</li>
 		</ul>
 	</div>

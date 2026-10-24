@@ -40,7 +40,7 @@
 	/* Fills */
 	--track: light-dark(#f2f2f7, rgba(255, 255, 255, 0.08));
 	--hover: light-dark(rgba(0, 0, 0, 0.035), rgba(255, 255, 255, 0.05));
-	--sel: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.1));
+	--sel: light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.07));
 	--accent-soft: light-dark(rgba(0, 122, 255, 0.07), rgba(10, 132, 255, 0.18));
 	--toggle-off: light-dark(#e0e0e5, #48484a);
 	--scrim: light-dark(rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.5));
@@ -81,7 +81,7 @@
 	--wait: light-dark(#d70015, #ff453a);
 	--wait-ink: light-dark(#a8000f, #ffa59f);
 	--wait-soft: light-dark(#fdecee, #4a1e1d);
-	--paused: light-dark(#e8710a, #ff9f0a);
+	--paused: light-dark(#e06a00, #ff9f0a);
 	--paused-ink: light-dark(#a64b00, #ffc472);
 	--paused-soft: light-dark(#fff2e6, #47300f);
 	--warn-ink: light-dark(#8a5a00, #ffc472);
@@ -95,7 +95,7 @@
 	--ask-soft: var(--paused-soft);
 
 	/* Topic icons */
-	--topic-release: light-dark(#a2845e, #c9ab80);
+	--topic-release: light-dark(#957754, #c9ab80);
 	--topic-deps: light-dark(#5e6e82, #93a3b8);
 
 	/* Menu bar */
@@ -505,7 +505,7 @@ button {
 .btn .kbd {
 	font-size: 11px;
 	font-weight: 400;
-	opacity: 0.72;
+	color: var(--ink-3);
 }
 .kbd {
 	font-family: var(--font);
@@ -1180,7 +1180,7 @@ a.side-item { text-decoration: none; }
 .pp-hero .headline { font-size: 15px; line-height: 20px; }
 .pp-cmd { font-family: var(--mono); font-size: 12px; line-height: 17px; color: var(--ink-2); margin-top: 6px; }
 .pp-hero .pp-acts { margin-top: 12px; }
-.pp-hero .kbd { color: inherit; opacity: 0.6; font-weight: 400; }
+.pp-hero .kbd { font-weight: 400; }
 .pp-line { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 10px; padding: 7px 14px; align-items: start; position: relative; }
 .pp-line > .i { margin-top: 1px; }
 .pp-state { font-size: 11px; line-height: 18px; font-weight: 600; white-space: nowrap; }
@@ -1239,8 +1239,9 @@ a.side-item { text-decoration: none; }
 .pp-step.done .pp-step-text { color: var(--ink-3); }
 .pp-actbar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--line); }
 .pp-back { text-decoration: none; }
-.pp-actbar .kbd { color: inherit; opacity: 0.6; font-weight: 400; }
-.pp-hero-body .btn:not(.primary) .kbd { color: var(--ink-3); opacity: 1; }
+.pp-actbar .kbd { font-weight: 400; }
+/* Shortcut hints stay at full opacity so they keep AA: grey on bordered buttons, white on primary ones */
+.btn.primary .kbd { color: var(--on-fill); }
 
 /* Agent marks: neutral placeholders on the boards; the app shows the real Claude and Codex marks */
 .agent-mark { display: inline-block; width: 11px; height: 11px; flex: none; border-radius: 3px; border: 1.5px solid var(--ink-3); background: var(--track); }
@@ -1255,7 +1256,7 @@ a.side-item { text-decoration: none; }
 
 /* Menu extras: a count or shortcut on the right, and disabled items */
 .menu-pop .menu-aside { margin-left: auto; font-size: 12px; color: var(--ink-3); }
-.menu-pop div.hl .menu-aside { color: inherit; opacity: 0.8; }
+.menu-pop div.hl .menu-aside { color: inherit; }
 .menu-pop div.off { color: var(--ink-3); }
 
 /* Selecting several popover items to dismiss: a selection circle before the type symbol */

@@ -10,7 +10,8 @@ from pathlib import Path
 
 CSS = Path(__file__).resolve().parent.parent / 'project' / 'an.css'
 
-# (foreground, background, under, minimum, where): `under` is the surface a translucent background sits on
+# (foreground, background, under, minimum, where[, opacity]): `under` is the surface a translucent
+# background sits on; `opacity` fades the foreground, as CSS opacity on the text or icon would
 TEXT, ICON = 4.5, 3.0
 PAIRS = [
 	('ink', 'surface', None, TEXT, 'Body text in the main window'),
@@ -53,6 +54,11 @@ PAIRS = [
 	('done-ink', 'elevated', None, TEXT, 'Done words on the popover'),
 	('act-ink', 'surface', None, TEXT, 'Done on Mac in the window'),
 	('menubar-ink', 'menubar', 'desk', TEXT, 'Menu-bar clock'),
+	('ink-3', 'control', None, TEXT, 'Shortcut hint on a bordered button'),
+	('on-fill', 'accent-fill', None, TEXT, 'Shortcut hint on a primary button'),
+	('ink', 'sel', 'sidebar', TEXT, 'Selected sidebar item'),
+	('ink', 'accent-soft', 'elevated', TEXT, 'Row picked to dismiss'),
+	('ink-3', 'accent-soft', 'elevated', TEXT, 'Breadcrumb on a picked row'),
 	('dec', 'elevated', None, ICON, 'Decision symbol'),
 	('act', 'elevated', None, ICON, 'Action symbol'),
 	('done', 'elevated', None, ICON, 'Completed symbol'),
@@ -71,38 +77,48 @@ PAIRS = [
 	('topic-deps', 'sidebar', None, ICON, 'Topic symbol in the sidebar'),
 	('warn-ink', 'warn-soft', None, ICON, 'Warning symbol'),
 	('wait', 'menubar', 'desk', ICON, 'Menu-bar red dot'),
+	('accent', 'sel', 'sidebar', ICON, 'Symbol on the selected sidebar item'),
+	('topic-release', 'sel', 'sidebar', ICON, 'Topic symbol on the selected sidebar item'),
+	('topic-deps', 'sel', 'sidebar', ICON, 'Topic symbol on the selected sidebar item'),
+	('dec', 'accent-soft', 'elevated', ICON, 'Decision symbol on a picked row'),
+	('done', 'accent-soft', 'elevated', ICON, 'Completed symbol on a picked row'),
+	('paused', 'accent-soft', 'elevated', ICON, 'Paused symbol on a picked row'),
+	('wait', 'accent-soft', 'elevated', ICON, 'Waiting symbol on a picked row'),
+	('accent', 'accent-soft', 'elevated', ICON, 'Selection circle on a picked row'),
 ]
 
 
 def main():
 	tokens = read_tokens(CSS.read_text())
 	rows, failures = [], 0
-	for fg, bg, under, minimum, where in PAIRS:
-		ratios = [ratio_for(tokens, fg, bg, under, mode) for mode in (0, 1)]
+	for fg, bg, under, minimum, where, *faded in PAIRS:
+		opacity = faded[0] if faded else 1.0
+		ratios = [ratio_for(tokens, fg, bg, under, mode, opacity) for mode in (0, 1)]
 		ok = all(r >= minimum for r in ratios)
 		failures += not ok
-		rows.append((where, fg, bg, minimum, ratios, ok))
+		rows.append((where, fg, bg, minimum, opacity, ratios, ok))
 	if '--markdown' in sys.argv:
 		print_markdown(rows)
 	else:
-		for where, fg, bg, minimum, (light, dark), ok in rows:
-			print(f"{'ok  ' if ok else 'FAIL'} {light:5.2f} {dark:5.2f}  >= {minimum}  {fg} on {bg}  ({where})")
+		for where, fg, bg, minimum, opacity, (light, dark), ok in rows:
+			print(f"{'ok  ' if ok else 'FAIL'} {light:5.2f} {dark:5.2f}  >= {minimum}  {fg} at {opacity:g} on {bg}  ({where})")
 	sys.exit(1 if failures else 0)
 
 
 def print_markdown(rows):
-	print('| Pair | Where | Minimum | Light | Dark |')
-	print('| --- | --- | --- | --- | --- |')
-	for where, fg, bg, minimum, (light, dark), ok in rows:
-		print(f'| `{fg}` on `{bg}` | {where} | {minimum:g}:1 | {light:.2f} | {dark:.2f} |')
+	print('| Pair | Where | Opacity | Minimum | Light | Dark |')
+	print('| --- | --- | --- | --- | --- | --- |')
+	for where, fg, bg, minimum, opacity, (light, dark), ok in rows:
+		print(f'| `{fg}` on `{bg}` | {where} | {opacity:.0%} | {minimum:g}:1 | {light:.2f} | {dark:.2f} |')
 
 
-def ratio_for(tokens, fg, bg, under, mode):
+def ratio_for(tokens, fg, bg, under, mode, opacity):
 	base = resolve(tokens, under or 'board', mode)
 	if base[3] < 1:
 		base = over(base, resolve(tokens, 'board', mode))
 	back = over(resolve(tokens, bg, mode), base)
-	front = over(resolve(tokens, fg, mode), back)
+	colour = resolve(tokens, fg, mode)
+	front = over(colour[:3] + (colour[3] * opacity,), back)
 	return contrast(front, back)
 
 
