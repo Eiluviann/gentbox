@@ -29,7 +29,7 @@ use std::sync::Arc;
 use gentbox_relay::Relay;
 use gentbox_store::{Store, StoreError};
 use thiserror::Error;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 
 pub use clock::{Clock, ManualClock, SystemClock};
@@ -66,6 +66,7 @@ pub enum StartError {
 pub struct Hub {
     handle: HubHandle,
     task: JoinHandle<()>,
+    stopped: watch::Receiver<bool>,
 }
 
 impl Hub {
@@ -116,16 +117,29 @@ impl Hub {
             dispatcher: dispatch::Dispatcher::new(delegate, relay),
             signals,
         })?;
-        let task = runtime.spawn(actor::run(state, job_receiver, signal_receiver));
+        let (stopped_sender, stopped) = watch::channel(false);
+        let task = runtime.spawn(actor::run(
+            state,
+            job_receiver,
+            signal_receiver,
+            stopped_sender,
+        ));
         Ok(Self {
             handle: HubHandle::new(jobs),
             task,
+            stopped,
         })
     }
 
     /// A handle to the hub.
     pub fn handle(&self) -> HubHandle {
         self.handle.clone()
+    }
+
+    /// Turns true when the actor has ended, whether by [`Hub::shutdown`] or
+    /// unexpectedly; a daemon watches it to exit instead of serving errors.
+    pub fn stopped(&self) -> watch::Receiver<bool> {
+        self.stopped.clone()
     }
 
     /// Stops the hub after the commands already queued, and waits until the

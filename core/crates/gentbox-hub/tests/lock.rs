@@ -84,3 +84,29 @@ async fn a_database_left_readable_by_others_is_tightened() {
     );
     hub.shutdown().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn commands_caught_by_a_shutdown_answer_stopped_not_internal() {
+    let directory = tempfile::tempdir().unwrap();
+    let hub = Hub::start(HubConfig::new(directory.path()), Arc::new(NoDelegate), None).unwrap();
+    let handle = hub.handle();
+    let calls: Vec<_> = (0..64)
+        .map(|_| {
+            let handle = handle.clone();
+            tokio::spawn(async move { handle.sweep().await })
+        })
+        .collect();
+    let stopped = hub.stopped();
+    hub.shutdown().await;
+    assert!(*stopped.borrow(), "the hub reports it stopped");
+    for call in calls {
+        match call.await.unwrap() {
+            Ok(_) | Err(gentbox_hub::HubError::Stopped) => {}
+            Err(other) => panic!("expected Stopped, got {other:?}"),
+        }
+    }
+    assert!(matches!(
+        handle.sweep().await,
+        Err(gentbox_hub::HubError::Stopped)
+    ));
+}

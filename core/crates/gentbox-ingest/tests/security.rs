@@ -408,3 +408,49 @@ async fn malformed_ids_are_422_and_never_fill_the_rate_limiter() {
     assert_eq!(accepted.status, 201);
     server.stop().await;
 }
+
+#[tokio::test]
+async fn a_state_folder_too_deep_for_a_socket_still_serves_tcp() {
+    let directory = tempfile::tempdir().unwrap();
+    let deep = directory.path().join("d".repeat(120));
+    let hub = gentbox_hub::Hub::start(
+        gentbox_hub::HubConfig::new(&deep),
+        std::sync::Arc::new(gentbox_hub::NoDelegate),
+        None,
+    )
+    .unwrap();
+    let ingest = gentbox_ingest::IngestServer::start(hub.handle(), &deep, Limits::default())
+        .await
+        .unwrap();
+    assert!(!deep.join("API/hub.sock").exists());
+    let answer = reqwest::Client::new()
+        .get(format!("http://127.0.0.1:{}/v1/topics", ingest.port()))
+        .bearer_auth(ingest.api_dir().token())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(answer.status().as_u16(), 200);
+    ingest.shutdown().await;
+    hub.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_client_stalled_mid_request_cannot_hold_the_shutdown() {
+    use tokio::io::AsyncWriteExt;
+    let server = Server::start().await;
+    let mut stalled = tokio::net::TcpStream::connect(("127.0.0.1", server.port))
+        .await
+        .unwrap();
+    let head = format!(
+        "POST /v1/messages HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{{",
+        server.port, server.token
+    );
+    stalled.write_all(head.as_bytes()).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let api = server.api_dir();
+    let started = std::time::Instant::now();
+    server.stop().await;
+    assert!(started.elapsed() < std::time::Duration::from_secs(8));
+    assert!(!api.join("port").exists());
+    drop(stalled);
+}

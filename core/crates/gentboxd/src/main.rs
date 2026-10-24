@@ -140,13 +140,22 @@ async fn run(arguments: Arguments) -> Result<(), String> {
         rules_path,
         environment.home.clone(),
     ));
-    let signal = wait_for_signal().await;
-    tracing::info!(signal, "stopping");
+    let mut hub_stopped = hub.stopped();
+    let outcome = tokio::select! {
+        signal = wait_for_signal() => {
+            tracing::info!(signal, "stopping");
+            Ok(())
+        }
+        // The actor ended on its own: stop serving errors and exit.
+        _ = hub_stopped.wait_for(|is_stopped| *is_stopped) => {
+            Err("the hub stopped unexpectedly".to_owned())
+        }
+    };
     reloader.abort();
     ingest.shutdown().await;
     hub.shutdown().await;
     tracing::info!("stopped");
-    Ok(())
+    outcome
 }
 
 fn log_start(folders: &Folders, ingest: &IngestServer) {

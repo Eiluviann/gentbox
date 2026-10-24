@@ -39,6 +39,14 @@ pub use hello::{HelloResponse, hello_proof};
 pub use limits::{Limits, RateLimiter};
 pub use local_routes::{AGENT_HEADER, ApiState, CONVERSATION_HEADER, Transport, local_router};
 
+/// How long a shutdown waits for in-flight requests.
+const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The longest Unix socket path that fits `sockaddr_un` on macOS (104 bytes
+/// with the terminating NUL; Linux allows 108).
+#[cfg(unix)]
+const MAX_SOCKET_PATH_BYTES: usize = 103;
+
 /// Why the listeners did not start.
 #[derive(Debug, Error)]
 pub enum IngestStartError {
@@ -90,7 +98,13 @@ impl IngestServer {
         let mut tasks = Vec::new();
 
         #[cfg(unix)]
-        {
+        if is_socket_path_too_long(&api_dir.socket_path()) {
+            // Clients fall back to TCP after the hello proof (§8).
+            tracing::warn!(
+                path = %api_dir.socket_path().display(),
+                "the socket path is too long for a Unix socket; serving TCP only"
+            );
+        } else {
             let socket_path = api_dir.socket_path();
             let bind_error = |source| IngestStartError::Bind {
                 what: socket_path.display().to_string(),
@@ -136,14 +150,19 @@ impl IngestServer {
     }
 
     /// Stops accepting, answers waiting long-polls `pending`, lets in-flight
-    /// requests finish, and removes `port` and the socket.
+    /// requests finish for up to 5 s (a stalled client cannot hold the
+    /// shutdown), and removes `port` and the socket.
     pub async fn shutdown(self) {
         let _ = self.shutdown.send(true);
-        for task in self.tasks {
-            match task.await {
-                Ok(Err(error)) => tracing::warn!(%error, "a listener ended with an error"),
-                Err(error) => tracing::warn!(%error, "a listener task failed"),
-                Ok(Ok(())) => {}
+        for mut task in self.tasks {
+            match tokio::time::timeout(SHUTDOWN_GRACE, &mut task).await {
+                Ok(Ok(Err(error))) => tracing::warn!(%error, "a listener ended with an error"),
+                Ok(Err(error)) => tracing::warn!(%error, "a listener task failed"),
+                Ok(Ok(Ok(()))) => {}
+                Err(_) => {
+                    tracing::warn!("requests still open after the grace period; dropping them");
+                    task.abort();
+                }
             }
         }
         self.api_dir.remove_endpoints();
@@ -164,4 +183,10 @@ where
             let _ = shutdown.wait_for(|is_stopping| *is_stopping).await;
         })
         .await
+}
+
+#[cfg(unix)]
+fn is_socket_path_too_long(path: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    path.as_os_str().as_bytes().len() > MAX_SOCKET_PATH_BYTES
 }

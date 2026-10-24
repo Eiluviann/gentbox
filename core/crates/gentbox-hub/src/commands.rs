@@ -317,8 +317,15 @@ impl HubHandle {
             let _ = reply.send(work(state));
         });
         self.jobs.send(job).await.map_err(|_| HubError::Stopped)?;
-        // A dropped reply means the job panicked: the actor caught it.
-        answer.await.map_err(|_| HubError::Panicked)?
+        // A dropped reply means the hub stopped with the job still queued, or
+        // the job panicked and the actor caught it.
+        answer.await.map_err(|_| {
+            if self.jobs.is_closed() {
+                HubError::Stopped
+            } else {
+                HubError::Panicked
+            }
+        })?
     }
 
     // -----------------------------------------------------------------

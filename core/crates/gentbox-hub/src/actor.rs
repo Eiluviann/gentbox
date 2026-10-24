@@ -45,7 +45,7 @@ use gentbox_store::{
     SweepReport, Upserted,
 };
 use time::{Duration, OffsetDateTime};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 use crate::clock::Clock;
 use crate::commands::{
@@ -110,33 +110,55 @@ pub(crate) struct StateParts {
 }
 
 /// Runs the actor until it is told to stop or every handle is gone.
+/// `stopped` turns true when it ends, however it ends.
 pub(crate) async fn run(
     mut state: HubState,
     mut jobs: mpsc::Receiver<Job>,
     mut signals: mpsc::UnboundedReceiver<WaiterSignal>,
+    stopped: watch::Sender<bool>,
 ) {
+    let _announce = StoppedOnDrop(stopped);
     loop {
-        state.fire_due_timers();
+        guarded("a hub timer", || state.fire_due_timers());
         if state.is_stopping {
             break;
         }
         let idle = state.idle_time();
         tokio::select! {
             biased;
-            Some(signal) = signals.recv() => state.on_signal(signal),
+            Some(signal) = signals.recv() => guarded("a waiter signal", || state.on_signal(signal)),
             job = jobs.recv() => match job {
                 Some(job) => {
-                    state.fire_due_timers();
-                    if catch_unwind(AssertUnwindSafe(|| job(&mut state))).is_err() {
-                        tracing::error!("a hub command panicked; the store rolled back");
-                    }
+                    guarded("a hub timer", || state.fire_due_timers());
+                    guarded("a hub command", || job(&mut state));
                 }
                 None => break,
             },
             () = tokio::time::sleep(idle) => {}
         }
     }
+    // Close first, so callers whose queued commands are dropped here see the
+    // hub as stopped, not as a command that failed.
+    jobs.close();
+    while jobs.try_recv().is_ok() {}
     tracing::info!("hub stopped");
+}
+
+/// Runs a step of the actor; a panic is logged and the actor keeps going
+/// (the store rolled the step's transaction back).
+fn guarded(what: &str, step: impl FnOnce()) {
+    if catch_unwind(AssertUnwindSafe(step)).is_err() {
+        tracing::error!("{what} panicked; the store rolled back");
+    }
+}
+
+/// Reports the actor's end, even when it unwinds.
+struct StoppedOnDrop(watch::Sender<bool>);
+
+impl Drop for StoppedOnDrop {
+    fn drop(&mut self) {
+        self.0.send_replace(true);
+    }
 }
 
 impl HubState {
@@ -565,16 +587,42 @@ impl HubState {
         requester: Option<&Requester>,
     ) -> Result<Vec<MessageId>, HubError> {
         let now = self.now();
-        let messages = self.store.repository().list_messages(&filter)?;
-        let rescissions = messages
+        let rescissions = self.group_rescissions(&filter, reason, requester, now)?;
+        Ok(ids_of(&self.withdraw(rescissions, now)?))
+    }
+
+    /// The rescissions that withdraw a topic's or thread's live messages: the
+    /// requester's only, or all of them for the UI.
+    fn group_rescissions(
+        &self,
+        filter: &MessageFilter,
+        reason: RescindReason,
+        requester: Option<&Requester>,
+        now: OffsetDateTime,
+    ) -> Result<Vec<Rescission>, HubError> {
+        let messages = self.store.repository().list_messages(filter)?;
+        Ok(messages
             .iter()
             .filter(|message| requester.is_none_or(|requester| requester.owns(message)))
             .filter_map(|message| {
                 let item = self.item_of(message, now);
                 rescind_by_id(&item, reason, self.dispatcher.has_phone_channel()).ok()
             })
-            .collect();
-        Ok(ids_of(&self.withdraw(rescissions, now)?))
+            .collect())
+    }
+
+    /// The withdrawals a close asks for, if any.
+    fn close_rescissions(
+        &self,
+        filter: MessageFilter,
+        request: &CloseRequest,
+        requester: Option<&Requester>,
+        now: OffsetDateTime,
+    ) -> Result<Vec<Rescission>, HubError> {
+        if !request.rescind_open_messages {
+            return Ok(Vec::new());
+        }
+        self.group_rescissions(&filter, request.rescind_reason(), requester, now)
     }
 
     // -----------------------------------------------------------------
@@ -684,17 +732,17 @@ impl HubState {
         requester: Option<&Requester>,
     ) -> Result<TopicRecord, HubError> {
         let now = self.now();
-        let closed_threads = self.store.repository().close_topic(id, now)?;
-        if request.rescind_open_messages {
-            self.withdraw_group_messages(
-                MessageFilter {
-                    topic_id: Some(id.clone()),
-                    ..MessageFilter::default()
-                },
-                request.rescind_reason(),
-                requester,
-            )?;
-        }
+        let filter = MessageFilter {
+            topic_id: Some(id.clone()),
+            ..MessageFilter::default()
+        };
+        let rescissions = self.close_rescissions(filter, request, requester, now)?;
+        // The close and its withdrawals commit together or not at all.
+        let (closed_threads, withdrawn) = self.store.transaction(|repo| {
+            let closed_threads = repo.close_topic(id, now)?;
+            Ok((closed_threads, close_withdrawn(repo, &rescissions, now)?))
+        })?;
+        self.finish_withdrawals(withdrawn, now);
         self.dispatcher.send(HubEvent::TopicChanged(id.clone()));
         for thread_id in closed_threads {
             self.dispatcher.send(HubEvent::ThreadChanged(thread_id));
@@ -843,17 +891,17 @@ impl HubState {
         request: &CloseRequest,
         requester: Option<&Requester>,
     ) -> Result<ThreadRecord, HubError> {
-        self.store.repository().close_thread(id, self.now())?;
-        if request.rescind_open_messages {
-            self.withdraw_group_messages(
-                MessageFilter {
-                    thread_id: Some(id.clone()),
-                    ..MessageFilter::default()
-                },
-                request.rescind_reason(),
-                requester,
-            )?;
-        }
+        let now = self.now();
+        let filter = MessageFilter {
+            thread_id: Some(id.clone()),
+            ..MessageFilter::default()
+        };
+        let rescissions = self.close_rescissions(filter, request, requester, now)?;
+        let withdrawn = self.store.transaction(|repo| {
+            repo.close_thread(id, now)?;
+            close_withdrawn(repo, &rescissions, now)
+        })?;
+        self.finish_withdrawals(withdrawn, now);
         self.dispatcher.send(HubEvent::ThreadChanged(id.clone()));
         Ok(self.store.repository().thread_record(id)?)
     }

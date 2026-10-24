@@ -153,7 +153,7 @@ impl FromRequest<ApiState> for JsonBody {
         }
         let bytes = axum::body::to_bytes(request.into_body(), limit)
             .await
-            .map_err(|_| too_large(limit))?;
+            .map_err(|error| body_error(error, limit))?;
         if bytes.is_empty() {
             return Ok(Self(None));
         }
@@ -229,6 +229,23 @@ fn is_json_content_type(value: &str) -> bool {
         .split(';')
         .next()
         .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case("application/json"))
+}
+
+/// 413 when the body ran past the limit; any other read failure (a client
+/// that hung up mid-body) is a 400.
+fn body_error(error: axum::Error, limit: usize) -> ApiError {
+    let source = error.into_inner();
+    if source
+        .downcast_ref::<http_body_util::LengthLimitError>()
+        .is_some()
+    {
+        too_large(limit)
+    } else {
+        ApiError::bad_request(
+            "body_unreadable",
+            format!("the body could not be read: {source}"),
+        )
+    }
 }
 
 fn too_large(limit: usize) -> ApiError {
