@@ -13,10 +13,17 @@ final class FakeService: InboxService, @unchecked Sendable {
 	/// Holds every command until `release()`, as a slow hub would.
 	var holdsCommands = false
 	private var held: [CheckedContinuation<Void, Never>] = []
+	/// Commands run off the test's executor: recording one and parking it
+	/// must be one step, or a `release()` between them leaves it parked.
+	private let lock = NSLock()
 
+	/// Lets every held command finish, and any that comes after.
 	func release() {
-		let waiting = held
-		held = []
+		let waiting = lock.withLock {
+			holdsCommands = false
+			defer { held = [] }
+			return held
+		}
 		waiting.forEach { $0.resume() }
 	}
 
@@ -26,9 +33,19 @@ final class FakeService: InboxService, @unchecked Sendable {
 	}
 
 	private func record(_ command: String) async throws {
-		commands.append(command)
-		if holdsCommands {
-			await withCheckedContinuation { held.append($0) }
+		let holds = lock.withLock {
+			commands.append(command)
+			return holdsCommands
+		}
+		if holds {
+			await withCheckedContinuation { continuation in
+				let isReleased = lock.withLock {
+					guard holdsCommands else { return true }
+					held.append(continuation)
+					return false
+				}
+				if isReleased { continuation.resume() }
+			}
 		}
 		if let failure { throw failure }
 	}
