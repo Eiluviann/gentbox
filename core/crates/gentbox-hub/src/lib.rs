@@ -13,7 +13,9 @@
 //! | [`lock`] | the hub lock, taken before the store is opened |
 //! | [`clock`] | the clock, injectable for tests |
 //!
-//! v1 registers no phone relay: `Hub::start` takes `None`.
+//! The actor runs on a thread of its own with a single-threaded runtime, so
+//! store IO never blocks the runtime that serves HTTP. v1 registers no phone
+//! relay: `Hub::start` takes `None`.
 
 mod actor;
 pub mod clock;
@@ -30,7 +32,6 @@ use gentbox_relay::Relay;
 use gentbox_store::{Store, StoreError};
 use thiserror::Error;
 use tokio::sync::{mpsc, watch};
-use tokio::task::JoinHandle;
 
 pub use clock::{Clock, ManualClock, SystemClock};
 pub use commands::{
@@ -56,77 +57,69 @@ pub enum StartError {
     /// The store could not be opened.
     #[error("cannot open the store: {0}")]
     Store(#[from] StoreError),
-    /// `Hub::start` was called outside a Tokio runtime.
-    #[error("the hub needs a Tokio runtime")]
-    NoRuntime,
+    /// The hub's thread or its runtime could not be started.
+    #[error("cannot start the hub thread: {0}")]
+    Thread(String),
 }
 
-/// A running hub: the actor task and a handle to it.
+/// A running hub: the actor on its own thread, and a handle to it.
 #[derive(Debug)]
 pub struct Hub {
     handle: HubHandle,
-    task: JoinHandle<()>,
     stopped: watch::Receiver<bool>,
 }
 
 impl Hub {
-    /// Starts a hub on the current Tokio runtime: takes the hub lock on the
-    /// state folder **before** opening the store, opens (and migrates) the
-    /// store, restores timers for live messages, sweeps, and spawns the
-    /// actor. `relay` is `None` in v1.
+    /// Starts a hub on a thread of its own: there it takes the hub lock on
+    /// the state folder **before** opening the store, opens (and migrates)
+    /// the store, restores timers for live messages, and runs the actor. No
+    /// Tokio runtime is needed; the call blocks until the store is open, so
+    /// from async code run it with `spawn_blocking`. `relay` is `None` in v1.
     ///
     /// # Errors
     ///
     /// [`StartError::Lock`] when another hub runs on the same state folder
     /// (the store is not touched), [`StartError::Store`],
-    /// [`StartError::NoRuntime`].
+    /// [`StartError::Thread`].
     pub fn start(
         config: HubConfig,
         delegate: Arc<dyn HubDelegate>,
         relay: Option<Arc<dyn Relay>>,
     ) -> Result<Self, StartError> {
-        let runtime = tokio::runtime::Handle::try_current().map_err(|_| StartError::NoRuntime)?;
-        let lock = HubLock::acquire(&config.state_dir)?;
-        // Message bodies and answers live here: only the user may read them.
-        let database = config.database_path();
-        lock::prepare_private_file(&database).map_err(|source| LockError::Io {
-            path: database.clone(),
-            source,
-        })?;
-        let store = Store::open(&database)?;
-        for suffix in ["-wal", "-shm"] {
-            let companion = std::path::PathBuf::from(format!("{}{suffix}", database.display()));
-            if companion.exists() {
-                lock::make_private(&companion).map_err(|source| LockError::Io {
-                    path: companion.clone(),
-                    source,
-                })?;
-            }
-        }
         let (jobs, job_receiver) = mpsc::channel(COMMAND_QUEUE);
         let (signals, signal_receiver) = mpsc::unbounded_channel();
-        let state = actor::HubState::new(actor::StateParts {
-            store,
-            lock,
-            clock: config.clock,
-            rules: config.rules,
-            policy: config.policy,
-            sources: config.sources,
-            retention: config.retention,
-            has_answer_channel: config.has_answer_channel,
-            dispatcher: dispatch::Dispatcher::new(delegate, relay),
-            signals,
-        })?;
         let (stopped_sender, stopped) = watch::channel(false);
-        let task = runtime.spawn(actor::run(
-            state,
-            job_receiver,
-            signal_receiver,
-            stopped_sender,
-        ));
+        let (ready, started) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("gentbox-hub".to_owned())
+            .spawn(move || {
+                let _announce = actor::StoppedOnDrop(stopped_sender);
+                let runtime = match tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .build()
+                {
+                    Ok(runtime) => runtime,
+                    Err(error) => {
+                        let _ = ready.send(Err(StartError::Thread(error.to_string())));
+                        return;
+                    }
+                };
+                let state = match open_state(config, delegate, relay, signals) {
+                    Ok(state) => state,
+                    Err(error) => {
+                        let _ = ready.send(Err(error));
+                        return;
+                    }
+                };
+                let _ = ready.send(Ok(()));
+                runtime.block_on(actor::run(state, job_receiver, signal_receiver));
+            })
+            .map_err(|error| StartError::Thread(error.to_string()))?;
+        started
+            .recv()
+            .map_err(|_| StartError::Thread("the hub thread ended while starting".to_owned()))??;
         Ok(Self {
             handle: HubHandle::new(jobs),
-            task,
             stopped,
         })
     }
@@ -136,8 +129,9 @@ impl Hub {
         self.handle.clone()
     }
 
-    /// Turns true when the actor has ended, whether by [`Hub::shutdown`] or
-    /// unexpectedly; a daemon watches it to exit instead of serving errors.
+    /// Turns true when the actor has ended (store closed, lock released),
+    /// whether by [`Hub::shutdown`] or unexpectedly; a daemon watches it to
+    /// exit instead of serving errors.
     pub fn stopped(&self) -> watch::Receiver<bool> {
         self.stopped.clone()
     }
@@ -146,6 +140,45 @@ impl Hub {
     /// store is closed and the lock released.
     pub async fn shutdown(self) {
         let _ = self.handle.shutdown().await;
-        let _ = self.task.await;
+        let mut stopped = self.stopped;
+        let _ = stopped.wait_for(|is_stopped| *is_stopped).await;
     }
+}
+
+/// On the hub thread: the lock first, then the store, then the state.
+fn open_state(
+    config: HubConfig,
+    delegate: Arc<dyn HubDelegate>,
+    relay: Option<Arc<dyn Relay>>,
+    signals: mpsc::UnboundedSender<waiters::WaiterSignal>,
+) -> Result<actor::HubState, StartError> {
+    let lock = HubLock::acquire(&config.state_dir)?;
+    // Message bodies and answers live here: only the user may read them.
+    let database = config.database_path();
+    lock::prepare_private_file(&database).map_err(|source| LockError::Io {
+        path: database.clone(),
+        source,
+    })?;
+    let store = Store::open(&database)?;
+    for suffix in ["-wal", "-shm"] {
+        let companion = std::path::PathBuf::from(format!("{}{suffix}", database.display()));
+        if companion.exists() {
+            lock::make_private(&companion).map_err(|source| LockError::Io {
+                path: companion.clone(),
+                source,
+            })?;
+        }
+    }
+    Ok(actor::HubState::new(actor::StateParts {
+        store,
+        lock,
+        clock: config.clock,
+        rules: config.rules,
+        policy: config.policy,
+        sources: config.sources,
+        retention: config.retention,
+        has_answer_channel: config.has_answer_channel,
+        dispatcher: dispatch::Dispatcher::new(delegate, relay),
+        signals,
+    })?)
 }

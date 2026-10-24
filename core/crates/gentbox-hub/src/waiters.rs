@@ -234,7 +234,9 @@ impl Waiters {
 
     /// A new message whose sender will poll: it counts as having a live
     /// waiter from the start, as if a poll had just ended, so its first poll
-    /// has the usual 10 s to arrive. Returns when that lapses.
+    /// has the usual 10 s to arrive. Returns when that lapses. Only for a new
+    /// message: its Delivered event already shows the answer buttons, so the
+    /// waiter counts as announced.
     pub(crate) fn expect(&mut self, id: &MessageId, now: OffsetDateTime) -> OffsetDateTime {
         let state = self
             .by_message
@@ -245,8 +247,9 @@ impl Waiters {
         now + LIVE_WAITER_WINDOW
     }
 
-    /// A poll that was answered at once (with `deferred`) still counts as a
-    /// poll that just ended. Returns when the waiter lapses.
+    /// A poll that just ended without being in flight: one answered at once
+    /// (with `deferred`), or a repeat whose sender will poll. Returns when the
+    /// waiter lapses; the caller announces the change.
     pub(crate) fn polled(&mut self, id: &MessageId, now: OffsetDateTime) -> OffsetDateTime {
         let state = self
             .by_message

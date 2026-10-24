@@ -109,17 +109,16 @@ pub(crate) struct StateParts {
     pub(crate) signals: mpsc::UnboundedSender<WaiterSignal>,
 }
 
-/// Runs the actor until it is told to stop or every handle is gone.
-/// `stopped` turns true when it ends, however it ends.
+/// Runs the actor until it is told to stop or every handle is gone. It runs
+/// on the hub's own thread, so SQLite's commits and the sweep never block a
+/// runtime that serves HTTP.
 pub(crate) async fn run(
     mut state: HubState,
     mut jobs: mpsc::Receiver<Job>,
     mut signals: mpsc::UnboundedReceiver<WaiterSignal>,
-    stopped: watch::Sender<bool>,
 ) {
-    let _announce = StoppedOnDrop(stopped);
     loop {
-        guarded("a hub timer", || state.fire_due_timers());
+        state.fire_due_timers();
         if state.is_stopping {
             break;
         }
@@ -129,7 +128,7 @@ pub(crate) async fn run(
             Some(signal) = signals.recv() => guarded("a waiter signal", || state.on_signal(signal)),
             job = jobs.recv() => match job {
                 Some(job) => {
-                    guarded("a hub timer", || state.fire_due_timers());
+                    state.fire_due_timers();
                     guarded("a hub command", || job(&mut state));
                 }
                 None => break,
@@ -144,16 +143,20 @@ pub(crate) async fn run(
     tracing::info!("hub stopped");
 }
 
-/// Runs a step of the actor; a panic is logged and the actor keeps going
-/// (the store rolled the step's transaction back).
+/// Runs one step of the actor; a panic is logged and the actor keeps going.
 fn guarded(what: &str, step: impl FnOnce()) {
     if catch_unwind(AssertUnwindSafe(step)).is_err() {
-        tracing::error!("{what} panicked; the store rolled back");
+        tracing::error!(
+            "{what} panicked; a store transaction still open was rolled back, but \
+             the hub's in-memory view may lag the store until it restarts"
+        );
     }
 }
 
-/// Reports the actor's end, even when it unwinds.
-struct StoppedOnDrop(watch::Sender<bool>);
+/// Reports the actor's end, even when it unwinds. Created first on the hub
+/// thread, so it drops last: after the store has closed and the lock is
+/// released.
+pub(crate) struct StoppedOnDrop(pub(crate) watch::Sender<bool>);
 
 impl Drop for StoppedOnDrop {
     fn drop(&mut self) {
@@ -377,15 +380,18 @@ impl HubState {
             let closed = close_withdrawn(repo, &rescissions, now)?;
             Ok((absorbing, closed))
         })?;
-        if should_wait {
-            let lapse_at = self.waiters.expect(target, now);
-            self.timers
-                .schedule(lapse_at, TimerKind::WaiterLapse(target.clone()));
-        }
         self.dispatcher.send(HubEvent::Repeated {
             message_id: target.clone(),
             repeat_count: absorbing.repeat_count,
         });
+        if should_wait {
+            // Only a new message's Delivered event carries the buttons; here
+            // the UI must hear that a sender now waits.
+            let lapse_at = self.waiters.polled(target, now);
+            self.timers
+                .schedule(lapse_at, TimerKind::WaiterLapse(target.clone()));
+            self.announce_waiter(&absorbing, now);
+        }
         self.finish_withdrawals(closed, now);
         Ok(IngestOutcome {
             status: IngestStatus::Existing,
@@ -1320,17 +1326,21 @@ impl HubState {
 
     pub(crate) fn fire_due_timers(&mut self) {
         let now = self.now();
+        // Each timer on its own: one that fails or panics never costs the
+        // others in the batch.
         for timer in self.timers.take_due(now) {
-            let result = match &timer {
-                TimerKind::Reping(id) => self.on_reping(id, now),
-                TimerKind::SnoozeEnd(id) => self.on_snooze_end(id, now),
-                TimerKind::Expiry(id) => self.on_expiry(id, now),
-                TimerKind::WaiterLapse(id) => self.on_waiter_lapse(id, now),
-                TimerKind::Sweep => self.on_sweep(now),
-            };
-            if let Err(error) = result {
-                tracing::error!(?timer, %error, "a hub timer failed");
-            }
+            guarded("a hub timer", || {
+                let result = match &timer {
+                    TimerKind::Reping(id) => self.on_reping(id, now),
+                    TimerKind::SnoozeEnd(id) => self.on_snooze_end(id, now),
+                    TimerKind::Expiry(id) => self.on_expiry(id, now),
+                    TimerKind::WaiterLapse(id) => self.on_waiter_lapse(id, now),
+                    TimerKind::Sweep => self.on_sweep(now),
+                };
+                if let Err(error) = result {
+                    tracing::error!(?timer, %error, "a hub timer failed");
+                }
+            });
         }
     }
 

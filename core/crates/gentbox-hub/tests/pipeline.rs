@@ -326,3 +326,35 @@ where
     }
     results
 }
+
+#[tokio::test]
+async fn a_dedupe_that_brings_a_waiter_shows_the_answer_buttons() {
+    let hub = TestHub::start();
+    let mut prompt = blocking_prompt();
+    prompt["correlationKey"] = json!("permission:main:abc");
+    prompt["awaitsResponse"] = json!(false);
+    let first = hub.create(prompt.clone()).await;
+    assert!(!first.should_wait);
+    hub.recorder.clear();
+
+    prompt["awaitsResponse"] = json!(true);
+    let repeat = hub.post(prompt).await;
+    assert_eq!(repeat.status, IngestStatus::Existing);
+    assert_eq!(repeat.response.id, first.id);
+    assert!(repeat.response.should_wait);
+    let shown = hub
+        .recorder
+        .events()
+        .into_iter()
+        .find_map(|event| match event {
+            HubEvent::WaiterChanged {
+                message_id,
+                has_live_waiter: true,
+                offered_actions,
+            } if message_id == first.id => Some(offered_actions),
+            _ => None,
+        });
+    let shown = shown.expect("the UI hears that a sender waits");
+    assert!(shown.iter().any(|action| action.id == "allow"), "{shown:?}");
+    hub.stop().await;
+}

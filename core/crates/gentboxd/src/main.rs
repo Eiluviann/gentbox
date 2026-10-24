@@ -121,11 +121,15 @@ async fn run(arguments: Arguments) -> Result<(), String> {
     config.rules = load_rules(&rules_path, environment.home.as_deref()).unwrap_or_default();
     config.has_answer_channel = false;
 
-    // The hub takes the lock before it opens the store or binds anything.
-    let hub = Hub::start(config, Arc::new(LogDelegate), None).map_err(|error| match error {
-        StartError::Lock(lock) => lock.to_string(),
-        other => other.to_string(),
-    })?;
+    // The hub opens and migrates the store before it returns: off the async
+    // threads. It takes the lock before it opens the store or binds anything.
+    let hub = tokio::task::spawn_blocking(move || Hub::start(config, Arc::new(LogDelegate), None))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| match error {
+            StartError::Lock(lock) => lock.to_string(),
+            other => other.to_string(),
+        })?;
     let ingest = match IngestServer::start(hub.handle(), &folders.state, Limits::default()).await {
         Ok(ingest) => ingest,
         Err(error) => {

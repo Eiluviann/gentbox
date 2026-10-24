@@ -42,10 +42,19 @@ async fn the_lock_is_taken_before_the_store_is_opened() {
 }
 
 #[test]
-fn starting_outside_a_runtime_is_an_error_not_a_panic() {
+fn a_hub_starts_without_a_tokio_runtime_and_runs_its_store_on_its_own_thread() {
     let directory = tempfile::tempdir().unwrap();
-    let outside = Hub::start(HubConfig::new(directory.path()), Arc::new(NoDelegate), None);
-    assert!(matches!(outside, Err(StartError::NoRuntime)));
+    let hub = Hub::start(HubConfig::new(directory.path()), Arc::new(NoDelegate), None).unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        hub.handle().sweep().await.unwrap();
+        hub.shutdown().await;
+    });
+    // The lock is free once shutdown returns.
+    HubLock::acquire(directory.path()).unwrap();
 }
 
 #[cfg(unix)]
