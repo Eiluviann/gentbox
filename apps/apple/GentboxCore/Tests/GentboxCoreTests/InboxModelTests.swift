@@ -8,6 +8,8 @@ final class FakeService: InboxService, @unchecked Sendable {
 	var reads = 0
 	var commands: [String] = []
 	var failure: GentboxError?
+	/// Failures for one message only (bulk Dismiss).
+	var failures: [String: GentboxError] = [:]
 
 	func inbox() async throws -> Inbox {
 		reads += 1
@@ -23,7 +25,10 @@ final class FakeService: InboxService, @unchecked Sendable {
 		try record("action \(messageId) \(actionId) \(value ?? "-")")
 	}
 	func snooze(messageId: String, minutes: UInt32?) async throws { try record("snooze \(messageId) \(minutes ?? 0)") }
-	func dismiss(messageId: String) async throws { try record("dismiss \(messageId)") }
+	func dismiss(messageId: String) async throws {
+		try record("dismiss \(messageId)")
+		if let failure = failures[messageId] { throw failure }
+	}
 	func muteTopic(topicId: String, isMuted: Bool) async throws { try record("mute topic \(topicId) \(isMuted)") }
 	func muteThread(threadId: String, isMuted: Bool) async throws { try record("mute thread \(threadId) \(isMuted)") }
 	func markTopicRead(topicId: String) async throws { try record("read topic \(topicId)") }
@@ -119,10 +124,41 @@ struct InboxModelTests {
 		service.next = makeInbox(nextUp: next, items: [next, message(id: "note")])
 		await model.readUntilCurrent()
 		#expect(model.expanded == .card("next"))
-		// Nothing waiting: nothing expands.
+		// Nothing waiting: the first row expands, so you can keep going.
 		service.next = makeInbox(nextUp: nil, items: [message(id: "note")])
 		await model.readUntilCurrent()
+		#expect(model.expanded == .card("note"))
+		// Nothing listed: nothing expands.
+		service.next = makeInbox(nextUp: nil, items: [])
+		await model.readUntilCurrent()
 		#expect(model.expanded == nil)
+	}
+
+	@Test func theDefaultCardIsPinnedOnceShown() async {
+		let (model, service) = await accordion()
+		#expect(model.expanded == .card("prompt"))
+		// A more pressing prompt arrives (or this one's waiter lapses): the card
+		// you are reading stays, so ↩ answers what you read.
+		let urgent = message(id: "urgent", type: .decisionRequired, blocking: .blocking)
+		service.next = makeInbox(nextUp: urgent, items: [urgent, message(id: "prompt", type: .decisionRequired, blocking: .blocking), message(id: "done")])
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("prompt"))
+		// Closing the inbox lets the next opening start from the next-up item.
+		model.presentationChanged(isPresented: false)
+		model.presentationChanged(isPresented: true)
+		#expect(model.expanded == .card("urgent"))
+	}
+
+	@Test func whileHiddenTheDefaultFollowsTheNextUpItem() async {
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking)
+		let service = FakeService()
+		service.next = makeInbox(nextUp: prompt, items: [prompt])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		let urgent = message(id: "urgent", type: .decisionRequired, blocking: .blocking)
+		service.next = makeInbox(nextUp: urgent, items: [urgent, prompt])
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("urgent"))
 	}
 
 	@Test func theExpansionSurvivesARefresh() async {
@@ -142,10 +178,25 @@ struct InboxModelTests {
 		let (model, service) = await accordion()
 		let outcome = await model.closeThread(of: message(id: "done"))
 		#expect(outcome == .stillOpen(3))
-		#expect(model.filter == InboxModel.GroupFilter(threadId: "th1", title: "Phase 3", openCount: 3))
+		#expect(model.filter == InboxModel.GroupFilter(threadId: "th1", title: "Phase 3"))
+		#expect(model.filterOpenCount == 3)
 		#expect(model.visibleItems.map(\.id) == ["prompt", "done", "note"])
 		#expect(!service.commands.contains { $0.hasPrefix("close") })
 		model.clearFilter()
+		#expect(model.filter == nil)
+	}
+
+	@Test func theOpenCountFallsLiveAndCloseWorksAtZero() async {
+		let (model, service) = await accordion()
+		_ = await model.closeThread(of: message(id: "done"))
+		service.next = makeInbox(items: [message(id: "note")])
+		await model.readUntilCurrent()
+		#expect(model.filterOpenCount == 1)
+		service.next = makeInbox(items: [])
+		await model.readUntilCurrent()
+		#expect(model.filterOpenCount == 0)
+		await model.closeFilteredThread()
+		#expect(service.commands.last == "close thread th1")
 		#expect(model.filter == nil)
 	}
 
@@ -162,6 +213,16 @@ struct InboxModelTests {
 		#expect(model.selection.isEmpty)
 	}
 
+	@Test func bulkDismissReportsEveryFailure() async {
+		let (model, service) = await accordion()
+		service.failures = ["done": .AlreadyClosed(state: .answered)]
+		model.toggleSelection(of: message(id: "done"))
+		model.toggleSelection(of: message(id: "note"))
+		await model.dismissSelected()
+		await model.readUntilCurrent()
+		#expect(model.failure == "1 dismissed · 1 already answered")
+	}
+
 	/// A blocked prompt (next up), a completion and a note, all in one thread.
 	private func accordion() async -> (InboxModel, FakeService) {
 		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking)
@@ -169,6 +230,7 @@ struct InboxModelTests {
 		service.next = makeInbox(nextUp: prompt, items: [prompt, message(id: "done"), message(id: "note", type: .generic)])
 		let model = InboxModel(service: service)
 		await model.readUntilCurrent()
+		model.presentationChanged(isPresented: true)
 		return (model, service)
 	}
 

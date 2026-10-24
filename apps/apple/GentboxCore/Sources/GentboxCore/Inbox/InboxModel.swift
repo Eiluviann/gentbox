@@ -47,18 +47,21 @@ public final class InboxModel {
 		case closed
 		/// Not closed: this many items are still open; the list now shows them.
 		case stillOpen(Int)
+		/// Not closed: the hub refused or failed; `failure` says why.
+		case failed
 	}
 
 	/// The list narrowed to one thread's open items, after Close found some.
+	/// Its count is read live (`filterOpenCount`), so it falls as items close.
 	public struct GroupFilter: Equatable, Sendable {
 		public let threadId: String
 		public let title: String
-		public let openCount: Int
 	}
 
 	/// How the expanded item is chosen.
 	private enum ExpansionChoice: Equatable {
 		/// The next-up item: a waiting sender first, then the blocking level.
+		/// Only while the inbox is hidden: once shown, the default is pinned.
 		case followNextUp
 		/// The item you expanded, until it leaves the list.
 		case chosen(Expanded)
@@ -84,6 +87,8 @@ public final class InboxModel {
 	/// A read's failure clears with the next read that works.
 	private var readFailure: String?
 	private var expansion: ExpansionChoice = .followNextUp
+	/// Whether the inbox is on screen; the controller says so.
+	private var isPresented = false
 
 	@ObservationIgnored private let service: any InboxService
 	@ObservationIgnored private var isReading = false
@@ -140,26 +145,70 @@ public final class InboxModel {
 		expansion = isExpanded(messageId) ? .collapsed : .chosen(.card(messageId))
 	}
 
-	/// The inbox closed: the next opening starts from the next-up item.
+	/// The inbox opened or closed. Opening pins the default card: from then
+	/// on only a click or the expanded item closing moves it, so a prompt
+	/// that arrives (or a waiter that lapses) never swaps the card you are
+	/// reading, and ↩ answers what you read. Closing lets the next opening
+	/// start from the next-up item again, unfiltered.
+	public func presentationChanged(isPresented: Bool) {
+		self.isPresented = isPresented
+		if isPresented {
+			pinDefaultExpansion()
+		} else {
+			resetExpansion()
+		}
+	}
+
+	/// The default card while hidden: the next-up item.
 	public func resetExpansion() {
 		expansion = .followNextUp
 		filter = nil
 		selection = []
 	}
 
+	private func pinDefaultExpansion() {
+		guard isPresented, expansion == .followNextUp, let next = inbox?.nextUp else { return }
+		expansion = .chosen(.card(next.id))
+	}
+
 	/// After a read: an expanded item that left the list (answered,
-	/// dismissed, withdrawn) hands over to the next-up item.
+	/// dismissed, withdrawn) hands over to the next-up item, or, when nothing
+	/// waits, to the first row, so you can keep going.
 	private func keepExpansionCurrent() {
-		guard case .chosen(let chosen) = expansion else { return }
-		if !(inbox?.items.contains { $0.id == chosen.messageId } ?? false) {
-			expansion = .followNextUp
+		if case .chosen(let chosen) = expansion,
+			!(inbox?.items.contains { $0.id == chosen.messageId } ?? false)
+		{
+			if isPresented, let next = inbox?.nextUp ?? visibleItems.first {
+				expansion = .chosen(.card(next.id))
+			} else {
+				expansion = .followNextUp
+			}
 		}
+		pinDefaultExpansion()
 	}
 
 	// MARK: Filter and selection
 
 	public func clearFilter() {
 		filter = nil
+	}
+
+	/// The filtered thread's items still open, counted live.
+	public var filterOpenCount: Int {
+		guard let filter else { return 0 }
+		return (inbox?.items ?? []).filter { $0.threadId == filter.threadId }.count
+	}
+
+	/// Close, once the filtered thread has nothing open: the banner's button.
+	public func closeFilteredThread() async {
+		guard let filter, filterOpenCount == 0 else { return }
+		if let failure = await perform({ try await $0.closeThread(threadId: filter.threadId) }) {
+			commandFailure = failure
+		} else {
+			commandFailure = nil
+			self.filter = nil
+		}
+		requestRead()
 	}
 
 	/// Bulk Dismiss never takes an `action_required` message: only Done
@@ -181,14 +230,28 @@ public final class InboxModel {
 		selection = []
 	}
 
-	/// Dismisses each picked row as if it were dismissed alone: its agent
-	/// hears a plain `dismissed`.
+	/// Dismisses each picked row as if it were dismissed alone (its agent
+	/// hears a plain `dismissed`), and reports every failure together:
+	/// "2 dismissed · 1 already answered".
 	public func dismissSelected() async {
 		let picked = (inbox?.items ?? []).filter { selection.contains($0.id) && canSelect($0) }
 		selection = []
+		var dismissed = 0
+		var failures: [String: Int] = [:]
 		for message in picked {
-			await dismiss(message)
+			if let failure = await perform({ try await $0.dismiss(messageId: message.id) }) {
+				failures[failure.prefix(1).lowercased() + failure.dropFirst(), default: 0] += 1
+			} else {
+				dismissed += 1
+			}
 		}
+		if failures.isEmpty {
+			commandFailure = nil
+		} else {
+			let parts = ["\(dismissed) dismissed"] + failures.sorted { $0.key < $1.key }.map { "\($0.value) \($0.key)" }
+			commandFailure = parts.joined(separator: " · ")
+		}
+		requestRead()
 	}
 
 	/// Any hub event: read the inbox again.
@@ -265,15 +328,11 @@ public final class InboxModel {
 	public func closeThread(of message: InboxMessage) async -> CloseOutcome {
 		let open = (inbox?.items ?? []).filter { $0.threadId == message.threadId }
 		guard open.isEmpty else {
-			filter = GroupFilter(
-				threadId: message.threadId,
-				title: message.group?.threadTitle ?? "this thread",
-				openCount: open.count,
-			)
+			filter = GroupFilter(threadId: message.threadId, title: message.group?.threadTitle ?? "this thread")
 			return .stillOpen(open.count)
 		}
 		await run { try await $0.closeThread(threadId: message.threadId) }
-		return commandFailure == nil ? .closed : .stillOpen(0)
+		return commandFailure == nil ? .closed : .failed
 	}
 
 	/// Reopens a closed topic or thread (History and Settings, PR 5).
@@ -291,13 +350,18 @@ public final class InboxModel {
 	/// Runs a command, then reads the inbox: the hub's events would too, but
 	/// the read makes the result visible even when no event follows.
 	private func run(_ command: @Sendable (any InboxService) async throws -> Void) async {
+		commandFailure = await perform(command)
+		requestRead()
+	}
+
+	/// Runs a command; its failure in words, or `nil`.
+	private func perform(_ command: @Sendable (any InboxService) async throws -> Void) async -> String? {
 		do {
 			try await command(service)
-			commandFailure = nil
+			return nil
 		} catch {
-			commandFailure = Self.words(for: error)
+			return Self.words(for: error)
 		}
-		requestRead()
 	}
 
 	/// A failure in words for the popover's foot.
