@@ -3,7 +3,8 @@
 Usage: python3 -I design/tools/contrast.py [--markdown]
 Reads the light-dark(light, dark) tokens, lays translucent colours over the surface
 they sit on, and fails (exit 1) when a pair is under its minimum: 4.5:1 for text,
-3:1 for icons and other non-text marks.
+3:1 for icons and other non-text marks. A pair in ACCEPTED, which the user accepted
+below its minimum, prints as accepted and does not fail.
 """
 import re, sys
 from pathlib import Path
@@ -13,6 +14,10 @@ CSS = Path(__file__).resolve().parent.parent / 'project' / 'an.css'
 # (foreground, background, under, minimum, where[, opacity]): `under` is the surface a translucent
 # background sits on; `opacity` fades the foreground, as CSS opacity on the text or icon would
 TEXT, ICON = 4.5, 3.0
+# Pairs under their minimum that the user accepted, with the reason; they print as accepted, not failing
+ACCEPTED = {
+	('on-fill', 'accent'): 'system accent fill (.borderedProminent), for consistency with macOS; Increase Contrast darkens it',
+}
 PAIRS = [
 	('ink', 'surface', None, TEXT, 'Body text in the main window'),
 	('ink', 'elevated', None, TEXT, 'Body text in the popover, popups and toasts'),
@@ -39,7 +44,7 @@ PAIRS = [
 	('ink-3', 'menu', 'elevated', TEXT, 'Disabled menu items'),
 	('accent-ink', 'surface', None, TEXT, 'Links in the window'),
 	('accent-ink', 'elevated', None, TEXT, 'Links in the popover'),
-	('on-fill', 'accent-fill', None, TEXT, 'Primary button, selected menu item, chips'),
+	('on-fill', 'accent', None, TEXT, 'Primary button, selected menu item, chips'),
 	('danger-ink', 'control', None, TEXT, 'Deny button label'),
 	('on-fill', 'badge', None, TEXT, 'Count badge'),
 	('dec-ink', 'dec-soft', None, TEXT, 'Decision tag'),
@@ -55,7 +60,7 @@ PAIRS = [
 	('act-ink', 'surface', None, TEXT, 'Done on Mac in the window'),
 	('menubar-ink', 'menubar', 'desk', TEXT, 'Menu-bar clock'),
 	('ink-3', 'control', None, TEXT, 'Shortcut hint on a bordered button'),
-	('on-fill', 'accent-fill', None, TEXT, 'Shortcut hint on a primary button'),
+	('on-fill', 'accent', None, TEXT, 'Shortcut hint on a primary button'),
 	('ink', 'sel', 'sidebar', TEXT, 'Selected sidebar item'),
 	('ink', 'accent-soft', 'elevated', TEXT, 'Row picked to dismiss'),
 	('ink-3', 'accent-soft', 'elevated', TEXT, 'Breadcrumb on a picked row'),
@@ -94,22 +99,24 @@ def main():
 	for fg, bg, under, minimum, where, *faded in PAIRS:
 		opacity = faded[0] if faded else 1.0
 		ratios = [ratio_for(tokens, fg, bg, under, mode, opacity) for mode in (0, 1)]
-		ok = all(r >= minimum for r in ratios)
-		failures += not ok
-		rows.append((where, fg, bg, minimum, opacity, ratios, ok))
+		passes = all(r >= minimum for r in ratios)
+		status = 'ok' if passes else 'accepted' if (fg, bg) in ACCEPTED else 'FAIL'
+		failures += status == 'FAIL'
+		rows.append((where, fg, bg, minimum, opacity, ratios, status))
 	if '--markdown' in sys.argv:
 		print_markdown(rows)
 	else:
-		for where, fg, bg, minimum, opacity, (light, dark), ok in rows:
-			print(f"{'ok  ' if ok else 'FAIL'} {light:5.2f} {dark:5.2f}  >= {minimum}  {fg} at {opacity:g} on {bg}  ({where})")
+		for where, fg, bg, minimum, opacity, (light, dark), status in rows:
+			print(f"{status:<8} {light:5.2f} {dark:5.2f}  >= {minimum}  {fg} at {opacity:g} on {bg}  ({where})")
 	sys.exit(1 if failures else 0)
 
 
 def print_markdown(rows):
-	print('| Pair | Where | Opacity | Minimum | Light | Dark |')
-	print('| --- | --- | --- | --- | --- | --- |')
-	for where, fg, bg, minimum, opacity, (light, dark), ok in rows:
-		print(f'| `{fg}` on `{bg}` | {where} | {opacity:.0%} | {minimum:g}:1 | {light:.2f} | {dark:.2f} |')
+	print('| Pair | Where | Opacity | Minimum | Light | Dark | Status |')
+	print('| --- | --- | --- | --- | --- | --- | --- |')
+	for where, fg, bg, minimum, opacity, (light, dark), status in rows:
+		note = f'accepted: {ACCEPTED[(fg, bg)]}' if status == 'accepted' else status
+		print(f'| `{fg}` on `{bg}` | {where} | {opacity:.0%} | {minimum:g}:1 | {light:.2f} | {dark:.2f} | {note} |')
 
 
 def ratio_for(tokens, fg, bg, under, mode, opacity):
