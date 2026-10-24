@@ -6,6 +6,8 @@ import {
 	actionResponseSchema,
 	closeRequestSchema,
 	ingestResponseSchema,
+	ingestWarningSchema,
+	KNOWN_WARNING_CODES,
 	messageSchema,
 	rescindRequestSchema,
 	threadCreateSchema,
@@ -141,5 +143,36 @@ describe('the schema rules that JSON Schema keeps in allOf', () => {
 	it('both accept a message with only the required fields', () => {
 		expect(createSchemaValidator(undefined)(base)).toBe(true);
 		expect(messageSchema.safeParse(base).success).toBe(true);
+	});
+});
+
+describe('what is read from the hub is lenient, what is sent is strict', () => {
+	it('lists every warning code the JSON Schema knows', () => {
+		const schema = readJson(join(SCHEMA_DIRECTORY, 'message-v1.json'));
+		const codes =
+			JSON.stringify(schema).match(/"title_looks_like_command"[^\]]*\]/)?.[0] ??
+			'';
+		for (const code of KNOWN_WARNING_CODES)
+			expect(codes).toContain(`"${code}"`);
+		expect(codes.match(/"[a-z_]+"/g)).toHaveLength(KNOWN_WARNING_CODES.length);
+	});
+
+	it('accepts a warning code and a field it has never seen', () => {
+		const parsed = ingestWarningSchema.safeParse({
+			code: 'from_the_future',
+			message: 'm',
+			extra: 1,
+		});
+		expect(parsed).toMatchObject({
+			success: true,
+			data: { code: 'from_the_future' },
+		});
+	});
+
+	it('still rejects an unknown field in a message the client would send', () => {
+		expect(
+			topicCreateSchema.safeParse({ key: 'k', title: 't', colour: 'red' })
+				.success,
+		).toBe(false);
 	});
 });

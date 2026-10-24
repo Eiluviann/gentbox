@@ -297,19 +297,30 @@ export type ThreadCreate = z.infer<typeof threadCreateSchema>;
 export const threadMoveSchema = z.strictObject({ topic: topicRefSchema });
 export type ThreadMove = z.infer<typeof threadMoveSchema>;
 
-const createdBySchema = z.strictObject({
+// Everything below up to `rescindedIdsSchema` is read from the hub, so it is
+// lenient: unknown fields are dropped and warning codes are open, because the
+// hub may add optional fields within v1 (architecture §8, Versioning) and a
+// strict reader shipped in a plugin could not be fixed in place. What the
+// client sends stays strict.
+
+const topicStyleReadSchema = z.object({
+	symbol: z.string().optional(),
+	color: z.string().optional(),
+});
+
+const createdBySchema = z.object({
 	agent: z.string(),
 	conversationId: z.string().optional(),
 });
 
-export const topicRecordSchema = z.strictObject({
+export const topicRecordSchema = z.object({
 	id: ulidSchema,
 	key: topicKeySchema.optional(),
 	title: z.string(),
 	summary: z.string().optional(),
 	kind: groupKindSchema.optional(),
 	implicit: z.boolean(),
-	style: topicStyleSchema.optional(),
+	style: topicStyleReadSchema.optional(),
 	status: z.enum(['open', 'closed']),
 	createdBy: createdBySchema,
 	createdAt: dateTimeSchema,
@@ -320,7 +331,7 @@ export const topicRecordSchema = z.strictObject({
 });
 export type TopicRecord = z.infer<typeof topicRecordSchema>;
 
-export const threadRecordSchema = z.strictObject({
+export const threadRecordSchema = z.object({
 	id: ulidSchema,
 	topicId: ulidSchema,
 	key: threadKeySchema.optional(),
@@ -330,7 +341,7 @@ export const threadRecordSchema = z.strictObject({
 	implicit: z.boolean(),
 	status: z.enum(['open', 'closed']),
 	defaultFor: z
-		.strictObject({ agent: z.string(), conversationId: z.string() })
+		.object({ agent: z.string(), conversationId: z.string() })
 		.optional(),
 	createdBy: createdBySchema,
 	createdAt: dateTimeSchema,
@@ -341,22 +352,25 @@ export const threadRecordSchema = z.strictObject({
 });
 export type ThreadRecord = z.infer<typeof threadRecordSchema>;
 
-export const ingestWarningSchema = z.strictObject({
-	code: z.enum([
-		'title_looks_like_command',
-		'summary_looks_like_command',
-		'conversation_title_ignored',
-		'normalized',
-		'steps_missing',
-		'step_rewritten',
-		'secret_redacted',
-	]),
+/** Warning codes the hub sends today; the type is open, so a newer hub's code still parses. */
+export const KNOWN_WARNING_CODES = [
+	'title_looks_like_command',
+	'summary_looks_like_command',
+	'conversation_title_ignored',
+	'normalized',
+	'steps_missing',
+	'step_rewritten',
+	'secret_redacted',
+] as const;
+
+export const ingestWarningSchema = z.object({
+	code: z.string(),
 	field: z.string().optional(),
 	message: z.string(),
 });
 export type IngestWarning = z.infer<typeof ingestWarningSchema>;
 
-export const ingestResponseSchema = z.strictObject({
+export const ingestResponseSchema = z.object({
 	id: ulidSchema,
 	type: messageTypeSchema,
 	urgent: z.boolean(),
@@ -388,7 +402,7 @@ export const responseStatusSchema = z.enum([
 ]);
 export type ResponseStatus = z.infer<typeof responseStatusSchema>;
 
-export const actionResponseSchema = z.strictObject({
+export const actionResponseSchema = z.object({
 	messageId: ulidSchema,
 	status: responseStatusSchema,
 	rescindReason: rescindReasonSchema.optional(),
@@ -419,14 +433,14 @@ export const errorBodySchema = z.object({
 export type ErrorBody = z.infer<typeof errorBodySchema>;
 
 /** `{ "rescinded": [ids] }`: answer of the conversation, topic and thread rescind routes. */
-export const rescindedIdsSchema = z.strictObject({
+export const rescindedIdsSchema = z.object({
 	rescinded: z.array(ulidSchema),
 });
 
-export const topicListSchema = z.strictObject({
+export const topicListSchema = z.object({
 	topics: z.array(topicRecordSchema),
 });
-export const threadListSchema = z.strictObject({
+export const threadListSchema = z.object({
 	threads: z.array(threadRecordSchema),
 });
 

@@ -402,6 +402,67 @@ describe('request building', () => {
 	});
 });
 
+describe('a newer hub within schema v1', () => {
+	const FutureWarning = {
+		code: 'title_too_vague',
+		field: 'title',
+		message: 'Be more specific.',
+		hint: 'new',
+	};
+	const topic = {
+		id: TOPIC_ID,
+		title: 'Release 1.4',
+		implicit: false,
+		status: 'open',
+		createdBy: { agent: 'claude-code', host: 'new-field' },
+		createdAt: '2026-10-23T18:30:00Z',
+		updatedAt: '2026-10-23T18:30:00Z',
+		pinned: true,
+	};
+
+	it('accepts a new warning code and a new field in the ingest response, so the message is not lost', async () => {
+		const connection = await connect(() => ({
+			status: 201,
+			body: { ...INGEST_RESPONSE, priorityLane: 2, warnings: [FutureWarning] },
+		}));
+		const posted = await connection.client.postMessage(MESSAGE);
+		expect(posted).toMatchObject({
+			ok: true,
+			value: { record: { id: MESSAGE_ID } },
+		});
+		expect(posted.ok && posted.value.record.warnings?.[0]?.code).toBe(
+			'title_too_vague',
+		);
+	});
+
+	it('accepts new fields in an action response, a rescind answer, topic records and lists', async () => {
+		const connection = await connect((url) => {
+			if (url.includes('/response')) {
+				return {
+					status: 200,
+					body: {
+						messageId: MESSAGE_ID,
+						status: 'answered',
+						actionKind: 'approve',
+						reviewedBy: 'x',
+					},
+				};
+			}
+			if (url.startsWith('/v1/topics?'))
+				return { status: 200, body: { topics: [topic], nextPage: null } };
+			if (url.includes('/progress'))
+				return { status: 200, body: { rescinded: [], count: 0 } };
+			return { status: 201, body: topic };
+		});
+		expect((await connection.client.getResponse(MESSAGE_ID, 0)).ok).toBe(true);
+		expect((await connection.client.listTopics('open')).ok).toBe(true);
+		expect((await connection.client.reportProgress()).ok).toBe(true);
+		expect(
+			(await connection.client.createTopic({ key: 'k', title: 'T' })).ok,
+		).toBe(true);
+	});
+});
+
 describe('failures', () => {
 	it('maps a hub error body to a failure that names the code and the JSON pointer', async () => {
 		const connection = await connect(() => ({
