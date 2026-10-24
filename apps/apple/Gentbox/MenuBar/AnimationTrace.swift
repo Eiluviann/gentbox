@@ -153,23 +153,15 @@ final class AnimationTrace: NSObject {
 		captures.append((String(format: "%04d-%@.png", frame, name), line, bitmap))
 	}
 
-	/// Points from the marker's lowest row to the bitmap's bottom, or -1.
+	/// Points from the marker to where the content ends, less how far the
+	/// panel's bottom edge sits below that, or `missing`.
 	private static func gap(in bitmap: NSBitmapImageRep) -> String {
-		let scale = CGFloat(bitmap.pixelsHigh) / max(bitmap.size.height, 1)
-		let column = bitmap.pixelsWide / 2
-		for row in stride(from: bitmap.pixelsHigh - 1, through: 0, by: -1) {
-			// Magenta as the display draws it (about 0.92, 0.2, 0.97 in P3).
-			guard let color = bitmap.colorAt(x: column, y: row)?.usingColorSpace(.sRGB) else { continue }
-			if color.redComponent > 0.8, color.greenComponent < 0.4, color.blueComponent > 0.8 {
-				let markerFromBottom = CGFloat(bitmap.pixelsHigh - 1 - row) / scale
-				return String(format: "%.1f", markerFromBottom - AnimationTraceMarker.height)
-			}
-		}
-		return "missing"
+		guard let markerAboveBottom = TraceMarkerScan.markerHeightAboveBottom(in: bitmap) else { return "missing" }
+		return String(format: "%.1f", markerAboveBottom - AnimationTraceMarker.height)
 	}
 }
 
-/// A one-point magenta line `height` points above the content's bottom
+/// A two-point magenta line `height` points above the content's bottom
 /// (over the last row), drawn only while tracing, so a frame shows
 /// where the content ends even when the panel cuts a little of it off.
 struct AnimationTraceMarker: View {
@@ -177,8 +169,9 @@ struct AnimationTraceMarker: View {
 	static let height: CGFloat = 40
 
 	var body: some View {
+		// Two points: on a 1× display at least one pixel row is all marker.
 		Color(red: 1, green: 0, blue: 1)
-			.frame(height: 1)
+			.frame(height: 2)
 			.padding(.bottom, Self.height)
 			.accessibilityHidden(true)
 	}

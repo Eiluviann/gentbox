@@ -68,6 +68,7 @@ targets:
       - path: Gentbox/MenuBar/MenuBarMark.swift
       - path: Gentbox/MenuBar/InboxPanel.swift
       - path: Gentbox/MenuBar/PanelHeightMotion.swift
+      - path: Gentbox/MenuBar/TraceMarkerScan.swift
       - path: Gentbox/Tokens.swift
       # The entitlement variants, checked as data.
       - path: Signing

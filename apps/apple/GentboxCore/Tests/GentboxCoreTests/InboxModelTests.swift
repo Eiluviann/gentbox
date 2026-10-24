@@ -231,6 +231,36 @@ struct InboxModelTests {
 		#expect(model.expanded == .card("second"))
 	}
 
+	@Test func aSupersededCardFollowsItsReplacementWithItsReplyDraft() async {
+		let reply = action("reply", .reply)
+		let old = message(id: "old", type: .decisionRequired, blocking: .blocking, actions: [reply])
+		let other = message(id: "other", type: .decisionRequired, blocking: .blocking, actions: [action("allow", .approve)])
+		let service = FakeService()
+		service.next = makeInbox(nextUp: other, items: [other, old])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		model.presentationChanged(isPresented: true)
+		model.toggleExpansion(of: "old")
+		model.startReply(on: "old")
+		model.updateReply("use the staging key")
+
+		let replacement = message(
+			id: "new", type: .decisionRequired, blocking: .blocking, actions: [reply], supersedes: ["mid", "old"],
+		)
+		service.next = makeInbox(nextUp: other, items: [other, replacement])
+		await model.readUntilCurrent()
+		// Never the next-up prompt: ↩ answers the card you were reading.
+		#expect(model.expanded == .card("new"))
+		#expect(model.replyDraft == InboxModel.ReplyDraft(messageId: "new", text: "use the staging key"))
+
+		// A replacement that takes no reply keeps the card, not the draft.
+		let final = message(id: "final", type: .decisionRequired, blocking: .blocking, supersedes: ["new"])
+		service.next = makeInbox(nextUp: other, items: [other, final])
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("final"))
+		#expect(model.replyDraft == nil)
+	}
+
 	@Test func bulkDismissDismissesEachItemAndSkipsActionRequired() async {
 		let (model, service) = await accordion()
 		let task = message(id: "task", type: .actionRequired)

@@ -345,6 +345,50 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		}
 	}
 
+	/// A newer message that supersedes the expanded card takes its place, and
+	/// ↩ answers it, never the next-up prompt of another conversation.
+	func testASupersededCardStaysAndReturnAnswersItsReplacement() throws {
+		let actions: [[String: Any]] = [
+			["id": "allow", "label": "Approve", "kind": "approve"],
+			["id": "deny", "label": "Deny", "kind": "deny"],
+		]
+		let other = try post([
+			"type": "decision_required", "blocking": "blocking", "awaitsResponse": true,
+			"title": "Allow editing a.ts?", "conversation": ["id": "other"], "actions": actions,
+		])
+		let otherWaiter = try longPoll(other)
+		defer { otherWaiter.terminate() }
+		// No waiter yet: a successor of a waited-on prompt would only fold into it.
+		try post([
+			"type": "decision_required", "blocking": "blocking", "awaitsResponse": true,
+			"title": "Allow the deploy?", "conversation": ["id": "deploy"], "correlationKey": "deploy", "actions": actions,
+		])
+		openInbox()
+		let first = element("message:Allow the deploy?")
+		XCTAssertTrue(first.waitForExistence(timeout: 10))
+		first.click()
+		XCTAssertTrue(element("card:Allow the deploy?").waitForExistence(timeout: 5))
+
+		let replacement = try post([
+			"type": "decision_required", "blocking": "blocking", "awaitsResponse": true,
+			"title": "Allow the deploy to staging?", "conversation": ["id": "deploy"], "correlationKey": "deploy",
+			"actions": actions,
+		])
+		let waiter = try longPoll(replacement)
+		defer { waiter.terminate() }
+		let card = element("card:Allow the deploy to staging?")
+		XCTAssertTrue(card.waitForExistence(timeout: 5), "the card did not follow its replacement")
+		XCTAssertTrue(element("action:Approve").waitForExistence(timeout: 5))
+		card.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.9)).click()
+		app.typeKey(.return, modifierFlags: [])
+
+		waiter.waitUntilExit()
+		let answer = String(decoding: (waiter.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data(), as: UTF8.self)
+		XCTAssertTrue(answer.contains("\"allow\""), answer)
+		XCTAssertTrue(otherWaiter.isRunning, "↩ answered the other prompt")
+		XCTAssertTrue(element("message:Allow editing a.ts?").exists || element("card:Allow editing a.ts?").exists)
+	}
+
 	// MARK: Helpers
 
 	private struct TraceFrame {
@@ -390,7 +434,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		])
 		let expanded = try awaitTrace("update")
 		if let index = Int(expanded.split(separator: " ").last ?? "") {
-			try post(completedTask(index, body: "line one"), expecting: "200")
+			// A new title: the same one within 10 s would only count a repeat.
+			try post(completedTask(index, body: "line one", title: "Completed task number \(index), again"))
 		}
 		try awaitTrace("waiter")
 		let waiter = try longPoll(prompt)
@@ -415,9 +460,9 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	}
 
 	/// One of the trace's items; posted again, it supersedes the first.
-	private func completedTask(_ index: Int, body: String) -> [String: Any] {
+	private func completedTask(_ index: Int, body: String, title: String? = nil) -> [String: Any] {
 		[
-			"type": "task_completed", "title": "Completed task number \(index)", "body": body,
+			"type": "task_completed", "title": title ?? "Completed task number \(index)", "body": body,
 			"conversation": ["id": "session-\(index)"], "correlationKey": "task-\(index)",
 			"topic": ["key": "web", "title": "Web"],
 			"thread": ["key": "t\(index)", "title": "Thread \(index)"],
@@ -482,7 +527,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	}
 
 	/// `curl -X POST /v1/messages` over loopback with the sender token, as an
-	/// agent would: 201 for a new message, 200 when it supersedes one.
+	/// agent would: 201 for a new message (superseding ones too), 200 for a
+	/// repeat or a fold.
 	@discardableResult
 	private func post(_ fields: [String: Any], expecting status: String = "201") throws -> String {
 		let (port, token) = try discovery()

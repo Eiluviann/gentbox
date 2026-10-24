@@ -154,13 +154,11 @@ final class StatusItemController: NSObject {
 		panel.setFrame(frame, display: false, animate: false)
 	}
 
-	/// A display was added, removed or rearranged while the panel shows: the
-	/// cap follows the screen the panel is on. Its place stays.
+	/// A display was added, removed or rearranged while the panel shows: its
+	/// place may be off screen now, and it never moves, so it closes, as a
+	/// menu would.
 	@objc private func screensChanged(_: Notification) {
-		guard panel.isVisible, let placement, let screen = panel.screen ?? NSScreen.main else { return }
-		let maxHeight = placement.top - screen.visibleFrame.minY - InboxPanel.gap
-		self.placement = (placement.x, placement.top, maxHeight)
-		fitPanel(natural: layout.isCapped ? naturalHeight() : layout.naturalHeight)
+		closePanel()
 	}
 
 	/// The content's natural height, header and foot included, measured off
@@ -179,6 +177,7 @@ final class StatusItemController: NSObject {
 			_ = app.inbox?.expanded
 			_ = app.inbox?.filter
 			_ = app.inbox?.selection
+			_ = app.inbox?.replyDraft?.messageId
 		} onChange: { [weak self] in
 			Task { @MainActor in
 				guard let self else { return }

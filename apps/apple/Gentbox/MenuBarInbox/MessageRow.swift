@@ -128,8 +128,6 @@ struct InboxItem: View {
 	let moveTargets: [TopicChoice]
 	let inbox: InboxModel
 	@State private var isHovered = false
-	@State private var reply = ""
-	@State private var isReplying = false
 	@FocusState private var isReplyFocused: Bool
 
 	var body: some View {
@@ -157,8 +155,7 @@ struct InboxItem: View {
 		.accessibilityAction { inbox.toggleExpansion(of: message.id) }
 		.accessibilityIdentifier(isExpanded ? "card:\(message.title)" : "message:\(message.title)")
 		.onChange(of: isExpanded) {
-			isReplying = false
-			reply = ""
+			if !isExpanded, isReplying { inbox.endReply() }
 		}
 	}
 
@@ -253,6 +250,16 @@ struct InboxItem: View {
 	/// A row's 13-point title, as a share of the card's 15.
 	static let rowTitleScale: CGFloat = 13.0 / 15.0
 
+	/// The reply lives in the model, so it follows the card to a message that
+	/// supersedes this one.
+	private var isReplying: Bool {
+		inbox.replyDraft?.messageId == message.id
+	}
+
+	private var replyText: Binding<String> {
+		Binding(get: { inbox.replyDraft?.text ?? "" }, set: { inbox.updateReply($0) })
+	}
+
 	private var isPicked: Bool {
 		inbox.selection.contains(message.id)
 	}
@@ -266,7 +273,7 @@ struct InboxItem: View {
 		let answers = message.offeredActions.filter { $0.kind != .snooze && $0.kind != .open }
 		if isReplying, let replyAction = answers.first(where: { $0.kind == .reply }) {
 			HStack(spacing: 6) {
-				TextField(replyAction.placeholder ?? "Reply", text: $reply)
+				TextField(replyAction.placeholder ?? "Reply", text: replyText)
 					.textFieldStyle(.roundedBorder)
 					.focused($isReplyFocused)
 					.onAppear { isReplyFocused = true }
@@ -276,16 +283,15 @@ struct InboxItem: View {
 					.primaryButton()
 					.accessibilityLabel("Send")
 					.keyboardShortcut(.defaultAction)
-					.disabled(reply.trimmingCharacters(in: .whitespaces).isEmpty)
-				Button("Cancel") { withAnimation(Tokens.motion) { isReplying = false } }
+					.disabled(replyText.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty)
+				Button("Cancel") { inbox.endReply() }
 					.buttonStyle(DesignButtonStyle())
 					.keyboardShortcut(.cancelAction)
 			}
 		} else if !answers.isEmpty {
 			AnswerButtons(actions: answers) { action in
 				if action.kind == .reply {
-					// Local state, outside the list's animation: animate it here.
-					withAnimation(Tokens.motion) { isReplying = true }
+					inbox.startReply(on: message.id)
 				} else {
 					Task { await inbox.press(action, on: message) }
 				}
@@ -303,10 +309,9 @@ struct InboxItem: View {
 	}
 
 	private func send(_ action: InboxAction) {
-		let text = reply.trimmingCharacters(in: .whitespaces)
+		let text = replyText.wrappedValue.trimmingCharacters(in: .whitespaces)
 		guard !text.isEmpty else { return }
-		withAnimation(Tokens.motion) { isReplying = false }
-		reply = ""
+		inbox.endReply()
 		Task { await inbox.press(action, on: message, reply: text) }
 	}
 }

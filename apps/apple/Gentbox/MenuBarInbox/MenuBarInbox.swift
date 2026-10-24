@@ -81,6 +81,8 @@ private struct LayoutKey: Equatable {
 	let filter: String?
 	let filterOpenCount: Int
 	let hasSelection: Bool
+	/// The reply field opening or closing on the card.
+	let replying: String?
 	let failure: String?
 	let muted: String?
 
@@ -97,6 +99,7 @@ private struct LayoutKey: Equatable {
 		filter = inbox?.filter?.threadId
 		filterOpenCount = inbox?.filterOpenCount ?? 0
 		hasSelection = !(inbox?.selection.isEmpty ?? true)
+		replying = inbox?.replyDraft?.messageId
 		failure = inbox?.failure
 		muted = inbox?.inbox.flatMap { InboxWords.mutedSummary($0.muted) }
 	}

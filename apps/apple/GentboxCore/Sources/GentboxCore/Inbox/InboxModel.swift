@@ -51,6 +51,13 @@ public final class InboxModel {
 		case failed
 	}
 
+	/// The reply being written on the expanded card. It follows the card to
+	/// a superseding message that still takes a reply.
+	public struct ReplyDraft: Equatable, Sendable {
+		public let messageId: String
+		public var text: String
+	}
+
 	/// The list narrowed to one thread's open items, after Close found some.
 	/// Its count is read live (`filterOpenCount`), so it falls as items close.
 	public struct GroupFilter: Equatable, Sendable {
@@ -80,6 +87,8 @@ public final class InboxModel {
 	public private(set) var filter: GroupFilter?
 	/// The rows picked for a bulk Dismiss.
 	public private(set) var selection: Set<String> = []
+	/// The reply field's text, while it shows.
+	public private(set) var replyDraft: ReplyDraft?
 
 	/// A command's failure stays until the next command works: the read that
 	/// follows every command must not wipe it.
@@ -140,9 +149,11 @@ public final class InboxModel {
 	}
 
 	/// A click on a row expands it and collapses the one that was open; a
-	/// click on the expanded card's header collapses it.
+	/// click on the expanded card's header collapses it. Either way an
+	/// unsent reply goes.
 	public func toggleExpansion(of messageId: String) {
 		expansion = isExpanded(messageId) ? .collapsed : .chosen(.card(messageId))
+		replyDraft = nil
 	}
 
 	/// The inbox opened or closed. Opening pins the default card: from then
@@ -162,6 +173,7 @@ public final class InboxModel {
 	/// The default card while hidden: the next-up item.
 	public func resetExpansion() {
 		expansion = .followNextUp
+		replyDraft = nil
 		filter = nil
 		selection = []
 	}
@@ -171,7 +183,10 @@ public final class InboxModel {
 		expansion = .chosen(.card(next.id))
 	}
 
-	/// After a read: an expanded item that left the list (answered,
+	/// After a read: an expanded item that a newer message superseded stays
+	/// expanded as that message, with its reply draft if it still takes a
+	/// reply: the card never switches to something you did not pick, so ↩
+	/// answers what you read. One that left the list otherwise (answered,
 	/// dismissed, withdrawn) hands over to the next-up item, or, when nothing
 	/// waits, to the first row, so you can keep going. Under a filter both
 	/// come from the filtered thread.
@@ -179,13 +194,41 @@ public final class InboxModel {
 		if case .chosen(let chosen) = expansion,
 			!(inbox?.items.contains { $0.id == chosen.messageId } ?? false)
 		{
-			if isPresented, let next = nextUpInView ?? visibleItems.first {
-				expansion = .chosen(.card(next.id))
+			if let successor = inbox?.items.first(where: { $0.supersedes.contains(chosen.messageId) }) {
+				expansion = .chosen(.card(successor.id))
+				carryReplyDraft(to: successor)
 			} else {
-				expansion = .followNextUp
+				replyDraft = nil
+				if isPresented, let next = nextUpInView ?? visibleItems.first {
+					expansion = .chosen(.card(next.id))
+				} else {
+					expansion = .followNextUp
+				}
 			}
 		}
 		pinDefaultExpansion()
+	}
+
+	private func carryReplyDraft(to successor: InboxMessage) {
+		guard let draft = replyDraft, successor.supersedes.contains(draft.messageId) else { return }
+		let takesReply = successor.offeredActions.contains { $0.kind == .reply }
+		replyDraft = takesReply ? ReplyDraft(messageId: successor.id, text: draft.text) : nil
+	}
+
+	// MARK: Reply
+
+	/// R on the expanded card: the reply field opens, empty.
+	public func startReply(on messageId: String) {
+		replyDraft = ReplyDraft(messageId: messageId, text: "")
+	}
+
+	public func updateReply(_ text: String) {
+		replyDraft?.text = text
+	}
+
+	/// Cancel, or the reply was sent.
+	public func endReply() {
+		replyDraft = nil
 	}
 
 	/// The next-up item if the list shows it; under a filter, the filtered
