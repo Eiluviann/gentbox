@@ -200,6 +200,8 @@ final class DemoDriver: NSObject {
 			if let item { model?.startReply(on: item.id) }
 		case "type":
 			type(argument)
+		case "reduce-motion":
+			StatusItemController.reduceMotionOverride = argument == "on"
 		case "close-thread":
 			if let item { _ = await model?.closeThread(of: item) }
 		case "close-filtered": await model?.closeFilteredThread()

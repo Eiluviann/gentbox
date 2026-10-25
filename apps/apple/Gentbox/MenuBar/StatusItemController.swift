@@ -163,9 +163,17 @@ final class StatusItemController: NSObject {
 		app.inbox?.presentationChanged(isPresented: false)
 	}
 
+	#if DEBUG || GENTBOX_HOOKS
+	/// Set by the demo driver, so one launch records both variants.
+	static var reduceMotionOverride: Bool?
+	#endif
+
 	private static var reducesMotion: Bool {
 		#if DEBUG || GENTBOX_HOOKS
 		// Tests and recordings show both variants whatever the Mac is set to.
+		if let reduceMotionOverride {
+			return reduceMotionOverride
+		}
 		if let override = ProcessInfo.processInfo.environment["GENTBOX_REDUCE_MOTION"] {
 			return override == "1"
 		}
@@ -187,6 +195,8 @@ final class StatusItemController: NSObject {
 		if Self.isOffscreen {
 			(anchor, visibleFrame) = Self.offscreen(visibleFrame)
 			screenFrame = visibleFrame
+		} else if Self.isTestRun {
+			anchor = Self.topRightCorner(of: screen.frame)
 		}
 		#endif
 		let maxHeight = InboxPanel.maxHeight(under: anchor, in: visibleFrame, screen: screenFrame)
@@ -243,6 +253,20 @@ final class StatusItemController: NSObject {
 	/// it, but to the right of every display, so nothing shows.
 	static var isOffscreen: Bool {
 		ProcessInfo.processInfo.environment["GENTBOX_TEST_OFFSCREEN"] == "1"
+	}
+
+	/// A test, demo or measuring run, which keeps its state apart: the panel
+	/// hangs in the main screen's top-right corner, under the menu bar,
+	/// wherever the status item is, so it covers as little of the screen as
+	/// it can while you work.
+	static var isTestRun: Bool {
+		!(ProcessInfo.processInfo.environment["GENTBOX_STATE_DIR"] ?? "").isEmpty
+	}
+
+	/// An anchor at the right end of `screen`'s menu bar.
+	static func topRightCorner(of screen: NSRect) -> NSRect {
+		let thickness = NSStatusBar.system.thickness
+		return NSRect(x: screen.maxX - 1, y: screen.maxY - thickness, width: 1, height: thickness)
 	}
 
 	/// A status item's place at the top right of `visibleFrame`, and the
