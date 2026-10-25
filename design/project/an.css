@@ -1017,7 +1017,7 @@ button {
 	font-weight: 600;
 }
 
-/* Gentbox mark: bubble.left with a stroked prompt; the badge and slash knock out the glyph behind them */
+/* Placeholder Gentbox glyph on the canvas boards, superseded by design/brand/; the badge and slash knock out the glyph behind them */
 .prompt { fill: none; stroke: currentColor; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .knock { stroke: var(--knock, var(--board)); stroke-width: 9; paint-order: stroke; }
 .slash-knock { fill: none; stroke: var(--knock, var(--board)); stroke-width: 19; stroke-linecap: round; }

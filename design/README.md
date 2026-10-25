@@ -34,7 +34,7 @@ Every message has three fields (ADR 0007): a **type**, a **blocking level** and 
 - **Action plans.** Every action_required message carries an action plan: numbered steps saying how to do it. Its card and popup offer **Do it**, Done and Defer; Do it turns the whole popover into the plan; steps can be ticked off (stored with the message, shared with the iPhone later, never sent to the agent), and Done, Reply and Defer sit at the bottom (through the 3 s undo). Settled in ADR 0011 (§5.6): 1 to 12 steps, each a plain instruction with optional markdown detail and a link opened only on tap; the hub supplies a one-step plan when the agent sends none.
 - Icons are outline SF Symbols by default, never the filled variants (the one exception is `checkmark.circle.fill` for a selected item in Select to dismiss, the system's own selection mark).
 - Accent `#007AFF` / `#0A84FF` is for controls only. **Primary buttons are the native `.borderedProminent`:** their fill is the system accent and follows the user's accent colour (the user's choice, 2026-10-24); the boards show the default blue. The selected menu item and the selected day chips use the same accent. White on the default accent is 4.0:1 in light and 3.6:1 in dark, under AA; the user accepted that for consistency with macOS, and Increase Contrast darkens the accent. Greys: `#F2F2F7` tracks, 1 px `#E0E0E0` borders, no box inside a box. Type is the system font.
-- **Gentbox mark** (menu bar and app icon): a custom symbol, `bubble.left` with a `>_` prompt; red dot and count while agents wait, slash in quiet hours or Focus. An inbox-tray variant was tried for the rename and dropped at the user's request.
+- **Gentbox mark** (app icon, logo and menu bar): an original drawing, not an SF Symbol. A squared speech bubble with an amber spark in the app icon and logo; in the menu bar an outline bubble, with the spark on its top-right corner while something is unread and in red when it is urgent. Sources, exports and usage rules live in [`brand/`](brand/README.md).
 - **Agent marks** are neutral placeholders on the boards (a rounded square for Claude Code, a circle for Codex); the app ships the real Claude and Codex marks as icons. No brand logos appear in the mockups.
 
 ## Dark mode
@@ -50,7 +50,7 @@ The dark palette follows macOS conventions:
 
 ### Contrast
 
-`tools/contrast.py` checks every text and icon pair in `an.css`, laying translucent fills over the surface they sit on; it exits non-zero when a pair fails. It covers selection backgrounds (the selected sidebar row, a row picked to dismiss) and takes an opacity per pair, so a faded hint counts as faded. Every pair passes in both modes except the one the user accepted, white on the system accent (primary buttons, their shortcut hints, the selected menu item and chips: 4.02 light, 3.65 dark), which the script marks accepted, not failing. Otherwise text is at 4.5:1 or more (lowest: Deny label on a dark button 4.62), icons and other marks at 3:1 or more (lowest: paused orange on a picked row 3.08 light). Shortcut hints are full opacity: `--ink-3` on bordered buttons, `--on-fill` on primary ones. Rerun with `--markdown` to refresh this table.
+`tools/contrast.py` checks every text and icon pair in `an.css` and the brand pairs in `brand/brand.css`, laying translucent fills over the surface they sit on; it exits non-zero when a pair fails. It covers selection backgrounds (the selected sidebar row, a row picked to dismiss) and takes an opacity per pair, so a faded hint counts as faded. Every pair passes in both modes except two the script marks accepted, not failing: white on the system accent (primary buttons, their shortcut hints, the selected menu item and chips: 4.02 light, 3.65 dark), which the user accepted, and the light flat mark's amber spark (2.39), a logo exempt from WCAG 1.4.11. Otherwise text is at 4.5:1 or more (lowest: Deny label on a dark button 4.62), icons and other marks at 3:1 or more (lowest: paused orange on a picked row 3.08 light). Shortcut hints are full opacity: `--ink-3` on bordered buttons, `--on-fill` on primary ones. Rerun with `--markdown` to refresh this table.
 
 <!-- contrast:start -->
 | Pair | Where | Opacity | Minimum | Light | Dark | Status |
@@ -126,6 +126,14 @@ The dark palette follows macOS conventions:
 | `paused` on `accent-soft` | Paused symbol on a picked row | 100% | 3:1 | 3.08 | 5.52 | ok |
 | `wait` on `accent-soft` | Waiting symbol on a picked row | 100% | 3:1 | 4.92 | 3.33 | ok |
 | `accent` on `accent-soft` | Selection circle on a picked row | 100% | 3:1 | 3.67 | 3.11 | ok |
+| `brand-ink` on `surface` | Wordmark and lockup on a page | 100% | 4.5:1 | 14.22 | 14.64 | ok |
+| `brand-ink` on `board` | Wordmark and lockup on the board | 100% | 4.5:1 | 13.76 | 15.88 | ok |
+| `brand-ink` on `elevated` | Flat mark on a raised surface | 100% | 3:1 | 14.22 | 12.24 | ok |
+| `brand-spark` on `surface` | Flat mark spark on a page | 100% | 3:1 | 2.39 | 9.25 | accepted: logo, exempt from WCAG 1.4.11; the ink outline carries the mark |
+| `brand-paper` on `brand-tile-top` | App icon bubble, top of the tile | 100% | 3:1 | 10.54 | 11.27 | ok |
+| `brand-paper` on `brand-tile-bottom` | App icon bubble, bottom of the tile | 100% | 3:1 | 15.41 | 14.89 | ok |
+| `brand-amber` on `brand-tile-top` | App icon spark, top of the tile | 100% | 3:1 | 6.42 | 7.72 | ok |
+| `brand-amber` on `brand-tile-bottom` | App icon spark, bottom of the tile | 100% | 3:1 | 9.39 | 10.20 | ok |
 <!-- contrast:end -->
 
 ### Hand-off to `Tokens.swift`
@@ -165,6 +173,10 @@ Checked against PR #5's `apps/apple/Gentbox/Tokens.swift` (branch `claude/pr3-ff
 | `--strike` | black 25 % | white 30 % | `Tokens.strike` (new) | | Pair (Withdrawn strike-through) |
 | `--accent` | `#007AFF` | `#0A84FF` | `Tokens.accent` (new) | | System: `Color.accentColor` / `controlAccentColor`; primary buttons are `.buttonStyle(.borderedProminent)` with no custom token |
 | `--accent-ink` | `#0062CC` | `#409CFF` | `Tokens.link` (new) | | System: `linkColor` |
+| `--brand-ink` (`brand.css`) | `#1B2A4A` | `#F2F0EB` | `Tokens.brandInk` (new) | | Pair: the flat mark and wordmark where the app draws them (About, onboarding) |
+| `--brand-spark` (`brand.css`) | `#E89600` | `#FFB224` | `Tokens.brandSpark` (new) | | Pair: the flat mark's spark; never for text |
+| `--brand-urgent` (`brand.css`) | `#FF3B30` | `#FF453A` | `Tokens.urgentSpark` (new) | | System: `systemRed`, the tint on the urgent menu-bar spark |
+| `--brand-tile-top`, `--brand-tile-bottom`, `--brand-paper`, `--brand-amber` (`brand.css`) | | | none | | Baked into the app icon assets; no Swift token |
 | `--danger-ink` | `#D70015` | `#FF7F77` | `Tokens.dangerInk` (new) | | Pair (Deny label) |
 | `--badge`, `--badge-grey` | `#D70015`, `#D1D1D6` | `#E0201A`, `#48484A` | `Tokens.badge`, `Tokens.badgeGrey` (new) | | Pair (white or ink count on it) |
 | `--dec-ink`, `--dec-soft` | `#4644B8`, `#EFEFFD` | `#BDBCFF`, `#2F2E55` | `Tokens.decisionInk`, `Tokens.decisionSoft` (new) | | Pair |
@@ -240,7 +252,7 @@ Settled: descriptive titles (ADR 0010, architecture §5.5). The hub enforces the
 
 ## Open design questions
 
-1. Is the agent mark (speech bubble with `>_`) right?
+1. Settled: the Gentbox mark is the original squared bubble with an amber spark in `brand/` (5A).
 2. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
 3. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
 4. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?

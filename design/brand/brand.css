@@ -1,0 +1,16 @@
+/* Gentbox brand colours, in the same light-dark(light, dark) form as design/project/an.css.
+   Generated art in svg/ uses these values; design/tools/contrast.py checks them. */
+:root {
+	/* Flat mark, wordmark and lockups on a page */
+	--brand-ink: light-dark(#1b2a4a, #f2f0eb);
+	--brand-spark: light-dark(#e89600, #ffb224);
+
+	/* App icon tile: vertical gradient, paper bubble, amber spark */
+	--brand-tile-top: light-dark(#26385f, #2c2c2f);
+	--brand-tile-bottom: light-dark(#121c33, #141416);
+	--brand-paper: light-dark(#f6f4ef, #e9e7e2);
+	--brand-amber: #ffb224;
+
+	/* Urgent spark on the menu-bar glyph; the app draws it in systemRed */
+	--brand-urgent: light-dark(#ff3b30, #ff453a);
+}
