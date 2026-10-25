@@ -19,7 +19,7 @@ TEXT, ICON = 4.5, 3.0
 # they print as accepted, not failing
 ACCEPTED = {
 	('on-fill', 'accent'): 'system accent fill (.borderedProminent), for consistency with macOS; Increase Contrast darkens it',
-	('brand-spark', 'surface'): 'logo, exempt from WCAG 1.4.11; the ink bubble carries the mark',
+	('brand-spark', 'surface'): 'logo, exempt from WCAG 1.4.11; the ink outline carries the mark',
 }
 PAIRS = [
 	('ink', 'surface', None, TEXT, 'Body text in the main window'),

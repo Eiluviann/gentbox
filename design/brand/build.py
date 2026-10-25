@@ -27,13 +27,13 @@ SW = 1.75  # menu-bar outline stroke: 1.31 pt at 18 pt
 BODY = dict(x0=3, y0=3.5, x1=21, y1=17, r=3, tail_x=7.5, tail_w=4, tail_y=20.75)
 ICON_SPARK = (12, 10.25, 3.4, 3.4)  # centre x, centre y, half height, half width
 ICON_WELL = 1.3  # the knocked-out ring around the icon spark: 0.65 each side
-GLYPH_SPARK = (18.25, 6.25, 4, 4)  # the menu-bar spark lands on the top-right corner
-GLYPH_CUT = 3.2  # the outline stops 1.6 short of the menu-bar spark
+GLYPH_SPARK = (18.25, 6.25, 4, 4)  # the logo and menu-bar spark lands on the top-right corner
+GLYPH_CUT = 3.2  # the outline stops 1.6 short of that spark
 URGENT = {'light': '#FF3B30', 'dark': '#FF453A'}  # systemRed; the app draws it with NSColor.systemRed
 CONIC_TOLERANCE = 0.002  # grid units: skia's default 0.25 flattens the menu-bar corners and thins the stroke
 SLIVER = 0.5  # pieces of the cut outline smaller than this, in square units, are dropped
 
-# Icon tile and art per appearance; FLAT is the one-colour-plus-spark mark for pages and documents
+# Icon tile and art per appearance; FLAT is the logo, the menu-bar outline in one colour plus the spark
 TILE = {
 	'light': dict(top='#26385F', bottom='#121C33', paper='#F6F4EF', amber='#FFB224'),
 	'dark': dict(top='#2C2C2F', bottom='#141416', paper='#E9E7E2', amber='#FFB224'),
@@ -65,8 +65,7 @@ TITLES = {
 	'dont-recolour': 'Recoloured mark',
 	'dont-stretch': 'Stretched mark',
 	'dont-rotate': 'Rotated mark',
-	'dont-fill-well': 'Mark with the well filled',
-	'dont-glyph-as-logo': 'Menu-bar glyph used as a logo',
+	'dont-close-outline': 'Mark with the outline closed under the spark',
 	'dont-effects': 'Mark with a drop shadow',
 }
 
@@ -139,7 +138,7 @@ def layer_spark():
 
 
 def flat_mark(mode, fill=None):
-	"""The mark for pages and documents: ink bubble, spark in its well, no tile."""
+	"""The logo for pages and documents: the menu-bar outline in ink, the spark on its corner, no tile."""
 	return svg(96, 96, mark_art(mode, fill), vb='1.5 1.5 21 21')
 
 
@@ -206,11 +205,11 @@ def wordmark(word, mode, fill=None):
 
 def lockup_horizontal(word, mode):
 	"""Mark and word side by side, as on the review boards: the mark box is 1.25 em, the gap 0.3 em,
-	and the word's x-height is centred on the spark."""
+	and the word's x-height is centred on the bubble's body."""
 	em = 21 / 1.25
 	scale = em / word['upem']
 	x = 22.5 + 0.3 * em
-	baseline = ICON_SPARK[1] + word['x_height'] * scale / 2
+	baseline = (BODY['y0'] + BODY['y1']) / 2 + word['x_height'] * scale / 2
 	width = x + word['width'] * scale + 1.5
 	text = f'<g transform="translate({fmt(x)} {fmt(baseline)}) scale({fmt(scale, 6)})" fill="{FLAT[mode]["ink"]}">{word["paths"]}</g>'
 	return svg(round((width - 1.5) * 8), 168, mark_art(mode) + text, vb=f'1.5 1.5 {fmt(width - 1.5)} 21')
@@ -235,22 +234,21 @@ def lockup_stacked(word, mode):
 
 def examples(word):
 	ink, spark_fill = FLAT['light']['ink'], FLAT['light']['spark']
-	clear = spark_height = 2 * ICON_SPARK[2]
+	clear = spark_height = 2 * GLYPH_SPARK[2]
 	tile = lambda content, w=40, h=30, vb=None: svg(w * 6, h * 6, f'<rect x="-100" y="-100" width="400" height="400" fill="#FFFFFF"/>{content}', vb=vb or f'0 0 {w} {h}')
 	mark = lambda attrs='', fill=None: f'<g {attrs}>{mark_art("light", fill)}</g>'
 	space = (
 		f'<rect x="{1.5 - clear}" y="{1.5 - clear}" width="{21 + 2 * clear}" height="{21 + 2 * clear}" fill="none" stroke="#0A84FF" stroke-width="0.25" stroke-dasharray="0.8 0.6"/>'
 		f'<rect x="1.5" y="1.5" width="21" height="21" fill="none" stroke="#0A84FF" stroke-opacity="0.4" stroke-width="0.15"/>'
 	)
-	no_well = f'<path d="{bubble()}" fill="{ink}"/><path d="{spark(*ICON_SPARK)}" fill="{spark_fill}"/>'
+	closed = f'<path d="{glyph_idle()}" fill="{ink}"/><path d="{spark(*GLYPH_SPARK)}" fill="{spark_fill}"/>'
 	return {
 		'examples/do-clear-space.svg': tile(mark() + space, vb=f'{1.5 - clear - 2} {1.5 - clear - 2} {21 + 2 * clear + 4} {21 + 2 * clear + 4}', w=round(21 + 2 * clear + 4), h=round(21 + 2 * clear + 4)),
 		'examples/do-dark.svg': svg(240, 180, f'<rect x="-100" y="-100" width="400" height="400" fill="{PAGE["dark"]}"/>{mark_art("dark")}', vb='-8 -3 40 30'),
 		'examples/dont-recolour.svg': tile(mark('transform="translate(8 3)"', fill=dict(ink='#2E9E4F', spark='#7D7AFF'))),
 		'examples/dont-stretch.svg': tile(mark('transform="translate(-4 3) scale(1.6 1)"')),
 		'examples/dont-rotate.svg': tile(mark('transform="translate(8 3) rotate(-18 12 12)"')),
-		'examples/dont-fill-well.svg': tile(f'<g transform="translate(8 3)">{no_well}</g>'),
-		'examples/dont-glyph-as-logo.svg': tile(f'<g transform="translate(8 3)" fill="{ink}"><path d="{glyph_cut()}"/><path d="{spark(*GLYPH_SPARK)}"/></g>'),
+		'examples/dont-close-outline.svg': tile(f'<g transform="translate(8 3)">{closed}</g>'),
 		'examples/dont-effects.svg': tile(
 			'<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0.8" dy="1.2" stdDeviation="0.9" flood-color="#000" flood-opacity="0.55"/></filter></defs>'
 			+ mark('transform="translate(8 3)" filter="url(#glow)"')
@@ -264,7 +262,7 @@ def clear_space_lockup(word, clear):
 	width = 22.5 + 0.3 * em + word['width'] * em / word['upem'] + 1.5
 	box = (
 		f'<rect x="{fmt(1.5 - clear)}" y="{fmt(1.5 - clear)}" width="{fmt(width - 1.5 + 2 * clear)}" height="{fmt(21 + 2 * clear)}" fill="none" stroke="#0A84FF" stroke-width="0.25" stroke-dasharray="0.8 0.6"/>'
-		f'<path d="{spark(1.5 - clear / 2, 12, ICON_SPARK[2], ICON_SPARK[3])}" fill="#0A84FF" fill-opacity="0.35"/>'
+		f'<path d="{spark(1.5 - clear / 2, 12, GLYPH_SPARK[2], GLYPH_SPARK[3])}" fill="#0A84FF" fill-opacity="0.35"/>'
 	)
 	x0, y0 = 1.5 - clear - 2, 1.5 - clear - 2
 	w, h = width - 1.5 + 2 * clear + 4, 21 + 2 * clear + 4
@@ -275,7 +273,7 @@ def clear_space_lockup(word, clear):
 
 def mark_art(mode, fill=None):
 	colours = fill or FLAT[mode]
-	return f'<path d="{bubble_with_well()}" fill="{colours["ink"]}"/><path d="{spark(*ICON_SPARK)}" fill="{colours["spark"]}"/>'
+	return f'<path d="{glyph_cut()}" fill="{colours["ink"]}"/><path d="{spark(*GLYPH_SPARK)}" fill="{colours["spark"]}"/>'
 
 
 @functools.cache
@@ -298,7 +296,8 @@ def glyph_cut():
 	for contour in cut.contours:
 		if abs(contour.area) >= SLIVER:
 			kept.addPath(contour)
-	assert len(list(kept.contours)) == 1, 'the menu-bar cut must leave a single outline'
+	if len(list(kept.contours)) != 1:
+		sys.exit('build.py: the menu-bar cut must leave a single outline')
 	return path_d(kept)
 
 

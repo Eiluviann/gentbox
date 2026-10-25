@@ -129,7 +129,7 @@ The dark palette follows macOS conventions:
 | `brand-ink` on `surface` | Wordmark and lockup on a page | 100% | 4.5:1 | 14.22 | 14.64 | ok |
 | `brand-ink` on `board` | Wordmark and lockup on the board | 100% | 4.5:1 | 13.76 | 15.88 | ok |
 | `brand-ink` on `elevated` | Flat mark on a raised surface | 100% | 3:1 | 14.22 | 12.24 | ok |
-| `brand-spark` on `surface` | Flat mark spark on a page | 100% | 3:1 | 2.39 | 9.25 | accepted: logo, exempt from WCAG 1.4.11; the ink bubble carries the mark |
+| `brand-spark` on `surface` | Flat mark spark on a page | 100% | 3:1 | 2.39 | 9.25 | accepted: logo, exempt from WCAG 1.4.11; the ink outline carries the mark |
 | `brand-paper` on `brand-tile-top` | App icon bubble, top of the tile | 100% | 3:1 | 10.54 | 11.27 | ok |
 | `brand-paper` on `brand-tile-bottom` | App icon bubble, bottom of the tile | 100% | 3:1 | 15.41 | 14.89 | ok |
 | `brand-amber` on `brand-tile-top` | App icon spark, top of the tile | 100% | 3:1 | 6.42 | 7.72 | ok |

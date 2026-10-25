@@ -1,6 +1,6 @@
 # Gentbox brand kit
 
-The Gentbox mark is a squared speech bubble with an amber spark: a message from an agent that needs you. The app icon and the logo carry the spark inside the bubble; the menu bar carries an outline bubble whose spark lands on its top-right corner when something is unread.
+The Gentbox mark is a squared speech bubble with an amber spark: a message from an agent that needs you. The logo and the menu bar share one drawing, an outline bubble whose spark lands on its top-right corner (in the menu bar, only when something is unread); the app icon carries the spark inside a paper bubble.
 
 Every mark here is an original drawing on a 24-unit grid. None is traced from or built on an SF Symbol: Apple's SF Symbols licence forbids symbols or their derivatives in app icons, logos and trademarks. SF Symbols stay in the UI mockups only.
 
@@ -15,11 +15,11 @@ Every mark here is an original drawing on a 24-unit grid. None is traced from or
 | `brand.css` | Brand colour tokens, in the `light-dark()` form of `../project/an.css` |
 | `fonts/` | Instrument Sans, the wordmark typeface, and its licence |
 
-The art in `svg/` is filled paths: the wordmark is outlined, and the spark's well and the menu-bar cut are path booleans, so there is no font, mask or stroke to render differently between tools, and the PDFs stay vector. The exceptions are the app icon's tile gradient and its two drop shadows. Icon Composer adds its own shadows, so the layers carry none, though the background layer keeps the gradient.
+The art in `svg/` is filled paths: the wordmark is outlined, and the outline, its cut around the spark and the icon's well are path booleans, so there is no font, mask or stroke to render differently between tools, and the PDFs stay vector. The exceptions are the app icon's tile gradient and its two drop shadows. Icon Composer adds its own shadows, so the layers carry none, though the background layer keeps the gradient.
 
 ## Build and export
 
-Export from a checkout, with `rsvg-convert` 2.62 or later (`brew install librsvg`; older versions may drop the icon's drop shadows) and `iconutil` (ships with macOS):
+Export from a checkout, with `rsvg-convert` (`brew install librsvg`; tested with 2.62, and older versions may drop the icon's drop shadows) and `iconutil` (ships with macOS):
 
 ```bash
 design/brand/export.sh
@@ -71,7 +71,7 @@ An 18 pt template image with a 1.31 pt outline. Add `menubar-idle.pdf`, `menubar
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--brand-ink` | `#1b2a4a` | `#f2f0eb` | Flat mark bubble, wordmark |
+| `--brand-ink` | `#1b2a4a` | `#f2f0eb` | Flat mark outline, wordmark |
 | `--brand-spark` | `#e89600` | `#ffb224` | Flat mark spark |
 | `--brand-tile-top` | `#26385f` | `#2c2c2f` | App icon gradient, top |
 | `--brand-tile-bottom` | `#121c33` | `#141416` | App icon gradient, bottom |
@@ -79,7 +79,7 @@ An 18 pt template image with a 1.31 pt outline. Add `menubar-idle.pdf`, `menubar
 | `--brand-amber` | `#ffb224` | `#ffb224` | App icon spark |
 | `--brand-urgent` | `#ff3b30` | `#ff453a` | Urgent menu-bar spark (`systemRed` in the app) |
 
-The light flat spark, `#e89600` on white, is 2.39:1. Logos are exempt from WCAG's non-text contrast rule, and the navy bubble carries the mark on its own, so the spark stays the warmer amber rather than darkening to brown; `contrast.py` lists it as accepted. Don't use `--brand-spark` for text or for an icon that has to be read on its own.
+The light flat spark, `#e89600` on white, is 2.39:1. Logos are exempt from WCAG's non-text contrast rule, and the navy outline carries the mark on its own, so the spark stays the warmer amber rather than darkening to brown; `contrast.py` lists it as accepted. Don't use `--brand-spark` for text or for an icon that has to be read on its own.
 
 ## Typeface
 
@@ -87,7 +87,7 @@ The wordmark is Instrument Sans SemiBold (weight 600, width 100) with -0.02em tr
 
 ## Clear space and minimum size
 
-Clear space is X on every side of the mark's square box, where X is the spark's height (about half the bubble's height). For a lockup, measure X from the lockup's edges, as below. Keep text, edges and other marks out of it.
+Clear space is X on every side of the mark's square box, where X is the spark's height. For a lockup, measure X from the lockup's edges, as below. Keep text, edges and other marks out of it.
 
 ![Clear space around the horizontal lockup](examples/clear-space-lockup.svg)
 
@@ -106,6 +106,5 @@ Clear space is X on every side of the mark's square box, where X is the spark's 
 | ![Mark with its clear space marked](examples/do-clear-space.svg) Keep clear space around the mark | ![Recoloured mark](examples/dont-recolour.svg) Recolour the bubble or the spark |
 | ![Dark mark on a dark page](examples/do-dark.svg) Use the dark version on dark backgrounds | ![Stretched mark](examples/dont-stretch.svg) Stretch or squash the mark |
 | | ![Rotated mark](examples/dont-rotate.svg) Rotate the mark |
-| | ![Mark with the well filled](examples/dont-fill-well.svg) Fill in the well around the spark |
-| | ![Menu-bar glyph used as a logo](examples/dont-glyph-as-logo.svg) Use the menu-bar glyph as the logo |
+| | ![Mark with the outline closed under the spark](examples/dont-close-outline.svg) Close the outline under the spark |
 | | ![Mark with a drop shadow](examples/dont-effects.svg) Add shadows, glows or other effects |
