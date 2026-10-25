@@ -182,6 +182,14 @@ enum Symbol {
 		}
 	}
 
+	/// Makes the images ahead, in a quiet turn, so their first use costs a
+	/// click's frame nothing.
+	static func warm(_ names: [String], size: CGFloat) {
+		for name in names {
+			_ = image(name, size: size)
+		}
+	}
+
 	private static var images: [String: NSImage] = [:]
 
 	private static func image(_ name: String, size: CGFloat) -> NSImage? {

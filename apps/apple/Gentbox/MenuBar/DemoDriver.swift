@@ -193,9 +193,7 @@ final class DemoDriver: NSObject {
 		case "close": close()
 		case "appearance": panel.appearance = NSAppearance(named: argument == "dark" ? .darkAqua : .aqua)
 		case "expand":
-			if let item, model?.isExpanded(item.id) == false { model?.toggleExpansion(of: item.id) }
-		case "collapse":
-			if let expanded = model?.expanded?.messageId { model?.toggleExpansion(of: expanded) }
+			if let item { model?.expand(item.id) }
 		case "reply":
 			if let item { model?.startReply(on: item.id) }
 		case "type":

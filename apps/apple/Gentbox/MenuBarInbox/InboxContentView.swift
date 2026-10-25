@@ -52,6 +52,7 @@ final class InboxContentView: FlippedView {
 	/// What `prepareAhead` has queued: row ids, "banner", "foot".
 	private var preparing: Set<String> = []
 	private var hasApplied = false
+	private var hasWarmedCheckboxes = false
 	private var clock: Timer?
 	#if DEBUG || GENTBOX_HOOKS
 	private let traceMarker = AnimationTraceMarker()
@@ -374,6 +375,10 @@ final class InboxContentView: FlippedView {
 	/// Builds, in quiet turns, what a click would otherwise build in its
 	/// frame: the banner, the foot and every row's card body.
 	private func prepareAhead() {
+		if !hasWarmedCheckboxes {
+			hasWarmedCheckboxes = true
+			IdleWork.enqueue { Symbol.warm(InboxRowView.checkboxSymbols, size: InboxRowView.checkboxSize) }
+		}
 		if app.inbox != nil, banner == nil, !isPreparing(banner: true) {
 			preparing.insert("banner")
 			IdleWork.enqueue { [weak self] in _ = self?.makeBanner() }
@@ -419,9 +424,9 @@ final class InboxContentView: FlippedView {
 
 	/// Rows that stay take their new content; a row whose message was
 	/// superseded shows its successor, so the card follows it in place; new
-	/// rows fade in where they land. A row that leaves fades out where it
-	/// was: for good once its message closed, or parked below the card while
-	/// a filter hides it, ready to come back.
+	/// rows open their place and grow into it. A row that leaves closes its
+	/// place, shrinking as it fades: for good once its message closed, or
+	/// parked below the card while a filter hides it, ready to come back.
 	private func updateRows(isAnimated: Bool) {
 		guard let inbox = app.inbox else { return }
 		var kept: [String: InboxRowView] = [:]
@@ -431,6 +436,7 @@ final class InboxContentView: FlippedView {
 				message: message,
 				isExpanded: snapshot.expandedId == message.id,
 				isPicked: snapshot.selection.contains(message.id),
+				isSelecting: !snapshot.selection.isEmpty,
 				isFirst: index == 0,
 				isReplying: snapshot.replyingTo == message.id,
 				moveTargets: snapshot.moveTargets,
@@ -449,9 +455,7 @@ final class InboxContentView: FlippedView {
 				let row = InboxRowView(content: content, inbox: inbox)
 				row.onBodyHeightChange = { [weak self] row in self?.refresh(row) }
 				list.addSubview(row)
-				if isAnimated {
-					LayerMotion.fade(row.layer, to: 1, duration: Tokens.motionDuration, from: 0)
-				}
+				arrive(row, isAnimated: isAnimated)
 				kept[message.id] = row
 			}
 		}
@@ -471,11 +475,18 @@ final class InboxContentView: FlippedView {
 		parkedRows = parked
 	}
 
-	/// A row leaves: it fades out where it was, then goes for good or, while
-	/// its item is still open then, parks.
+	/// A row leaves: its place closes as a card's does when it collapses
+	/// (the row was captured, so its height moves with the rest), and it
+	/// fades, shrinking slightly; then it goes for good or, while its item
+	/// is still open then, parks.
 	private func send(_ row: InboxRowView, isAnimated: Bool) {
 		row.isLeaving = true
 		row.setAccessibilityElement(false)
+		// About the centre of the place it leaves, before that closes.
+		if isAnimated, !StatusItemController.reducesMotion {
+			LayerMotion.zoom(row.layer, from: 1, to: Tokens.arrivalScale, duration: Tokens.motionDuration)
+		}
+		row.setFrameSize(NSSize(width: row.frame.width, height: 0))
 		let finish = { [weak self, weak row] in
 			guard let self, let row, row.isLeaving else { return }
 			if self.snapshot.openIds.contains(row.content.message.id) {
@@ -495,6 +506,27 @@ final class InboxContentView: FlippedView {
 		}
 	}
 
+	/// A row comes into the list, new or back from parked: its place opens
+	/// from where it shows (nothing, for a new one) as a card's does when it
+	/// expands, and its content fades in, growing slightly into place.
+	private func arrive(_ row: InboxRowView, isAnimated: Bool) {
+		guard isAnimated else {
+			row.layer?.removeAnimation(forKey: "motion.opacity")
+			row.layer?.removeAnimation(forKey: "motion.bounds")
+			row.layer?.opacity = 1
+			LayerMotion.endZoom(row.layer)
+			return
+		}
+		let shown = row.layer?.presentation()
+		LayerMotion.grow(row.layer, fromHeight: shown?.bounds.height ?? 0, duration: Tokens.motionDuration)
+		LayerMotion.fade(row.layer, to: 1, duration: Tokens.motionDuration, from: shown?.opacity ?? 0)
+		if StatusItemController.reducesMotion {
+			LayerMotion.endZoom(row.layer)
+		} else {
+			LayerMotion.zoom(row.layer, from: Tokens.arrivalScale, to: 1, duration: Tokens.motionDuration)
+		}
+	}
+
 	/// A row that is gone for good: hidden at once, taken out of the view
 	/// tree in a quiet turn. Tearing down a row's native controls costs a
 	/// frame's worth, and its fade ends as the rest of the motion does.
@@ -503,17 +535,14 @@ final class InboxContentView: FlippedView {
 		IdleWork.enqueue { [weak row] in row?.removeFromSuperview() }
 	}
 
-	/// A parked or leaving row shows again: it fades in at its place.
+	/// A parked or leaving row shows again: it arrives at its place, at its
+	/// height again.
 	private func bringBack(_ row: InboxRowView, isAnimated: Bool) {
 		row.isLeaving = false
 		row.isHidden = false
 		row.setAccessibilityElement(true)
-		if isAnimated {
-			LayerMotion.fade(row.layer, to: 1, duration: Tokens.motionDuration, from: row.layer?.presentation()?.opacity ?? 0)
-		} else {
-			row.layer?.removeAnimation(forKey: "motion.opacity")
-			row.layer?.opacity = 1
-		}
+		row.refreshLayout()
+		arrive(row, isAnimated: isAnimated)
 	}
 
 	/// Below the card, in the list, outside the card's mask and clicks.

@@ -57,11 +57,28 @@ enum Tokens {
 
 	static let popoverWidth: CGFloat = 380
 	/// The one motion of every layout change in a Gentbox window: the content
-	/// and the window's card move on this curve over `motionDuration`, as
+	/// and the window's card move on `motionCurve` over `motionDuration`, as
 	/// Core Animation animations committed together, so the card's bottom
 	/// edge stays on the content's and no frame of it runs on the main thread.
-	static let motionDuration: TimeInterval = 0.25
-	static let motionTiming = CAMediaTimingFunctionName.easeInEaseOut
+	@MainActor static var motionDuration: TimeInterval { 0.3 * motionScale }
+	/// Eased at both ends, the landing drawn out, so a card visibly settles
+	/// into place rather than stopping.
+	@MainActor static var motionCurve: CAMediaTimingFunction { CAMediaTimingFunction(controlPoints: 0.2, 0, 0, 1) }
+	/// The panel's own appearance and disappearance, quicker than a layout
+	/// change, and the card body's exit as its card collapses.
+	@MainActor static var spawnDuration: TimeInterval { 0.18 * motionScale }
+	@MainActor static var despawnDuration: TimeInterval { 0.12 * motionScale }
+	@MainActor static var quickFadeDuration: TimeInterval { 0.08 * motionScale }
+	/// How much an item grows into place as it arrives, and shrinks as it
+	/// goes.
+	static let arrivalScale: CGFloat = 0.96
+	#if DEBUG || GENTBOX_HOOKS
+	/// Every motion's length is multiplied by this: the debug panel slows
+	/// motion down to look at it.
+	@MainActor static var motionScale: Double = 1
+	#else
+	static let motionScale: Double = 1
+	#endif
 	static let rowHorizontalPadding: CGFloat = 14
 	static let iconColumn: CGFloat = 16
 	static let columnGap: CGFloat = 10

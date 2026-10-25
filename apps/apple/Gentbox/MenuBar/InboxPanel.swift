@@ -292,7 +292,7 @@ class InboxPanel: NSPanel {
 		let presentation = layer.presentation()
 		let fromOpacity = isVisible ? (presentation?.opacity ?? layer.opacity) : 0
 		let fromScale = isVisible ? Self.scale(of: presentation?.transform ?? layer.transform) : (reduceMotion ? 1 : 0.96)
-		animate(layer, opacity: (fromOpacity, 1), scale: (fromScale, 1), duration: 0.18, timing: .easeOut, completion: nil)
+		animate(layer, opacity: (fromOpacity, 1), scale: (fromScale, 1), duration: Tokens.spawnDuration, timing: .easeOut, completion: nil)
 	}
 
 	/// Fades and scales out (fade only with Reduce Motion), ignoring input,
@@ -307,7 +307,7 @@ class InboxPanel: NSPanel {
 		animate(
 			layer, opacity: (presentation?.opacity ?? layer.opacity, 0),
 			scale: (Self.scale(of: presentation?.transform ?? layer.transform), reduceMotion ? 1 : 0.98),
-			duration: 0.12, timing: .easeIn,
+			duration: Tokens.despawnDuration, timing: .easeIn,
 		) { [weak self] in
 			guard let self, self.despawnGeneration == generation else { return }
 			self.isDespawning = false

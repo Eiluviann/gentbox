@@ -5,6 +5,7 @@ import QuartzCore
 /// message, takes keys only once its motion is over; and a card that has
 /// just been answered takes no more until the next message shows. So a
 /// second ↩ meant for what was there never answers what is not yet seen.
+@MainActor
 struct CardKeyGate {
 	private var opensAt: CFTimeInterval = 0
 	private var messageId: String?

@@ -21,6 +21,9 @@ final class AppModel {
 
 	@ObservationIgnored private var hub: GentboxHub?
 	@ObservationIgnored private var presence: PresenceMonitor?
+	#if DEBUG || GENTBOX_HOOKS
+	@ObservationIgnored private var router: InboxServiceRouter?
+	#endif
 	@ObservationIgnored private let log = Logger(subsystem: "com.eiluviann.gentbox", category: "app")
 
 	/// `GENTBOX_STATE_DIR` (and its reset) works in test builds only.
@@ -68,7 +71,13 @@ final class AppModel {
 		case .success(let hub):
 			self.hub = hub
 			log.info("hub running on port \(hub.port(), privacy: .public)")
+			#if DEBUG || GENTBOX_HOOKS
+			let router = InboxServiceRouter(hub: hub)
+			self.router = router
+			let inbox = InboxModel(service: router)
+			#else
 			let inbox = InboxModel(service: hub)
+			#endif
 			phase = .running(inbox)
 			inbox.requestRead()
 			startPresence(hub: hub)
@@ -80,6 +89,14 @@ final class AppModel {
 			phase = .failed(words)
 		}
 	}
+
+	#if DEBUG || GENTBOX_HOOKS
+	/// The inbox shows `playground` from now on, or the hub's again (`nil`).
+	func show(_ playground: PlaygroundInbox?) async {
+		await router?.route(to: playground)
+		inbox?.requestRead()
+	}
+	#endif
 
 	private func startPresence(hub: GentboxHub) {
 		let monitor = PresenceMonitor { [log] update in

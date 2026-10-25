@@ -55,6 +55,11 @@ final class InboxHeaderView: FlippedView, InboxSection {
 			approval.isEnabled = false
 			menu.addItem(approval)
 		}
+		#if DEBUG || GENTBOX_HOOKS
+		menu.addItem(ClosureMenuItem("Debug Panel…", symbol: nil) {
+			DebugPanel.shared?.present()
+		})
+		#endif
 		menu.addItem(.separator())
 		menu.addItem(ClosureMenuItem("Quit Gentbox", symbol: nil, keyEquivalent: "q") {
 			NSApp.terminate(nil)

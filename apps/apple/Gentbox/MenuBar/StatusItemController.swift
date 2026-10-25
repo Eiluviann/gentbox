@@ -68,6 +68,14 @@ final class StatusItemController: NSObject {
 			)
 			demo?.run()
 		}
+		DebugPanel.install(
+			app: app,
+			openInbox: { [weak self] in
+				guard let self, !self.panel.isVisible || self.panel.isDespawning else { return }
+				self.showPanel(takingKeyboard: false)
+			},
+			closeInbox: { [weak self] in self?.closePanel() },
+		)
 		// Test, snapshot and trace hooks: none of them reach a Release build.
 		if UserDefaults.standard.bool(forKey: Self.openAtLaunchKey) {
 			if let path = ProcessInfo.processInfo.environment["GENTBOX_SNAPSHOT_PATH"], !path.isEmpty {
@@ -168,7 +176,9 @@ final class StatusItemController: NSObject {
 	static var reduceMotionOverride: Bool?
 	#endif
 
-	private static var reducesMotion: Bool {
+	/// Whether motion fades in place rather than scaling: the Mac's Reduce
+	/// Motion, or a test's override.
+	static var reducesMotion: Bool {
 		#if DEBUG || GENTBOX_HOOKS
 		// Tests and recordings show both variants whatever the Mac is set to.
 		if let reduceMotionOverride {

@@ -23,7 +23,7 @@ extension GentboxHub: InboxService {}
 
 /// The menu-bar inbox's state on the main actor: the inbox, read again
 /// whenever the hub reports a change; which item is expanded (an accordion:
-/// one at most); a filter to one thread's open items; the rows picked for a
+/// exactly one while anything is listed); a filter to one thread's open items; the rows picked for a
 /// bulk Dismiss; and the commands you send. Reads coalesce: a burst of events
 /// costs one or two reads, never one per event.
 @MainActor
@@ -72,8 +72,6 @@ public final class InboxModel {
 		case followNextUp
 		/// The item you expanded, until it leaves the list.
 		case chosen(Expanded)
-		/// You collapsed the expanded item: nothing, until you expand one.
-		case collapsed
 	}
 
 	/// The inbox as last read; `nil` until the first read finishes.
@@ -147,15 +145,13 @@ public final class InboxModel {
 
 	// MARK: Expansion
 
-	/// The expanded item, if any.
+	/// The expanded item: one whenever anything is listed, none otherwise.
 	public var expanded: Expanded? {
 		switch expansion {
 		case .followNextUp:
-			return liveNextUp.map { .card($0.id) }
+			return (liveNextUp ?? visibleItems.first).map { .card($0.id) }
 		case .chosen(let chosen):
 			return chosen
-		case .collapsed:
-			return nil
 		}
 	}
 
@@ -163,12 +159,26 @@ public final class InboxModel {
 		expanded?.messageId == messageId
 	}
 
-	/// A click on a row expands it and collapses the one that was open; a
-	/// click on the expanded card's header collapses it. Either way an
-	/// unsent reply goes.
-	public func toggleExpansion(of messageId: String) {
-		expansion = isExpanded(messageId) ? .collapsed : .chosen(.card(messageId))
+	/// A click on a row expands it and collapses the one that was open, and
+	/// an unsent reply goes. The expanded card stays: one is always open.
+	public func expand(_ messageId: String) {
+		guard !isExpanded(messageId) else { return }
+		open(messageId)
 		replyingTo = nil
+	}
+
+	/// The card shows `messageId`; a card you read is never one picked for
+	/// a bulk Dismiss.
+	private func open(_ messageId: String) {
+		expansion = .chosen(.card(messageId))
+		selection.remove(messageId)
+	}
+
+	/// A click on the expanded card's header: its Open, if it offers one,
+	/// opens the conversation. The card stays expanded.
+	public func openConversation(of message: InboxMessage) async {
+		guard let open = message.offeredActions.first(where: { $0.kind == .open }) else { return }
+		await press(open, on: message)
 	}
 
 	/// The inbox opened or closed. Opening pins the default card: from then
@@ -194,8 +204,8 @@ public final class InboxModel {
 	}
 
 	private func pinDefaultExpansion() {
-		guard isPresented, expansion == .followNextUp, let next = nextUpInView else { return }
-		expansion = .chosen(.card(next.id))
+		guard isPresented, expansion == .followNextUp, let next = nextUpInView ?? visibleItems.first else { return }
+		open(next.id)
 	}
 
 	/// After a read: an expanded item that a newer message superseded stays
@@ -210,12 +220,12 @@ public final class InboxModel {
 			!liveItems.contains(where: { $0.id == chosen.messageId })
 		{
 			if let successor = liveItems.first(where: { $0.supersedes.contains(chosen.messageId) }) {
-				expansion = .chosen(.card(successor.id))
+				open(successor.id)
 				carryReplyDraft(to: successor)
 			} else {
 				replyingTo = nil
 				if isPresented, let next = nextUpInView ?? visibleItems.first {
-					expansion = .chosen(.card(next.id))
+					open(next.id)
 				} else {
 					expansion = .followNextUp
 				}
@@ -439,7 +449,7 @@ public final class InboxModel {
 			// the expansion moves to the filtered thread's first item.
 			if let expanded, !open.contains(where: { $0.id == expanded.messageId }) {
 				replyingTo = nil
-				expansion = .chosen(.card(nextUpInView?.id ?? open[0].id))
+				self.open(nextUpInView?.id ?? open[0].id)
 			}
 			return .stillOpen(open.count)
 		}

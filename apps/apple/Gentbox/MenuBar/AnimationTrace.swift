@@ -78,11 +78,11 @@ final class AnimationTrace: NSObject {
 			try? await Task.sleep(for: .milliseconds(800))
 			guard let model = inbox() else { return }
 			let items = model.visibleItems
-			await step("expand-row") { model.toggleExpansion(of: items[2].id) }
-			await step("collapse") { model.toggleExpansion(of: items[2].id) }
-			await step("expand-another") { model.toggleExpansion(of: items[3].id) }
+			await step("expand-row") { model.expand(items[2].id) }
+			await step("expand-back") { model.expand(items[1].id) }
+			await step("expand-another") { model.expand(items[3].id) }
 			await step("expand-then-refresh") {
-				model.toggleExpansion(of: items[1].id)
+				model.expand(items[1].id)
 				Task { @MainActor in
 					try? await Task.sleep(for: .milliseconds(120))
 					model.requestRead()
@@ -102,7 +102,7 @@ final class AnimationTrace: NSObject {
 			let prompt = model.visibleItems.first { $0.messageType == .decisionRequired }
 			if let prompt {
 				await step("expand-prompt") {
-					if !model.isExpanded(prompt.id) { model.toggleExpansion(of: prompt.id) }
+					model.expand(prompt.id)
 				}
 				await step("waiter", until: { model.visibleItems.first { $0.id == prompt.id }?.hasLiveWaiter == true }) {
 					self.signal("waiter")

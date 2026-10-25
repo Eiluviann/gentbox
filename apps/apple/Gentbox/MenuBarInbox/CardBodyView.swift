@@ -60,9 +60,14 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		setAccessibilityRole(.group)
 	}
 
-	func show(message: InboxMessage, isReplying isReplyOpen: Bool) {
+	/// Shows `message`; one that replaces another on a shown card
+	/// cross-fades into its place (`isAnimated`).
+	func show(message: InboxMessage, isReplying isReplyOpen: Bool, isAnimated: Bool) {
 		keys.show(messageId: message.id, isShown: isActive, at: CACurrentMediaTime())
 		let isNewMessage = message != self.message
+		if isNewMessage, self.message != nil, isActive, isAnimated {
+			LayerMotion.crossfade([summary.layer, codeBox.layer], duration: Tokens.motionDuration)
+		}
 		if isNewMessage {
 			self.message = message
 			summary.stringValue = message.summary ?? ""
@@ -183,15 +188,25 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	}
 
 	/// The bar that applies shows; every other control stays drawn at zero
-	/// opacity, out of reach of clicks, keys and VoiceOver.
+	/// opacity, out of reach of clicks, keys and VoiceOver. On a card that
+	/// shows, buttons that come fade in growing slightly into place, and
+	/// those that go fade out shrinking (the reply box replacing the answers,
+	/// a waiter's answers replacing Snooze).
 	private func showBar() {
 		let shown = shownViews
+		let isAnimated = isActive && window?.isVisible == true
 		for bar in [controls, nextControls].compactMap({ $0 }) {
 			for view in bar.allViews {
 				let isShown = shown.contains { $0 === view }
 				let alpha: CGFloat = isShown ? 1 : 0
 				if view.alphaValue != alpha {
 					view.alphaValue = alpha
+					if isAnimated {
+						transition(view, isShown: isShown)
+					} else {
+						view.layer?.removeAnimation(forKey: "motion.opacity")
+						LayerMotion.endZoom(view.layer)
+					}
 				}
 				view.setInReach(isShown)
 			}
@@ -202,6 +217,20 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			}
 		} else if let field = controls?.replyField, field.currentEditor() != nil {
 			window?.makeFirstResponder(nil)
+		}
+	}
+
+	private func transition(_ control: NSView, isShown: Bool) {
+		let duration = Tokens.motionDuration
+		LayerMotion.fade(control.layer, to: isShown ? 1 : 0, duration: duration)
+		guard !StatusItemController.reducesMotion else {
+			LayerMotion.endZoom(control.layer)
+			return
+		}
+		if isShown {
+			LayerMotion.zoom(control.layer, from: Tokens.arrivalScale, to: 1, duration: duration)
+		} else {
+			LayerMotion.zoom(control.layer, from: 1, to: Tokens.arrivalScale, duration: duration)
 		}
 	}
 

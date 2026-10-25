@@ -138,30 +138,71 @@ struct InboxModelTests {
 
 	@Test func oneItemIsExpandedAtATime() async {
 		let (model, _) = await accordion()
-		model.toggleExpansion(of: "done")
+		model.expand("done")
 		#expect(model.expanded == .card("done"))
 		#expect(!model.isExpanded("prompt"))
-		model.toggleExpansion(of: "note")
+		model.expand("note")
 		#expect(model.expanded == .card("note"))
 		#expect(!model.isExpanded("done"))
 	}
 
-	@Test func collapsingTheExpandedItemLeavesNothingExpanded() async {
+	@Test func theExpandedCardStaysExpandedWhenClicked() async {
 		let (model, service) = await accordion()
-		model.toggleExpansion(of: "prompt")
-		#expect(model.expanded == nil)
-		// A refresh does not undo your choice.
+		model.expand("prompt")
+		#expect(model.expanded == .card("prompt"))
 		await model.readUntilCurrent()
-		#expect(model.expanded == nil)
-		// Closing the inbox starts again from the next-up item.
-		model.resetExpansion()
 		#expect(model.expanded == .card("prompt"))
 		_ = service
 	}
 
+	@Test func openingTheExpandedCardOpensItsConversation() async {
+		let open = action("open", .open)
+		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking, actions: [open])
+		let service = FakeService()
+		service.next = makeInbox(nextUp: prompt, items: [prompt])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		model.presentationChanged(isPresented: true)
+		await model.openConversation(of: prompt)
+		#expect(service.commands == ["action prompt open -"])
+		#expect(model.expanded == .card("prompt"))
+		// No Open on offer: nothing to send.
+		await model.openConversation(of: message(id: "done"))
+		#expect(service.commands == ["action prompt open -"])
+	}
+
+	@Test func aPickedRowThatOpensLeavesThePick() async {
+		let (model, service) = await accordion()
+		model.toggleSelection(of: message(id: "done"))
+		model.toggleSelection(of: message(id: "note", type: .generic))
+		// You open a picked row: it is the card you read, not one to dismiss.
+		model.expand("done")
+		#expect(model.selection == ["note"])
+		// The open card closes and the hand-over opens a picked row.
+		service.next = makeInbox(nextUp: nil, items: [message(id: "note", type: .generic)])
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("note"))
+		#expect(model.selection.isEmpty)
+	}
+
+	@Test func aListWithItemsAlwaysHasAnExpandedCard() async {
+		// Nothing waits, so there is no next-up item: the first row expands.
+		let service = FakeService()
+		service.next = makeInbox(nextUp: nil, items: [message(id: "done"), message(id: "note")])
+		let model = InboxModel(service: service)
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("done"))
+		model.presentationChanged(isPresented: true)
+		#expect(model.expanded == .card("done"))
+		// The first row leaves: the next one opens.
+		service.next = makeInbox(nextUp: nil, items: [message(id: "note", threadId: "th2")])
+		await model.readUntilCurrent()
+		#expect(model.expanded == .card("note"))
+	}
+
 	@Test func whenTheExpandedItemClosesTheNextOneExpands() async {
 		let (model, service) = await accordion()
-		model.toggleExpansion(of: "done")
+		model.expand("done")
 		let next = message(id: "next", type: .decisionRequired, blocking: .blocking)
 		service.next = makeInbox(nextUp: next, items: [next, message(id: "note")])
 		await model.readUntilCurrent()
@@ -205,7 +246,7 @@ struct InboxModelTests {
 
 	@Test func theExpansionSurvivesARefresh() async {
 		let (model, service) = await accordion()
-		model.toggleExpansion(of: "done")
+		model.expand("done")
 		// Re-read in another order, with a new next-up item.
 		let urgent = message(id: "urgent", type: .decisionRequired, blocking: .blocking)
 		service.next = makeInbox(
@@ -329,7 +370,7 @@ struct InboxModelTests {
 		let model = InboxModel(service: service)
 		await model.readUntilCurrent()
 		model.presentationChanged(isPresented: true)
-		model.toggleExpansion(of: "old")
+		model.expand("old")
 		model.startReply(on: "old")
 		model.updateReply("use the staging key")
 

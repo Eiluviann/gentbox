@@ -194,11 +194,10 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(element("message:Allow Bash to run the ingest tests?").exists)
 		XCTAssertTrue(element("action:Dismiss").isHittable)
 		attachSnapshot(named: "Expanded row")
-		// Its header (here, the breadcrumb in it) collapses it, leaving
-		// nothing expanded.
+		// Its header (here, the breadcrumb in it) leaves it expanded: one card
+		// is always open.
 		element("context:Search filters persist in the URL; 18 tests pass").click()
-		XCTAssertTrue(picked.waitForNonExistence(timeout: 5))
-		attachSnapshot(named: "All collapsed")
+		XCTAssertFalse(picked.waitForNonExistence(timeout: 1))
 		element("message:Allow Bash to run the ingest tests?").click()
 		XCTAssertTrue(card.waitForExistence(timeout: 5))
 		XCTAssertTrue(element("action:Approve").isHittable)
@@ -261,7 +260,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertEqual(
 			Set(byStep.keys),
 			[
-				"expand-row", "collapse", "expand-another", "expand-then-refresh", "removal", "arrival", "update",
+				"expand-row", "expand-back", "expand-another", "expand-then-refresh", "removal", "arrival", "update",
 				"expand-prompt", "waiter", "despawn", "spawn", "reopen-mid-despawn",
 			],
 		)
@@ -302,7 +301,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		// Responsiveness: the first frame after a click lands within two
 		// display frames, and after it no frame of the motion comes late.
 		let frame = Self.displayFrameMilliseconds
-		for step in ["expand-row", "collapse", "expand-another"] {
+		for step in ["expand-row", "expand-back", "expand-another"] {
 			let latency = try XCTUnwrap(steps[step]?.latencyMs, step)
 			XCTAssertLessThanOrEqual(Double(latency), 2 * frame + 1, "\(step): \(latency) ms to the first frame")
 			let moving = frames.filter { $0.step == step && $0.ms <= Int(Self.motionMilliseconds) }
@@ -450,7 +449,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTContext.runActivity(named: "Motion check · \(line)") { _ in }
 	}
 	/// `Tokens.motionDuration`, which the UI tests cannot import.
-	private static let motionMilliseconds = 250.0
+	private static let motionMilliseconds = 300.0
 
 	/// The panel never moves: from opening to closing its top edge and left
 	/// edge stay where they were set, and only the bottom edge moves.
