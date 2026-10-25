@@ -72,7 +72,7 @@ final class InboxPanelTests: XCTestCase {
 	func testTheSpawnScaleHoldsTheCardsTopCentre() {
 		let panel = InboxPanel(content: NSView())
 		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), maxCardHeight: 700)
-		let cardTopCentre = CGPoint(x: panel.frame.width / 2, y: panel.frame.height - InboxPanel.margin)
+		let cardTopCentre = CGPoint(x: panel.frame.width / 2, y: panel.frame.height - InboxPanel.topRoom)
 		for scale in [0.96, 0.98, 1.0] {
 			let moved = cardTopCentre.applying(CATransform3DGetAffineTransform(panel.cardTopTransform(scale: scale)))
 			XCTAssertEqual(moved.x, cardTopCentre.x, accuracy: 0.001, "scale \(scale)")
@@ -141,24 +141,39 @@ final class InboxPanelTests: XCTestCase {
 		let panel = InboxPanel(content: NSView())
 		let card = NSRect(x: 900, y: 400, width: 380, height: 300)
 		panel.place(card: card, maxCardHeight: 700)
-		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.margin)
-		XCTAssertEqual(panel.frame.height, 300 + InboxPanel.margin + InboxPanel.bottomRoom)
+		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.topRoom)
+		XCTAssertEqual(panel.frame.height, 300 + InboxPanel.topRoom + InboxPanel.bottomRoom)
 		XCTAssertEqual(panel.cardFrameOnScreen, card)
 
 		panel.setCardHeight(400, animated: true)
-		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.margin)
-		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.margin + InboxPanel.bottomRoom, "grown before the motion")
+		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.topRoom)
+		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.topRoom + InboxPanel.bottomRoom, "grown before the motion")
 
 		panel.setCardHeight(250, animated: true)
-		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.margin + InboxPanel.bottomRoom, "kept while the card shrinks")
+		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.topRoom + InboxPanel.bottomRoom, "kept while the card shrinks")
 		let settled = expectation(description: "shrunk once the motion is over")
 		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration + 0.1) { settled.fulfill() }
 		wait(for: [settled], timeout: 2)
-		XCTAssertEqual(panel.frame.height, 250 + InboxPanel.margin + InboxPanel.bottomRoom)
-		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.margin)
+		XCTAssertEqual(panel.frame.height, 250 + InboxPanel.topRoom + InboxPanel.bottomRoom)
+		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.topRoom)
 
 		panel.setCardHeight(180, animated: false)
-		XCTAssertEqual(panel.frame.height, 180 + InboxPanel.margin + InboxPanel.bottomRoom)
+		XCTAssertEqual(panel.frame.height, 180 + InboxPanel.topRoom + InboxPanel.bottomRoom)
+	}
+
+	/// The window reaches no higher than the gap above the card: above that
+	/// is the menu bar, whose items must take their own clicks while the
+	/// inbox shows (a click there switches to them, as between menus).
+	func testTheWindowLeavesTheMenuBarAlone() {
+		let screen = NSRect(x: 0, y: 0, width: 1512, height: 944)
+		let visible = NSRect(x: 0, y: 0, width: 1512, height: 944 - 33)
+		let item = NSRect(x: 1300, y: 944 - 33, width: 36, height: 33)
+		let card = InboxPanel.frame(size: NSSize(width: 380, height: 300), under: item, in: visible)
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: card, maxCardHeight: 700)
+		XCTAssertLessThanOrEqual(panel.frame.maxY, card.maxY + InboxPanel.gap)
+		XCTAssertLessThanOrEqual(panel.frame.maxY, visible.maxY, "the window covers the menu bar")
+		XCTAssertLessThan(panel.frame.maxY, screen.maxY)
 	}
 
 	/// A shrink that a later growth overtakes never cuts the card short.
@@ -170,7 +185,7 @@ final class InboxPanelTests: XCTestCase {
 		let settled = expectation(description: "past the first motion")
 		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration + 0.1) { settled.fulfill() }
 		wait(for: [settled], timeout: 2)
-		XCTAssertEqual(panel.frame.height, 350 + InboxPanel.margin + InboxPanel.bottomRoom)
+		XCTAssertEqual(panel.frame.height, 350 + InboxPanel.topRoom + InboxPanel.bottomRoom)
 	}
 
 	/// Becoming key leaves no text focused but an open reply box: a
@@ -205,7 +220,7 @@ final class InboxPanelTests: XCTestCase {
 		var closes = 0
 		panel.onClose = { closes += 1 }
 		let stage = try XCTUnwrap(panel.contentView)
-		let belowTheCard = NSPoint(x: InboxPanel.margin + 100, y: InboxPanel.margin + 300 + 10)
+		let belowTheCard = NSPoint(x: InboxPanel.margin + 100, y: InboxPanel.topRoom + 300 + 10)
 		let hit = try XCTUnwrap(stage.hitTest(stage.convert(belowTheCard, to: stage.superview)))
 		XCTAssertTrue(hit === stage)
 		let click = try XCTUnwrap(NSEvent.mouseEvent(

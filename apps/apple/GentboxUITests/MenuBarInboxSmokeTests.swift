@@ -234,7 +234,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		let done = element("action:Done")
 		XCTAssertTrue(done.waitForExistence(timeout: 5))
 		XCTAssertFalse(element("action:Defer").exists)
-		done.click()
+		// A deferral is no answer: the card keeps its keys, and ↩ is Done.
+		app.typeKey(.return, modifierFlags: [])
 		XCTAssertTrue(card.waitForNonExistence(timeout: 5))
 		XCTAssertFalse(element("message:Sign in to the payments sandbox").exists)
 	}

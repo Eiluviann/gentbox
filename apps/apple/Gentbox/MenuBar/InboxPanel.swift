@@ -17,8 +17,12 @@ class InboxPanel: NSPanel {
 		.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary,
 	]
 	static let cornerRadius: CGFloat = 12
-	/// Room around the card for its drawn shadow, above and beside it.
+	/// Room beside the card for its drawn shadow.
 	static let margin: CGFloat = 24
+	/// Room above the card: no more than the gap under the menu bar, whose
+	/// items must keep their clicks while the inbox shows. The shadow's
+	/// faint top is cut there.
+	static let topRoom: CGFloat = gap
 	/// Room below the card for its shadow, which falls 6 points down.
 	static let bottomRoom: CGFloat = shadowOffset + shadowPadding
 
@@ -80,7 +84,7 @@ class InboxPanel: NSPanel {
 	/// they show.
 	func setCardHeight(_ height: CGFloat, animated: Bool = false) {
 		cardHeight = height
-		let card = NSRect(x: Self.margin, y: Self.margin, width: Tokens.popoverWidth, height: height)
+		let card = NSRect(x: Self.margin, y: Self.topRoom, width: Tokens.popoverWidth, height: height)
 		var motion = LayerMotion()
 		motion.capture(surface.layer, ["position", "bounds"])
 		motion.capture(ring, ["position", "bounds"])
@@ -115,12 +119,12 @@ class InboxPanel: NSPanel {
 
 	/// The card height the window has room for now.
 	private var windowCardHeight: CGFloat {
-		frame.height - Self.margin - Self.bottomRoom
+		frame.height - Self.topRoom - Self.bottomRoom
 	}
 
 	/// Resizes the window to a card of `height`, its top held.
 	private func fitWindow(cardHeight height: CGFloat) {
-		let fitted = Self.windowFrame(card: NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.margin - height, width: Tokens.popoverWidth, height: height))
+		let fitted = Self.windowFrame(card: NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.topRoom - height, width: Tokens.popoverWidth, height: height))
 		if fitted != frame {
 			setFrame(fitted, display: false, animate: false)
 		}
@@ -137,7 +141,7 @@ class InboxPanel: NSPanel {
 	}
 
 	private func cardFrame(height: CGFloat) -> NSRect {
-		NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.margin - height, width: Tokens.popoverWidth, height: height)
+		NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.topRoom - height, width: Tokens.popoverWidth, height: height)
 	}
 
 	private func buildCard(content: NSView) {
@@ -324,7 +328,7 @@ class InboxPanel: NSPanel {
 	/// Scales about the card's top centre, so the card never travels. A
 	/// view's layer is anchored at its origin, in its superlayer's y-up space.
 	func cardTopTransform(scale: CGFloat) -> CATransform3D {
-		let cardTop = CGPoint(x: frame.width / 2, y: frame.height - Self.margin)
+		let cardTop = CGPoint(x: frame.width / 2, y: frame.height - Self.topRoom)
 		return CATransform3DMakeAffineTransform(
 			CGAffineTransform(
 				a: scale, b: 0, c: 0, d: scale,
@@ -341,7 +345,7 @@ class InboxPanel: NSPanel {
 	static func windowFrame(card: NSRect) -> NSRect {
 		NSRect(
 			x: card.minX - margin, y: card.minY - bottomRoom,
-			width: card.width + 2 * margin, height: card.height + margin + bottomRoom,
+			width: card.width + 2 * margin, height: card.height + topRoom + bottomRoom,
 		)
 	}
 

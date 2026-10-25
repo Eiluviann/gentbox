@@ -227,7 +227,9 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			inbox.startReply(on: message.id)
 		} else {
 			Interactions.untilNextFrame("Action")
-			keys.answered()
+			if InboxModel.isAnswer(action) {
+				keys.answered()
+			}
 			inbox.takeOutAhead(message, for: action)
 			Task { await inbox.press(action, on: message) }
 		}

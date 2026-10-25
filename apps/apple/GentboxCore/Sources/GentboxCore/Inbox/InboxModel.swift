@@ -381,7 +381,9 @@ public final class InboxModel {
 		takeOutOfTheList([message.id])
 	}
 
-	private static func isAnswer(_ action: InboxAction) -> Bool {
+	/// Whether `action` settles its item (an answer) rather than leaving it
+	/// open, as a deferral does with Done to come.
+	public static func isAnswer(_ action: InboxAction) -> Bool {
 		switch action.kind {
 		case .approve, .deny, .choice, .reply, .done: true
 		default: false

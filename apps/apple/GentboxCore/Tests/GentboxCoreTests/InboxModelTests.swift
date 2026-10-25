@@ -240,6 +240,15 @@ struct InboxModelTests {
 		#expect(model.visibleItems.map(\.id) == ["note"])
 	}
 
+	/// An answer settles the item; a deferral leaves it open with Done to
+	/// come, so the card keeps its keys for it.
+	@Test func onlyAnswersAreAnswers() {
+		for kind in [ActionKind.approve, .deny, .choice, .reply, .done] {
+			#expect(InboxModel.isAnswer(action("a", kind)), "\(kind)")
+		}
+		#expect(!InboxModel.isAnswer(action("later", .defer)))
+	}
+
 	/// Close on another thread's row filters the list to that thread: the
 	/// card the filter hides is no longer the expanded one, so no key acts
 	/// on it unseen.
