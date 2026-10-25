@@ -26,7 +26,7 @@ WORD, WEIGHT, TRACKING = 'gentbox', 600, -0.02  # tracking in em, as CSS letter-
 SW = 1.75  # menu-bar outline stroke: 1.31 pt at 18 pt
 BODY = dict(x0=3, y0=3.5, x1=21, y1=17, r=3, tail_x=7.5, tail_w=4, tail_y=20.75)
 ICON_SPARK = (12, 10.25, 3.4, 3.4)  # centre x, centre y, half height, half width
-ICON_WELL = 2.25  # the knocked-out ring around the icon spark: 1.125 each side
+ICON_WELL = 1.3  # the knocked-out ring around the icon spark: 0.65 each side
 GLYPH_SPARK = (18.25, 6.25, 4, 4)  # the menu-bar spark lands on the top-right corner
 GLYPH_CUT = 3.2  # the outline stops 1.6 short of the menu-bar spark
 URGENT = {'light': '#FF3B30', 'dark': '#FF453A'}  # systemRed; the app draws it with NSColor.systemRed
