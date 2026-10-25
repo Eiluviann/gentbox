@@ -8,7 +8,7 @@ paths: no font, mask or stroke. Needs fontTools and skia-pathops (pip install fo
 hb-shape (brew install harfbuzz) for the kerning. Run it only after changing the drawing;
 export.sh renders the committed SVGs.
 """
-import functools, json, math, subprocess, sys
+import functools, json, math, shutil, subprocess, sys
 from pathlib import Path
 
 import pathops
@@ -29,7 +29,8 @@ ICON_SPARK = (12, 10.25, 3.4, 3.4)  # centre x, centre y, half height, half widt
 ICON_WELL = 2.25  # the knocked-out ring around the icon spark: 1.125 each side
 GLYPH_SPARK = (18.25, 6.25, 4, 4)  # the menu-bar spark lands on the top-right corner
 GLYPH_CUT = 3.2  # the outline stops 1.6 short of the menu-bar spark
-URGENT = '#FF3B30'  # system red; the app draws it with NSColor.systemRed
+URGENT = {'light': '#FF3B30', 'dark': '#FF453A'}  # systemRed; the app draws it with NSColor.systemRed
+SLIVER = 0.5  # pieces of the cut outline smaller than this, in square units, are dropped
 
 # Icon tile and art per appearance; FLAT is the one-colour-plus-spark mark for pages and documents
 TILE = {
@@ -157,18 +158,20 @@ def menubar_urgent_body():
 
 
 def menubar_urgent_spark():
-	return svg(24, 24, f'<path d="{spark(*GLYPH_SPARK)}" fill="{URGENT}"/>')
+	return svg(24, 24, f'<path d="{spark(*GLYPH_SPARK)}" fill="{URGENT["light"]}"/>')
 
 
 def menubar_urgent_preview(mode):
 	ink = '#000' if mode == 'light' else '#FFF'
-	return svg(24, 24, f'<path d="{glyph_cut()}" fill="{ink}"/><path d="{spark(*GLYPH_SPARK)}" fill="{URGENT}"/>')
+	return svg(24, 24, f'<path d="{glyph_cut()}" fill="{ink}"/><path d="{spark(*GLYPH_SPARK)}" fill="{URGENT[mode]}"/>')
 
 
 # Wordmark and lockups
 
 def load_wordmark():
 	"""Outline the word at WEIGHT with the font's own kerning, in font units with y pointing down."""
+	if shutil.which('hb-shape') is None:
+		sys.exit('build.py: hb-shape not found; brew install harfbuzz')
 	font = instancer.instantiateVariableFont(TTFont(FONT), {'wght': WEIGHT, 'wdth': 100})
 	upem = font['head'].unitsPerEm
 	glyphs = font.getGlyphSet()
@@ -209,7 +212,7 @@ def lockup_horizontal(word, mode):
 	baseline = ICON_SPARK[1] + word['x_height'] * scale / 2
 	width = x + word['width'] * scale + 1.5
 	text = f'<g transform="translate({fmt(x)} {fmt(baseline)}) scale({fmt(scale, 6)})" fill="{FLAT[mode]["ink"]}">{word["paths"]}</g>'
-	return svg(round(width * 8), 168, mark_art(mode) + text, vb=f'1.5 1.5 {fmt(width - 1.5)} 21')
+	return svg(round((width - 1.5) * 8), 168, mark_art(mode) + text, vb=f'1.5 1.5 {fmt(width - 1.5)} 21')
 
 
 def lockup_stacked(word, mode):
@@ -287,8 +290,14 @@ def glyph_idle():
 
 @functools.cache
 def glyph_cut():
-	"""The menu-bar outline, stopping GLYPH_CUT / 2 short of the corner spark."""
-	return path_d(pathops.op(stroked(bubble(), SW), grown(spark(*GLYPH_SPARK), GLYPH_CUT), pathops.PathOp.DIFFERENCE))
+	"""The menu-bar outline, stopping GLYPH_CUT / 2 short of the corner spark. The grown spark is
+	concave between its tips, so the cut leaves a sliver of the corner arc; drop it."""
+	cut = pathops.op(stroked(bubble(), SW), grown(spark(*GLYPH_SPARK), GLYPH_CUT), pathops.PathOp.DIFFERENCE)
+	kept = pathops.Path()
+	for contour in cut.contours:
+		if abs(contour.area) >= SLIVER:
+			kept.addPath(contour)
+	return path_d(kept)
 
 
 def grown(d, width):

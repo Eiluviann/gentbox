@@ -12,5 +12,5 @@
 	--brand-amber: #ffb224;
 
 	/* Urgent spark on the menu-bar glyph; the app draws it in systemRed */
-	--brand-urgent: #ff3b30;
+	--brand-urgent: light-dark(#ff3b30, #ff453a);
 }

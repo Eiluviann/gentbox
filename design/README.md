@@ -50,7 +50,7 @@ The dark palette follows macOS conventions:
 
 ### Contrast
 
-`tools/contrast.py` checks every text and icon pair in `an.css` and the brand pairs in `brand/brand.css`, laying translucent fills over the surface they sit on; it exits non-zero when a pair fails. It covers selection backgrounds (the selected sidebar row, a row picked to dismiss) and takes an opacity per pair, so a faded hint counts as faded. Every pair passes in both modes except the one the user accepted, white on the system accent (primary buttons, their shortcut hints, the selected menu item and chips: 4.02 light, 3.65 dark), which the script marks accepted, not failing. Otherwise text is at 4.5:1 or more (lowest: Deny label on a dark button 4.62), icons and other marks at 3:1 or more (lowest: paused orange on a picked row 3.08 light). Shortcut hints are full opacity: `--ink-3` on bordered buttons, `--on-fill` on primary ones. Rerun with `--markdown` to refresh this table.
+`tools/contrast.py` checks every text and icon pair in `an.css` and the brand pairs in `brand/brand.css`, laying translucent fills over the surface they sit on; it exits non-zero when a pair fails. It covers selection backgrounds (the selected sidebar row, a row picked to dismiss) and takes an opacity per pair, so a faded hint counts as faded. Every pair passes in both modes except two the script marks accepted, not failing: white on the system accent (primary buttons, their shortcut hints, the selected menu item and chips: 4.02 light, 3.65 dark), which the user accepted, and the light flat mark's amber spark (2.39), a logo exempt from WCAG 1.4.11. Otherwise text is at 4.5:1 or more (lowest: Deny label on a dark button 4.62), icons and other marks at 3:1 or more (lowest: paused orange on a picked row 3.08 light). Shortcut hints are full opacity: `--ink-3` on bordered buttons, `--on-fill` on primary ones. Rerun with `--markdown` to refresh this table.
 
 <!-- contrast:start -->
 | Pair | Where | Opacity | Minimum | Light | Dark | Status |
@@ -129,6 +129,7 @@ The dark palette follows macOS conventions:
 | `brand-ink` on `surface` | Wordmark and lockup on a page | 100% | 4.5:1 | 14.22 | 14.64 | ok |
 | `brand-ink` on `board` | Wordmark and lockup on the board | 100% | 4.5:1 | 13.76 | 15.88 | ok |
 | `brand-ink` on `elevated` | Flat mark on a raised surface | 100% | 3:1 | 14.22 | 12.24 | ok |
+| `brand-spark` on `surface` | Flat mark spark on a page | 100% | 3:1 | 2.39 | 9.25 | accepted: logo, exempt from WCAG 1.4.11; the ink bubble carries the mark |
 | `brand-paper` on `brand-tile-top` | App icon bubble, top of the tile | 100% | 3:1 | 10.54 | 11.27 | ok |
 | `brand-paper` on `brand-tile-bottom` | App icon bubble, bottom of the tile | 100% | 3:1 | 15.41 | 14.89 | ok |
 | `brand-amber` on `brand-tile-top` | App icon spark, top of the tile | 100% | 3:1 | 6.42 | 7.72 | ok |

@@ -18,6 +18,7 @@ TEXT, ICON = 4.5, 3.0
 # Pairs under their minimum that the user accepted, with the reason; they print as accepted, not failing
 ACCEPTED = {
 	('on-fill', 'accent'): 'system accent fill (.borderedProminent), for consistency with macOS; Increase Contrast darkens it',
+	('brand-spark', 'surface'): 'logo, exempt from WCAG 1.4.11; the ink bubble carries the mark',
 }
 PAIRS = [
 	('ink', 'surface', None, TEXT, 'Body text in the main window'),
@@ -94,6 +95,7 @@ PAIRS = [
 	('brand-ink', 'surface', None, TEXT, 'Wordmark and lockup on a page'),
 	('brand-ink', 'board', None, TEXT, 'Wordmark and lockup on the board'),
 	('brand-ink', 'elevated', None, ICON, 'Flat mark on a raised surface'),
+	('brand-spark', 'surface', None, ICON, 'Flat mark spark on a page'),
 	('brand-paper', 'brand-tile-top', None, ICON, 'App icon bubble, top of the tile'),
 	('brand-paper', 'brand-tile-bottom', None, ICON, 'App icon bubble, bottom of the tile'),
 	('brand-amber', 'brand-tile-top', None, ICON, 'App icon spark, top of the tile'),
