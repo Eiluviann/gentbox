@@ -246,7 +246,9 @@ struct InboxModelTests {
 		for kind in [ActionKind.approve, .deny, .choice, .reply, .done] {
 			#expect(InboxModel.isAnswer(action("a", kind)), "\(kind)")
 		}
-		#expect(!InboxModel.isAnswer(action("later", .defer)))
+		for kind in [ActionKind.defer, .open, .snooze] {
+			#expect(!InboxModel.isAnswer(action("later", kind)), "\(kind)")
+		}
 	}
 
 	/// Close on another thread's row filters the list to that thread: the

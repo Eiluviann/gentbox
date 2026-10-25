@@ -182,17 +182,19 @@ final class StatusItemController: NSObject {
 		guard let screen = item.button?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
 		var anchor = item.button?.window?.frame ?? .zero
 		var visibleFrame = screen.visibleFrame
+		var screenFrame = screen.frame
 		#if DEBUG || GENTBOX_HOOKS
 		if Self.isOffscreen {
 			(anchor, visibleFrame) = Self.offscreen(visibleFrame)
+			screenFrame = visibleFrame
 		}
 		#endif
-		let maxHeight = InboxPanel.maxHeight(under: anchor, in: visibleFrame)
+		let maxHeight = InboxPanel.maxHeight(under: anchor, in: visibleFrame, screen: screenFrame)
 		content.maxHeight = maxHeight
 		content.settle()
 		let frame = InboxPanel.frame(
 			size: NSSize(width: Tokens.popoverWidth, height: devicePixelCeiling(content.naturalHeight)),
-			under: anchor, in: visibleFrame,
+			under: anchor, in: visibleFrame, screen: screenFrame,
 		)
 		placement = (frame.minX, frame.maxY, maxHeight)
 		panel.place(card: frame, maxCardHeight: maxHeight)

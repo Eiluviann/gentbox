@@ -188,20 +188,25 @@ class InboxPanel: NSPanel {
 
 	/// The card's shadow, `--shadow-window` (an.css:35): black at 22 %,
 	/// Core Animation's `shadowRadius` 14, 6 points down.
-	private static let shadowOffset: CGFloat = 6
+	static let shadowOffset: CGFloat = 6
 	/// Core Graphics' blur for `shadowRadius` 14: 2.1 times it, fitted to
 	/// the shadow Core Animation drew on screen.
 	private static let shadowBlur: CGFloat = 14 * 2.1
 	/// How far the blur reaches past the card's edge, and in from it.
-	private static let shadowPadding: CGFloat = (shadowBlur * 1.5).rounded(.up)
+	static let shadowPadding: CGFloat = (shadowBlur * 1.5).rounded(.up)
+	/// The shadow image's rows above the window's top, which cuts them: the
+	/// image reaches `shadowPadding` past the card, 6 points down.
+	static let shadowRowsAboveWindowTop: CGFloat = shadowPadding - shadowOffset - topRoom
 	/// The stretched middle of the nine-slice image.
 	private static let shadowSlice: CGFloat = 2
 
 	/// A rounded card's shadow, blurred once: corners and edges in its nine
 	/// slices, a middle that stretches to any card. The card in the image
 	/// reaches past the blur on every side, so the middle is at full
-	/// strength.
-	private static func shadowImage(scale: CGFloat) -> CGImage {
+	/// strength. Its top fades to nothing at the window's top, which is
+	/// only the gap under the menu bar above the card: cut there instead,
+	/// the faint top would show as a straight line.
+	static func shadowImage(scale: CGFloat) -> CGImage {
 		let card = 2 * shadowPadding + shadowSlice
 		let side = Int(((card + 2 * shadowPadding) * scale).rounded())
 		let context = CGContext(
@@ -220,8 +225,24 @@ class InboxPanel: NSPanel {
 		let rect = CGRect(x: shadowPadding * scale - away, y: shadowPadding * scale, width: card * scale, height: card * scale)
 		context.addPath(CGPath(roundedRect: rect, cornerWidth: cornerRadius * scale, cornerHeight: cornerRadius * scale, transform: nil))
 		context.fillPath()
+		fadeTop(of: context, side: CGFloat(side), scale: scale)
 		guard let image = context.makeImage() else { fatalError("a shadow image") }
 		return image
+	}
+
+	/// Nothing above the window's top, full strength from the card's top
+	/// down, a linear fade between: the top slice, drawn once like the rest.
+	private static func fadeTop(of context: CGContext, side: CGFloat, scale: CGFloat) {
+		let windowTop = side - shadowRowsAboveWindowTop * scale
+		let cardTop = windowTop - topRoom * scale
+		let colors = [CGColor(gray: 0, alpha: 0), CGColor(gray: 0, alpha: 1)] as CFArray
+		guard let fade = CGGradient(colorsSpace: CGColorSpaceCreateDeviceGray(), colors: colors, locations: [0, 1]) else { return }
+		context.saveGState()
+		context.setShadow(offset: .zero, blur: 0, color: nil)
+		context.setBlendMode(.destinationIn)
+		context.clip(to: CGRect(x: 0, y: cardTop, width: side, height: side - cardTop))
+		context.drawLinearGradient(fade, start: CGPoint(x: 0, y: windowTop), end: CGPoint(x: 0, y: cardTop), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+		context.restoreGState()
 	}
 
 	/// Hangs the window around `card` and lays the content out for the
@@ -395,12 +416,14 @@ class InboxPanel: NSPanel {
 	/// coordinates), centred on it, kept inside the screen's visible frame,
 	/// and no taller than `maxHeight(under:in:)`. With the menu bar hidden
 	/// the item sits above the screen; the panel then hangs from the top of
-	/// the visible frame. An anchor that is not at the top of the screen (the
+	/// the visible frame; one that hides itself and shows over the screen
+	/// (`screen`, the whole screen's frame) keeps the panel under the item.
+	/// An anchor that is not at the top of the screen (the
 	/// item's window before the menu bar is laid out reports (0, 0) or a y
 	/// below the screen) counts as none, and the panel hangs at the top right,
 	/// where the item would be.
-	static func frame(size: NSSize, under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat = gap) -> NSRect {
-		let anchor = menuBarAnchor(anchor, in: visibleFrame)
+	static func frame(size: NSSize, under anchor: NSRect, in visibleFrame: NSRect, screen: NSRect? = nil, gap: CGFloat = gap) -> NSRect {
+		let anchor = menuBarAnchor(anchor, in: visibleFrame, screen: screen ?? visibleFrame)
 		let top = top(under: anchor, in: visibleFrame, gap: gap)
 		var x = anchor.midX - size.width / 2
 		x = min(max(x, visibleFrame.minX + gap), visibleFrame.maxX - size.width - gap)
@@ -410,15 +433,25 @@ class InboxPanel: NSPanel {
 
 	/// The tallest the panel gets: from its top down to the bottom of the
 	/// visible frame. Only content taller than this scrolls.
-	static func maxHeight(under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat = gap) -> CGFloat {
-		top(under: menuBarAnchor(anchor, in: visibleFrame), in: visibleFrame, gap: gap) - visibleFrame.minY - gap
+	static func maxHeight(under anchor: NSRect, in visibleFrame: NSRect, screen: NSRect? = nil, gap: CGFloat = gap) -> CGFloat {
+		top(under: menuBarAnchor(anchor, in: visibleFrame, screen: screen ?? visibleFrame), in: visibleFrame, gap: gap) - visibleFrame.minY - gap
 	}
 
 	static let gap: CGFloat = 4
 
-	private static func menuBarAnchor(_ anchor: NSRect, in visibleFrame: NSRect) -> NSRect {
-		let isInMenuBar = anchor.width > 0 && anchor.height > 0 && anchor.minY >= visibleFrame.maxY - 1
-		return isInMenuBar ? anchor : NSRect(x: visibleFrame.maxX, y: visibleFrame.maxY, width: 0, height: 0)
+	/// The item, when it is in the menu bar: above the visible frame, or at
+	/// the top of `screen` (a menu bar that hides itself leaves the visible
+	/// frame the whole screen, and the item shows over it).
+	private static func menuBarAnchor(_ anchor: NSRect, in visibleFrame: NSRect, screen: NSRect) -> NSRect {
+		guard anchor.width > 0, anchor.height > 0 else { return noAnchor(in: visibleFrame) }
+		let isAboveVisibleFrame = anchor.minY >= visibleFrame.maxY - 1
+		let isAtTheScreensTop = anchor.maxY >= screen.maxY - 1 && anchor.minY < screen.maxY
+			&& anchor.maxX > screen.minX && anchor.minX < screen.maxX
+		return isAboveVisibleFrame || isAtTheScreensTop ? anchor : noAnchor(in: visibleFrame)
+	}
+
+	private static func noAnchor(in visibleFrame: NSRect) -> NSRect {
+		NSRect(x: visibleFrame.maxX, y: visibleFrame.maxY, width: 0, height: 0)
 	}
 
 	private static func top(under anchor: NSRect, in visibleFrame: NSRect, gap: CGFloat) -> CGFloat {

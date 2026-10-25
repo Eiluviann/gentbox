@@ -44,6 +44,21 @@ final class InboxPanelTests: XCTestCase {
 		XCTAssertEqual(frame.maxY, 978)
 	}
 
+	/// With the menu bar hidden automatically the visible frame reaches the
+	/// top of the screen; opened from the revealed menu bar, the card still
+	/// hangs under the status item, never over the menu bar's items.
+	func testWithAnAutoHiddenMenuBarItHangsUnderTheItem() {
+		let screen = NSRect(x: 0, y: 0, width: 1728, height: 1117)
+		let item = NSRect(x: 1300, y: 1117 - 33, width: 36, height: 33)
+		let frame = InboxPanel.frame(size: NSSize(width: 380, height: 300), under: item, in: screen, screen: screen)
+		XCTAssertEqual(frame.maxY, item.minY - InboxPanel.gap)
+		XCTAssertEqual(frame.midX, item.midX)
+		XCTAssertEqual(InboxPanel.maxHeight(under: item, in: screen, screen: screen), item.minY - InboxPanel.gap - InboxPanel.gap)
+		let panel = InboxPanel(content: NSView())
+		panel.place(card: frame, maxCardHeight: 700)
+		XCTAssertLessThanOrEqual(panel.frame.maxY, item.minY, "the window covers the menu bar")
+	}
+
 	/// While the menu bar is hidden or not laid out, the status item's window
 	/// reports frames like (0, 0) or a y below the screen: the panel then
 	/// hangs at the top right instead of collapsing to nothing.
@@ -174,6 +189,24 @@ final class InboxPanelTests: XCTestCase {
 		XCTAssertLessThanOrEqual(panel.frame.maxY, card.maxY + InboxPanel.gap)
 		XCTAssertLessThanOrEqual(panel.frame.maxY, visible.maxY, "the window covers the menu bar")
 		XCTAssertLessThan(panel.frame.maxY, screen.maxY)
+	}
+
+	/// The window's top cuts the shadow's faint top, so the shadow image
+	/// fades to nothing there: no line of shadow under the menu bar.
+	func testTheShadowFadesOutAtTheWindowsTop() throws {
+		for scale in [1.0, 2.0] as [CGFloat] {
+			let image = NSBitmapImageRep(cgImage: InboxPanel.shadowImage(scale: scale))
+			let edgeRow = Int((InboxPanel.shadowRowsAboveWindowTop * scale).rounded(.up))
+			for x in [image.pixelsWide / 2, image.pixelsWide / 3] {
+				for row in 0 ... edgeRow {
+					let alpha = try XCTUnwrap(image.colorAt(x: x, y: row)).alphaComponent
+					// The window's first row straddles the fade's start: 1/255 at most.
+					XCTAssertLessThanOrEqual(alpha, row < edgeRow ? 0 : 1.0 / 255, "row \(row) at \(x), scale \(scale)")
+				}
+				let underTheCard = Int(((InboxPanel.shadowRowsAboveWindowTop + InboxPanel.topRoom + 8) * scale).rounded())
+				XCTAssertGreaterThan(try XCTUnwrap(image.colorAt(x: x, y: underTheCard)).alphaComponent, 0.05, "the shadow faded where the card covers it")
+			}
+		}
 	}
 
 	/// A shrink that a later growth overtakes never cuts the card short.
