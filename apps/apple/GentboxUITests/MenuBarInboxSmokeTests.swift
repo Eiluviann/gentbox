@@ -51,10 +51,10 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"conversation": ["id": "session-1", "title": "Refactor the store"],
 		])
 		openInbox()
-		XCTAssertTrue(element("message:Ingest tests pass").waitForExistence(timeout: 10))
+		XCTAssertTrue(item("Ingest tests pass").waitForExistence(timeout: 10))
 		// A simple conversation lands in General, which the breadcrumb leaves out.
-		// A row is one element: title, breadcrumb and agent in one label.
-		let context = text(of: element("message:Ingest tests pass"))
+		// The only item is the open card: its breadcrumb line names the agent.
+		let context = itemText("Ingest tests pass")
 		XCTAssertTrue(context.contains("Refactor the store"), context)
 		XCTAssertFalse(context.contains("General"), context)
 		XCTAssertTrue(context.contains("Claude Code"), "the agent mark is labelled: \(context)")
@@ -78,27 +78,27 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"thread": ["key": "v1-1", "title": "v1.1"],
 		])
 		openInbox()
-		XCTAssertTrue(element("message:Release notes drafted").waitForExistence(timeout: 10))
-		XCTAssertTrue(text(of: element("message:Store migrations run on start")).contains("Gentbox › Phase 3"))
-		XCTAssertTrue(text(of: element("message:Release notes drafted")).contains("Gentbox › v1.1"))
-		let certificates = text(of: element("message:Staging certificates rotated"))
+		XCTAssertTrue(item("Release notes drafted").waitForExistence(timeout: 10))
+		XCTAssertTrue(itemText("Store migrations run on start").contains("Gentbox › Phase 3"))
+		XCTAssertTrue(itemText("Release notes drafted").contains("Gentbox › v1.1"))
+		let certificates = itemText("Staging certificates rotated")
 		XCTAssertTrue(certificates.contains("Infrastructure › Rotate staging certificates"), certificates)
 		XCTAssertTrue(certificates.contains("Codex"), certificates)
 		assertOrder([
-			"message:Release notes drafted",
-			"message:Staging certificates rotated",
-			"message:Store migrations run on start",
+			item("Release notes drafted"),
+			item("Staging certificates rotated"),
+			item("Store migrations run on start"),
 		])
 
 		// Close leads to the thread's open items instead of closing it.
-		element("message:Store migrations run on start").rightClick()
+		item("Store migrations run on start").rightClick()
 		app.menuItems["Close thread"].click()
 		let banner = element("inbox.filter")
 		XCTAssertTrue(banner.waitForExistence(timeout: 5))
 		XCTAssertEqual(text(of: banner), "1 item still open in Phase 3")
-		XCTAssertTrue(element("message:Release notes drafted").waitForNonExistence(timeout: 5))
+		XCTAssertTrue(item("Release notes drafted").waitForNonExistence(timeout: 5))
 		element("inbox.show-all").click()
-		XCTAssertTrue(element("message:Release notes drafted").waitForExistence(timeout: 5))
+		XCTAssertTrue(item("Release notes drafted").waitForExistence(timeout: 5))
 	}
 
 	func testMutingATopicAndAThreadFromTheItemMenu() throws {
@@ -114,7 +114,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 			"thread": ["key": "search", "title": "Search filters"],
 		])
 		openInbox()
-		let tokio = element("message:Tokio upgraded")
+		let tokio = item("Tokio upgraded")
 		XCTAssertTrue(tokio.waitForExistence(timeout: 10))
 		tokio.rightClick()
 		app.menuItems["Mute topic Dependency upgrades"].click()
@@ -125,7 +125,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(summary.waitForExistence(timeout: 5))
 		XCTAssertEqual(text(of: summary), "Dependency upgrades muted")
 
-		let search = element("message:Search filters persist in the URL")
+		let search = item("Search filters persist in the URL")
 		search.rightClick()
 		app.menuItems["Mute thread Search filters"].click()
 		assertValue("Muted", of: search)
@@ -209,6 +209,33 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		XCTAssertTrue(answer.contains("\"answered\""), answer)
 		XCTAssertTrue(answer.contains("\"allow\""), answer)
 		attachSnapshot(named: "After Approve")
+	}
+
+	/// While rows are picked for a bulk Dismiss, each row that can be picked
+	/// shows a checkbox in its icon column: a click there picks the row. The
+	/// open card has none, and a click in its icon column picks nothing.
+	func testWhilePickingAClickOnARowsCheckboxPicksIt() throws {
+		let titles = ["Pick check one", "Pick check two", "Pick check three"]
+		for title in titles {
+			try post(["type": "task_completed", "title": title, "conversation": ["id": title]])
+		}
+		openInbox()
+		XCTAssertTrue(item(titles[0]).waitForExistence(timeout: 10))
+		let openTitle = try XCTUnwrap(titles.first { element("card:\($0)").waitForExistence(timeout: 1) })
+		let rows = titles.filter { $0 != openTitle }.map { element("message:\($0)") }
+		XCUIElement.perform(withKeyModifiers: .command) { rows[0].click() }
+		assertPicked(rows[0], true)
+		XCTAssertTrue(element("inbox.dismiss-selected").waitForExistence(timeout: 5))
+		// The icon column, beside the title: the checkbox now.
+		iconColumn(of: rows[1]).click()
+		assertPicked(rows[1], true)
+		iconColumn(of: rows[1]).click()
+		assertPicked(rows[1], false)
+		let card = element("card:\(openTitle)")
+		iconColumn(of: card).click()
+		XCTAssertTrue(card.exists, "the open card stays open")
+		XCTAssertFalse(card.isSelected, "the open card is never picked")
+		assertPicked(rows[0], true)
 	}
 
 	func testADeferredActionStaysAnswerableWithDone() throws {
@@ -388,18 +415,18 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		for (index, title) in titles.enumerated() {
 			try post(["type": "task_completed", "title": title, "conversation": ["id": "perf-\(index)"], "body": "line one\nline two"])
 		}
-		XCTAssertTrue(element("message:\(titles[0])").waitForExistence(timeout: 10))
+		XCTAssertTrue(item(titles[0]).waitForExistence(timeout: 10))
 		let expand = XCTOSSignpostMetric(subsystem: "com.eiluviann.gentbox", category: "Interaction", name: "Expand")
 		let options = XCTMeasureOptions()
 		options.iterationCount = 5
 		var next = 0
 		measure(metrics: [expand], options: options) {
-			let title = titles[next % titles.count]
+			// The next collapsed row: one card is always open, and a click on
+			// it expands nothing.
+			let rotated = (0..<titles.count).map { titles[(next + $0) % titles.count] }
 			next += 1
-			let row = element("message:\(title)")
-			if row.waitForExistence(timeout: 2) {
-				row.click()
-			}
+			guard let title = rotated.first(where: { element("message:\($0)").exists }) else { return }
+			element("message:\(title)").click()
 			_ = element("card:\(title)").waitForExistence(timeout: 2)
 		}
 		let expands = try String(contentsOf: log, encoding: .utf8)
@@ -419,7 +446,7 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		try XCTSkipIf(Self.isMenuBarAutoHidden, "clicks the desktop below the panel; runs on CI")
 		try post(["type": "task_completed", "title": "Click-through check"])
 		openInbox()
-		let row = element("message:Click-through check")
+		let row = item("Click-through check")
 		XCTAssertTrue(row.waitForExistence(timeout: 10))
 		// A system dialog, not a window, to accessibility (it never tiles).
 		let panel = element("gentbox.inbox")
@@ -953,13 +980,37 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 		app.descendants(matching: .any)[identifier].firstMatch
 	}
 
+	/// The item titled `title`, a collapsed row or the open card: one card is
+	/// always open, so the first item listed is a card.
+	private func item(_ title: String) -> XCUIElement {
+		let either = NSPredicate(format: "identifier == %@ OR identifier == %@", "message:\(title)", "card:\(title)")
+		return app.descendants(matching: .any).matching(either).firstMatch
+	}
+
+	/// What VoiceOver reads for an item beside its title: a collapsed row's
+	/// one label, or the open card's breadcrumb line (agent and time with it).
+	private func itemText(_ title: String) -> String {
+		let row = element("message:\(title)")
+		return row.exists ? text(of: row) : text(of: element("context:\(title)"))
+	}
+
+	/// Where a row's type icon (or checkbox) shows: left of its title, on
+	/// its first line.
+	private func iconColumn(of row: XCUIElement) -> XCUICoordinate {
+		row.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 22, dy: 22))
+	}
+
+	private func assertPicked(_ row: XCUIElement, _ isPicked: Bool, file: StaticString = #filePath, line: UInt = #line) {
+		let picked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == %@", NSNumber(value: isPicked)), object: row)
+		XCTAssertEqual(XCTWaiter.wait(for: [picked], timeout: 5), .completed, "\(row) picked: \(row.isSelected)", file: file, line: line)
+	}
+
 	/// The elements exist and sit top to bottom in this order.
-	private func assertOrder(_ identifiers: [String], file: StaticString = #filePath, line: UInt = #line) {
-		let tops = identifiers.map { identifier -> CGFloat in
-			let found = element(identifier)
-			XCTAssertTrue(found.waitForExistence(timeout: 5), "\(identifier) is missing", file: file, line: line)
+	private func assertOrder(_ elements: [XCUIElement], file: StaticString = #filePath, line: UInt = #line) {
+		let tops = elements.map { found -> CGFloat in
+			XCTAssertTrue(found.waitForExistence(timeout: 5), "\(found) is missing", file: file, line: line)
 			return found.frame.minY
 		}
-		XCTAssertEqual(tops, tops.sorted(), "out of order: \(identifiers)", file: file, line: line)
+		XCTAssertEqual(tops, tops.sorted(), "out of order", file: file, line: line)
 	}
 }

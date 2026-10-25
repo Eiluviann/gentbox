@@ -47,9 +47,9 @@ final class InboxContentView: FlippedView {
 	private var parkedRows: [String: InboxRowView] = [:]
 	/// Rows still closing their place as they leave: laid out and moved
 	/// with the rest until they have faded.
-	private var closingRows: [ObjectIdentifier: InboxRowView] = [:]
+	private var closingRows: [Int: InboxRowView] = [:]
 	/// The rows top to bottom as last laid out, closing ones included.
-	private var rowOrder: [ObjectIdentifier] = []
+	private var rowOrder: [Int] = []
 	private var snapshot = Snapshot()
 	private var shownSections: Set<Section> = []
 	/// Parts fading out, parked once the fade ends.
@@ -497,7 +497,7 @@ final class InboxContentView: FlippedView {
 		row.setFrameSize(NSSize(width: row.frame.width, height: 0))
 		let finish = { [weak self, weak row] in
 			guard let self, let row, row.isLeaving else { return }
-			self.closingRows[ObjectIdentifier(row)] = nil
+			self.closingRows[row.rowId] = nil
 			if self.snapshot.openIds.contains(row.content.message.id) {
 				self.parkRow(row)
 			} else {
@@ -510,7 +510,7 @@ final class InboxContentView: FlippedView {
 			return
 		}
 		LayerMotion.fade(row.layer, to: 0, duration: Tokens.motionDuration)
-		closingRows[ObjectIdentifier(row)] = row
+		closingRows[row.rowId] = row
 		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration) {
 			MainActor.assumeIsolated { finish() }
 		}
@@ -541,7 +541,7 @@ final class InboxContentView: FlippedView {
 	/// tree in a quiet turn. Tearing down a row's native controls costs a
 	/// frame's worth, and its fade ends as the rest of the motion does.
 	private func discard(_ row: InboxRowView) {
-		closingRows[ObjectIdentifier(row)] = nil
+		closingRows[row.rowId] = nil
 		row.isHidden = true
 		IdleWork.enqueue { [weak row] in row?.removeFromSuperview() }
 	}
@@ -549,7 +549,7 @@ final class InboxContentView: FlippedView {
 	/// A parked or leaving row shows again: it arrives at its place, at its
 	/// height again.
 	private func bringBack(_ row: InboxRowView, isAnimated: Bool) {
-		closingRows[ObjectIdentifier(row)] = nil
+		closingRows[row.rowId] = nil
 		row.isLeaving = false
 		row.isHidden = false
 		row.setAccessibilityElement(true)
@@ -642,13 +642,11 @@ final class InboxContentView: FlippedView {
 	/// at the height they close to (`RowStack`); the list's height.
 	private func layOutRows() -> CGFloat {
 		let listed = snapshot.items.compactMap { rows[$0.id] }
-		var views: [ObjectIdentifier: InboxRowView] = closingRows
+		var views = closingRows
 		for row in listed {
-			views[ObjectIdentifier(row)] = row
+			views[row.rowId] = row
 		}
-		rowOrder = RowStack.order(
-			listed: listed.map(ObjectIdentifier.init), previous: rowOrder, leaving: Set(closingRows.keys),
-		)
+		rowOrder = RowStack.order(listed: listed.map(\.rowId), previous: rowOrder, leaving: Set(closingRows.keys))
 		let tops = RowStack.tops(of: rowOrder) { views[$0]?.height ?? 0 }
 		for id in rowOrder {
 			views[id]?.move(to: NSPoint(x: 0, y: tops[id] ?? 0))

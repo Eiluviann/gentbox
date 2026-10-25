@@ -3,10 +3,15 @@ import GentboxCore
 
 /// The inbox's service in a debug build: the hub, or the debug panel's
 /// playground while it is switched on. One inbox model reads either, so the
-/// views never change model under their feet.
+/// views never change model under their feet. A command goes where the
+/// item it names lives, whichever shows now, so one issued just before a
+/// switch never reaches the other side.
 actor InboxServiceRouter: InboxService {
 	private let hub: GentboxHub
+	/// The playground once used: commands for its items reach it after a
+	/// switch back to the hub.
 	private var playground: PlaygroundInbox?
+	private var isShowingPlayground = false
 
 	init(hub: GentboxHub) {
 		self.hub = hub
@@ -14,63 +19,71 @@ actor InboxServiceRouter: InboxService {
 
 	/// The playground from now on, or the hub again (`nil`).
 	func route(to playground: PlaygroundInbox?) {
-		self.playground = playground
+		if let playground {
+			self.playground = playground
+		}
+		isShowingPlayground = playground != nil
 	}
 
-	private var service: any InboxService {
-		playground ?? hub
+	/// Where the item named `id` lives.
+	private func service(for id: String) -> any InboxService {
+		guard id.hasPrefix(PlaygroundInbox.idPrefix), let playground else { return hub }
+		return playground
 	}
 
 	func inbox() async throws -> Inbox {
-		try await service.inbox()
+		if isShowingPlayground, let playground {
+			return await playground.inbox()
+		}
+		return try await hub.inbox()
 	}
 
 	func takeAction(messageId: String, actionId: String, value: String?) async throws {
-		try await service.takeAction(messageId: messageId, actionId: actionId, value: value)
+		try await service(for: messageId).takeAction(messageId: messageId, actionId: actionId, value: value)
 	}
 
 	func snooze(messageId: String, minutes: UInt32?) async throws {
-		try await service.snooze(messageId: messageId, minutes: minutes)
+		try await service(for: messageId).snooze(messageId: messageId, minutes: minutes)
 	}
 
 	func dismiss(messageId: String) async throws {
-		try await service.dismiss(messageId: messageId)
+		try await service(for: messageId).dismiss(messageId: messageId)
 	}
 
 	func muteTopic(topicId: String, isMuted: Bool) async throws {
-		try await service.muteTopic(topicId: topicId, isMuted: isMuted)
+		try await service(for: topicId).muteTopic(topicId: topicId, isMuted: isMuted)
 	}
 
 	func muteThread(threadId: String, isMuted: Bool) async throws {
-		try await service.muteThread(threadId: threadId, isMuted: isMuted)
+		try await service(for: threadId).muteThread(threadId: threadId, isMuted: isMuted)
 	}
 
 	func markTopicRead(topicId: String) async throws {
-		try await service.markTopicRead(topicId: topicId)
+		try await service(for: topicId).markTopicRead(topicId: topicId)
 	}
 
 	func markThreadRead(threadId: String) async throws {
-		try await service.markThreadRead(threadId: threadId)
+		try await service(for: threadId).markThreadRead(threadId: threadId)
 	}
 
 	func closeTopic(topicId: String) async throws {
-		try await service.closeTopic(topicId: topicId)
+		try await service(for: topicId).closeTopic(topicId: topicId)
 	}
 
 	func reopenTopic(topicId: String) async throws {
-		try await service.reopenTopic(topicId: topicId)
+		try await service(for: topicId).reopenTopic(topicId: topicId)
 	}
 
 	func closeThread(threadId: String) async throws {
-		try await service.closeThread(threadId: threadId)
+		try await service(for: threadId).closeThread(threadId: threadId)
 	}
 
 	func reopenThread(threadId: String) async throws {
-		try await service.reopenThread(threadId: threadId)
+		try await service(for: threadId).reopenThread(threadId: threadId)
 	}
 
 	func moveThread(threadId: String, topicId: String) async throws {
-		try await service.moveThread(threadId: threadId, topicId: topicId)
+		try await service(for: threadId).moveThread(threadId: threadId, topicId: topicId)
 	}
 }
 #endif

@@ -17,6 +17,10 @@ actor PlaygroundInbox: InboxService {
 		case note = "Note"
 	}
 
+	/// Every id the playground makes starts so (messages, topics, threads),
+	/// so a command reaches the playground or the hub by what it names.
+	static let idPrefix = "playground-"
+
 	private var items: [InboxMessage] = []
 	private var serial = 0
 
@@ -58,7 +62,7 @@ actor PlaygroundInbox: InboxService {
 		let old = items[index]
 		serial += 1
 		items[index] = Self.copy(
-			of: old, id: "playground-\(serial)", title: Self.nextStep(of: old.title),
+			of: old, id: "\(Self.idPrefix)\(serial)", title: Self.nextStep(of: old.title),
 			summary: "Replaced \(Self.now): the agent sent a newer message.", supersedes: [old.id],
 		)
 	}
@@ -195,11 +199,11 @@ actor PlaygroundInbox: InboxService {
 			}
 		let isWaiting = kind == .decision || kind == .urgentDecision
 		return InboxMessage(
-			id: "playground-\(serial)", title: template.title, summary: template.summary, body: template.body,
+			id: "\(idPrefix)\(serial)", title: template.title, summary: template.summary, body: template.body,
 			messageType: type, isUrgent: kind == .urgentDecision, blocking: blocking, state: .open,
 			agent: serial % 3 == 0 ? "codex" : "claude-code", agentName: serial % 3 == 0 ? "Codex" : "Claude Code",
-			conversationId: "playground-\(template.thread)", conversationTitle: template.thread, topicId: template.topic,
-			threadId: template.thread, receivedAt: receivedAt, hasLiveWaiter: isWaiting,
+			conversationId: "\(idPrefix)conversation-\(template.thread)", conversationTitle: template.thread,
+			topicId: "\(idPrefix)topic-\(template.topic)", threadId: "\(idPrefix)thread-\(template.thread)", receivedAt: receivedAt, hasLiveWaiter: isWaiting,
 			offeredActions: actions(for: type, isWaiting: isWaiting), asksPermission: type == .decisionRequired,
 			repeatCount: 0, stepCount: 0,
 			group: GroupContext(

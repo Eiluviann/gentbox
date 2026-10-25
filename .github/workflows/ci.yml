@@ -94,6 +94,23 @@ jobs:
       # the result bundle (screenshots, the full log) is kept when it fails.
       - run: apps/apple/scripts/test.sh -quiet -resultBundlePath build/results/ci.xcresult
         timeout-minutes: 30
+      # What ships is Release: it must build, and carry none of the debug
+      # hooks (the debug panel and its playground, the demo driver, the
+      # animation trace), which `#if DEBUG || GENTBOX_HOOKS` keeps out.
+      - name: Build Release and check it carries no debug hooks
+        working-directory: apps/apple
+        run: |
+          xcodebuild build -project Gentbox.xcodeproj -scheme Gentbox -configuration Release \
+            -destination 'platform=macOS' -derivedDataPath build -quiet \
+            CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= GENTBOX_ENTITLEMENTS=Signing/AdHoc.entitlements \
+            GENTBOX_BUNDLE_IDENTIFIER=com.eiluviann.gentbox GENTBOX_APP_GROUP=
+          binary=build/Build/Products/Release/Gentbox.app/Contents/MacOS/Gentbox
+          nm "$binary" | grep -q InboxContentView || { echo "::error::no symbols to check in $binary"; exit 1; }
+          if nm "$binary" | grep -E 'DebugPanel|PlaygroundInbox|InboxServiceRouter|DemoDriver|AnimationTrace'; then
+            echo "::error::the Release build carries debug hooks"
+            exit 1
+          fi
+        timeout-minutes: 20
       # `-quiet` hides which test failed: name the failures in the log.
       - name: Name the failing tests
         if: failure()
