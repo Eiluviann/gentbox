@@ -87,8 +87,16 @@ public final class InboxModel {
 	public private(set) var filter: GroupFilter?
 	/// The rows picked for a bulk Dismiss.
 	public private(set) var selection: Set<String> = []
+	/// The message the reply field is open on. Kept apart from the text, so
+	/// a view that only shows where the field is open is not told of each
+	/// keystroke.
+	public private(set) var replyingTo: String?
 	/// The reply field's text, while it shows.
-	public private(set) var replyDraft: ReplyDraft?
+	private var replyText = ""
+	/// The reply field's message and text, while it shows.
+	public var replyDraft: ReplyDraft? {
+		replyingTo.map { ReplyDraft(messageId: $0, text: replyText) }
+	}
 	/// Messages an answer, a snooze or a dismiss took out of the list at
 	/// once, before the hub confirmed: they come back if it refuses. The
 	/// list never waits on the hub to respond to a click.
@@ -160,7 +168,7 @@ public final class InboxModel {
 	/// unsent reply goes.
 	public func toggleExpansion(of messageId: String) {
 		expansion = isExpanded(messageId) ? .collapsed : .chosen(.card(messageId))
-		replyDraft = nil
+		replyingTo = nil
 	}
 
 	/// The inbox opened or closed. Opening pins the default card: from then
@@ -180,7 +188,7 @@ public final class InboxModel {
 	/// The default card while hidden: the next-up item.
 	public func resetExpansion() {
 		expansion = .followNextUp
-		replyDraft = nil
+		replyingTo = nil
 		filter = nil
 		selection = []
 	}
@@ -205,7 +213,7 @@ public final class InboxModel {
 				expansion = .chosen(.card(successor.id))
 				carryReplyDraft(to: successor)
 			} else {
-				replyDraft = nil
+				replyingTo = nil
 				if isPresented, let next = nextUpInView ?? visibleItems.first {
 					expansion = .chosen(.card(next.id))
 				} else {
@@ -217,25 +225,27 @@ public final class InboxModel {
 	}
 
 	private func carryReplyDraft(to successor: InboxMessage) {
-		guard let draft = replyDraft, successor.supersedes.contains(draft.messageId) else { return }
+		guard let replyingTo, successor.supersedes.contains(replyingTo) else { return }
 		let takesReply = successor.offeredActions.contains { $0.kind == .reply }
-		replyDraft = takesReply ? ReplyDraft(messageId: successor.id, text: draft.text) : nil
+		self.replyingTo = takesReply ? successor.id : nil
 	}
 
 	// MARK: Reply
 
 	/// R on the expanded card: the reply field opens, empty.
 	public func startReply(on messageId: String) {
-		replyDraft = ReplyDraft(messageId: messageId, text: "")
+		replyText = ""
+		replyingTo = messageId
 	}
 
 	public func updateReply(_ text: String) {
-		replyDraft?.text = text
+		guard replyingTo != nil else { return }
+		replyText = text
 	}
 
 	/// Cancel, or the reply was sent.
 	public func endReply() {
-		replyDraft = nil
+		replyingTo = nil
 	}
 
 	/// The next-up item if the list shows it; under a filter, the filtered
@@ -428,7 +438,7 @@ public final class InboxModel {
 			// A card the filter hides would still be the one keys act on:
 			// the expansion moves to the filtered thread's first item.
 			if let expanded, !open.contains(where: { $0.id == expanded.messageId }) {
-				replyDraft = nil
+				replyingTo = nil
 				expansion = .chosen(.card(nextUpInView?.id ?? open[0].id))
 			}
 			return .stillOpen(open.count)

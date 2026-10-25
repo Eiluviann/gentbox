@@ -195,8 +195,12 @@ final class StatusItemController: NSObject {
 		if Self.isOffscreen {
 			(anchor, visibleFrame) = Self.offscreen(visibleFrame)
 			screenFrame = visibleFrame
-		} else if Self.isTestRun {
-			anchor = Self.topRightCorner(of: screen.frame)
+		} else if Self.isTestRun, let main = NSScreen.screens.first {
+			// The main screen, the one with the menu bar, whichever screen
+			// the status item reports.
+			anchor = Self.topRightCorner(of: main.frame)
+			visibleFrame = main.visibleFrame
+			screenFrame = main.frame
 		}
 		#endif
 		let maxHeight = InboxPanel.maxHeight(under: anchor, in: visibleFrame, screen: screenFrame)

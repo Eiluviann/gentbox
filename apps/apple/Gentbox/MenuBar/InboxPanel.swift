@@ -208,7 +208,12 @@ class InboxPanel: NSPanel {
 	/// The shadow image's rows above the window's top, which cuts them: the
 	/// image reaches `shadowPadding` past the card, 6 points down.
 	static let shadowRowsAboveWindowTop: CGFloat = shadowPadding - shadowOffset - topRoom
-	/// The stretched middle of the nine-slice image.
+	/// The stretched middle of the nine-slice image. Its unstretched top
+	/// and bottom slices (2 × `shadowPadding` each, where the top fade
+	/// lives) keep their size while the card is at least
+	/// 2 × `shadowPadding` + `shadowSlice` = 92 pt tall; the shortest card
+	/// is the 50 pt header over one collapsed row (51 pt) or a notice
+	/// (96 pt).
 	private static let shadowSlice: CGFloat = 2
 
 	/// A rounded card's shadow, blurred once: corners and edges in its nine

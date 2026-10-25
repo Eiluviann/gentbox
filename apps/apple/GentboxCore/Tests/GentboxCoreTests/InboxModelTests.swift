@@ -240,6 +240,22 @@ struct InboxModelTests {
 		#expect(model.visibleItems.map(\.id) == ["note"])
 	}
 
+	/// Typing tells only who reads the text: a view that shows where the
+	/// reply field is open is not told of each keystroke.
+	@Test func typingNotifiesNoOneWatchingWhereTheReplyIsOpen() async {
+		let (model, _) = await accordion()
+		let prompt = model.visibleItems[0]
+		model.startReply(on: prompt.id)
+		let notified = Notified()
+		withObservationTracking { _ = model.replyingTo } onChange: { notified.mark() }
+		model.updateReply("Run only the auth suite")
+		#expect(!notified.isMarked)
+		#expect(model.replyDraft?.text == "Run only the auth suite")
+		model.endReply()
+		#expect(notified.isMarked)
+		#expect(model.replyDraft == nil)
+	}
+
 	/// An answer settles the item; a deferral leaves it open with Done to
 	/// come, so the card keeps its keys for it.
 	@Test func onlyAnswersAreAnswers() {
@@ -418,5 +434,19 @@ struct InboxModelTests {
 		let closed = ClosedGroup(kind: .thread, id: "th9", title: "v1.0", topicTitle: "Gentbox", closedAt: Date())
 		await model.reopen(closed)
 		#expect(service.commands == ["reopen thread th9"])
+	}
+}
+
+/// Whether an observation's change handler ran (it may run on any thread).
+private final class Notified: @unchecked Sendable {
+	private let lock = NSLock()
+	private var marked = false
+
+	var isMarked: Bool {
+		lock.withLock { marked }
+	}
+
+	func mark() {
+		lock.withLock { marked = true }
 	}
 }

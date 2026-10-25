@@ -34,8 +34,11 @@ public struct StateFolder: Equatable, Sendable {
 		self.source = source
 	}
 
-	/// The folder for this process: the override, else the App Group the
-	/// signature actually claims, else Application Support.
+	/// The folder for this process: the override (only when
+	/// `allowsOverride`, which test builds pass), else the App Group the
+	/// signature actually claims, else Application Support. Without
+	/// `allowsOverride` the environment can neither move the state nor have
+	/// a folder emptied.
 	///
 	/// The App Group is used only when the running signature claims it,
 	/// read through `SecTask`: an unsigned or ad hoc build of a project set
@@ -43,8 +46,9 @@ public struct StateFolder: Equatable, Sendable {
 	public static func resolve(
 		environment: [String: String] = ProcessInfo.processInfo.environment,
 		bundle: Bundle = .main,
+		allowsOverride: Bool = false,
 	) -> StateFolder {
-		if let override = environment[overrideVariable], !override.isEmpty {
+		if allowsOverride, let override = environment[overrideVariable], !override.isEmpty {
 			let url = URL(fileURLWithPath: override, isDirectory: true)
 			if environment[resetVariable] == "1" {
 				try? FileManager.default.removeItem(at: url)

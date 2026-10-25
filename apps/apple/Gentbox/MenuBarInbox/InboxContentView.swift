@@ -174,7 +174,7 @@ final class InboxContentView: FlippedView {
 			snapshot.isEmpty = inbox.isEmpty
 			snapshot.expandedId = inbox.expanded?.messageId
 			snapshot.selection = inbox.selection
-			snapshot.replyingTo = inbox.replyDraft?.messageId
+			snapshot.replyingTo = inbox.replyingTo
 			snapshot.filter = inbox.filter.map { Snapshot.Filter(title: $0.title, openCount: inbox.filterOpenCount) }
 			snapshot.foot = InboxFooterView.Content(
 				selectionCount: inbox.selection.count, failure: inbox.failure, muted: inboxSnapshot.muted,

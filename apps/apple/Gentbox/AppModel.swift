@@ -23,6 +23,15 @@ final class AppModel {
 	@ObservationIgnored private var presence: PresenceMonitor?
 	@ObservationIgnored private let log = Logger(subsystem: "com.eiluviann.gentbox", category: "app")
 
+	/// `GENTBOX_STATE_DIR` (and its reset) works in test builds only.
+	private static var allowsStateFolderOverride: Bool {
+		#if DEBUG || GENTBOX_HOOKS
+		true
+		#else
+		false
+		#endif
+	}
+
 	/// The inbox once the hub runs.
 	var inbox: InboxModel? {
 		if case .running(let inbox) = phase { inbox } else { nil }
@@ -31,7 +40,7 @@ final class AppModel {
 	/// Starts the hub off the main thread: opening and migrating the store
 	/// blocks.
 	func start() {
-		let folder = StateFolder.resolve()
+		let folder = StateFolder.resolve(allowsOverride: Self.allowsStateFolderOverride)
 		stateFolder = folder
 		log.info("state folder \(String(describing: folder.source), privacy: .public) at \(folder.url.path, privacy: .private)")
 		let options = HubOptions(stateDir: folder.url.path, homeDir: StateFolder.realHomeFolder().path)
