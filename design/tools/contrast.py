@@ -1,4 +1,4 @@
-"""Check WCAG contrast for every text and icon pair in project/an.css, light and dark.
+"""Check WCAG contrast for every text and icon pair in project/an.css and brand/brand.css, light and dark.
 
 Usage: python3 -I design/tools/contrast.py [--markdown]
 Reads the light-dark(light, dark) tokens, lays translucent colours over the surface
@@ -9,7 +9,8 @@ below its minimum, prints as accepted and does not fail.
 import re, sys
 from pathlib import Path
 
-CSS = Path(__file__).resolve().parent.parent / 'project' / 'an.css'
+DESIGN = Path(__file__).resolve().parent.parent
+CSS = [DESIGN / 'project' / 'an.css', DESIGN / 'brand' / 'brand.css']
 
 # (foreground, background, under, minimum, where[, opacity]): `under` is the surface a translucent
 # background sits on; `opacity` fades the foreground, as CSS opacity on the text or icon would
@@ -90,11 +91,18 @@ PAIRS = [
 	('paused', 'accent-soft', 'elevated', ICON, 'Paused symbol on a picked row'),
 	('wait', 'accent-soft', 'elevated', ICON, 'Waiting symbol on a picked row'),
 	('accent', 'accent-soft', 'elevated', ICON, 'Selection circle on a picked row'),
+	('brand-ink', 'surface', None, TEXT, 'Wordmark and lockup on a page'),
+	('brand-ink', 'board', None, TEXT, 'Wordmark and lockup on the board'),
+	('brand-ink', 'elevated', None, ICON, 'Flat mark on a raised surface'),
+	('brand-paper', 'brand-tile-top', None, ICON, 'App icon bubble, top of the tile'),
+	('brand-paper', 'brand-tile-bottom', None, ICON, 'App icon bubble, bottom of the tile'),
+	('brand-amber', 'brand-tile-top', None, ICON, 'App icon spark, top of the tile'),
+	('brand-amber', 'brand-tile-bottom', None, ICON, 'App icon spark, bottom of the tile'),
 ]
 
 
 def main():
-	tokens = read_tokens(CSS.read_text())
+	tokens = read_tokens(''.join(path.read_text() for path in CSS))
 	rows, failures = [], 0
 	for fg, bg, under, minimum, where, *faded in PAIRS:
 		opacity = faded[0] if faded else 1.0
