@@ -15,11 +15,11 @@ Every mark here is an original drawing on a 24-unit grid. None is traced from or
 | `brand.css` | Brand colour tokens, in the `light-dark()` form of `../project/an.css` |
 | `fonts/` | Instrument Sans, the wordmark typeface, and its licence |
 
-The art in `svg/` is filled paths: the wordmark is outlined, and the spark's well and the menu-bar cut are path booleans, so there is no font, mask or stroke to render differently between tools, and the PDFs stay vector. The exceptions are the app icon's tile gradient and its two drop shadows; Icon Composer adds its own, so the layers carry none.
+The art in `svg/` is filled paths: the wordmark is outlined, and the spark's well and the menu-bar cut are path booleans, so there is no font, mask or stroke to render differently between tools, and the PDFs stay vector. The exceptions are the app icon's tile gradient and its two drop shadows. Icon Composer adds its own shadows, so the layers carry none, though the background layer keeps the gradient.
 
 ## Build and export
 
-Export from a checkout, with `rsvg-convert` (`brew install librsvg`) and `iconutil` (ships with macOS):
+Export from a checkout, with `rsvg-convert` 2.62 or later (`brew install librsvg`; older versions may drop the icon's drop shadows) and `iconutil` (ships with macOS):
 
 ```bash
 design/brand/export.sh
@@ -87,7 +87,7 @@ The wordmark is Instrument Sans SemiBold (weight 600, width 100) with -0.02em tr
 
 ## Clear space and minimum size
 
-Clear space is X on every side of the mark's square box, where X is the spark's height (about half the bubble's height). Keep text, edges and other marks out of it.
+Clear space is X on every side of the mark's square box, where X is the spark's height (about half the bubble's height). For a lockup, measure X from the lockup's edges, as below. Keep text, edges and other marks out of it.
 
 ![Clear space around the horizontal lockup](examples/clear-space-lockup.svg)
 

@@ -30,6 +30,7 @@ ICON_WELL = 2.25  # the knocked-out ring around the icon spark: 1.125 each side
 GLYPH_SPARK = (18.25, 6.25, 4, 4)  # the menu-bar spark lands on the top-right corner
 GLYPH_CUT = 3.2  # the outline stops 1.6 short of the menu-bar spark
 URGENT = {'light': '#FF3B30', 'dark': '#FF453A'}  # systemRed; the app draws it with NSColor.systemRed
+CONIC_TOLERANCE = 0.002  # grid units: skia's default 0.25 flattens the menu-bar corners and thins the stroke
 SLIVER = 0.5  # pieces of the cut outline smaller than this, in square units, are dropped
 
 # Icon tile and art per appearance; FLAT is the one-colour-plus-spark mark for pages and documents
@@ -244,7 +245,7 @@ def examples(word):
 	no_well = f'<path d="{bubble()}" fill="{ink}"/><path d="{spark(*ICON_SPARK)}" fill="{spark_fill}"/>'
 	return {
 		'examples/do-clear-space.svg': tile(mark() + space, vb=f'{1.5 - clear - 2} {1.5 - clear - 2} {21 + 2 * clear + 4} {21 + 2 * clear + 4}', w=round(21 + 2 * clear + 4), h=round(21 + 2 * clear + 4)),
-		'examples/do-dark.svg': svg(240, 180, f'<rect x="-100" y="-100" width="400" height="400" fill="{PAGE["dark"]}"/>{mark_art("dark")}', vb='-8.5 -6 41 30'),
+		'examples/do-dark.svg': svg(240, 180, f'<rect x="-100" y="-100" width="400" height="400" fill="{PAGE["dark"]}"/>{mark_art("dark")}', vb='-8 -3 40 30'),
 		'examples/dont-recolour.svg': tile(mark('transform="translate(8 3)"', fill=dict(ink='#2E9E4F', spark='#7D7AFF'))),
 		'examples/dont-stretch.svg': tile(mark('transform="translate(-4 3) scale(1.6 1)"')),
 		'examples/dont-rotate.svg': tile(mark('transform="translate(8 3) rotate(-18 12 12)"')),
@@ -297,6 +298,7 @@ def glyph_cut():
 	for contour in cut.contours:
 		if abs(contour.area) >= SLIVER:
 			kept.addPath(contour)
+	assert len(list(kept.contours)) == 1, 'the menu-bar cut must leave a single outline'
 	return path_d(kept)
 
 
@@ -308,7 +310,7 @@ def grown(d, width):
 def stroked(d, width):
 	path = path_of(d)
 	path.stroke(width, pathops.LineCap.BUTT_CAP, pathops.LineJoin.ROUND_JOIN, 4)
-	path.convertConicsToQuads()
+	path.convertConicsToQuads(CONIC_TOLERANCE)
 	return pathops.simplify(path)
 
 

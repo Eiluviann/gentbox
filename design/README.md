@@ -173,6 +173,10 @@ Checked against PR #5's `apps/apple/Gentbox/Tokens.swift` (branch `claude/pr3-ff
 | `--strike` | black 25 % | white 30 % | `Tokens.strike` (new) | | Pair (Withdrawn strike-through) |
 | `--accent` | `#007AFF` | `#0A84FF` | `Tokens.accent` (new) | | System: `Color.accentColor` / `controlAccentColor`; primary buttons are `.buttonStyle(.borderedProminent)` with no custom token |
 | `--accent-ink` | `#0062CC` | `#409CFF` | `Tokens.link` (new) | | System: `linkColor` |
+| `--brand-ink` (`brand.css`) | `#1B2A4A` | `#F2F0EB` | `Tokens.brandInk` (new) | | Pair: the flat mark and wordmark where the app draws them (About, onboarding) |
+| `--brand-spark` (`brand.css`) | `#E89600` | `#FFB224` | `Tokens.brandSpark` (new) | | Pair: the flat mark's spark; never for text |
+| `--brand-urgent` (`brand.css`) | `#FF3B30` | `#FF453A` | `Tokens.urgentSpark` (new) | | System: `systemRed`, the tint on the urgent menu-bar spark |
+| `--brand-tile-top`, `--brand-tile-bottom`, `--brand-paper`, `--brand-amber` (`brand.css`) | | | none | | Baked into the app icon assets; no Swift token |
 | `--danger-ink` | `#D70015` | `#FF7F77` | `Tokens.dangerInk` (new) | | Pair (Deny label) |
 | `--badge`, `--badge-grey` | `#D70015`, `#D1D1D6` | `#E0201A`, `#48484A` | `Tokens.badge`, `Tokens.badgeGrey` (new) | | Pair (white or ink count on it) |
 | `--dec-ink`, `--dec-soft` | `#4644B8`, `#EFEFFD` | `#BDBCFF`, `#2F2E55` | `Tokens.decisionInk`, `Tokens.decisionSoft` (new) | | Pair |
@@ -248,7 +252,7 @@ Settled: descriptive titles (ADR 0010, architecture §5.5). The hub enforces the
 
 ## Open design questions
 
-1. Is the agent mark (speech bubble with `>_`) right?
+1. Settled: the Gentbox mark is the original squared bubble with an amber spark in `brand/` (5A).
 2. Keyboard shortcuts on the non-activating panel (⌘↩, ⌘⌫, ⌘R): make the panel key without activating the app, or a global hotkey?
 3. The per-project icon override (§10) has no board yet: a Projects list in Settings, or a field in the conversation detail?
 4. Finished tasks now sit in the popover list until dismissed. Should they clear on their own once read?

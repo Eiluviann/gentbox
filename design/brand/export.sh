@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Render the committed brand SVGs into design/brand/out/: PNGs, PDFs and the .icns.
 # Usage: design/brand/export.sh
-# Needs rsvg-convert (brew install librsvg) and iconutil (ships with macOS). Writes nothing outside out/.
+# Needs rsvg-convert 2.62 or later (brew install librsvg; older ones may drop the icon's
+# feDropShadow) and iconutil (ships with macOS). Writes nothing outside out/.
 set -euo pipefail
+# cairo stamps each PDF with this date instead of now, so the same SVGs export byte-identical PDFs
+export SOURCE_DATE_EPOCH=1767225600
 
 here="$(cd "$(dirname "$0")" && pwd)"
 svg="$here/svg"

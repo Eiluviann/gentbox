@@ -3,8 +3,8 @@
 Usage: python3 -I design/tools/contrast.py [--markdown]
 Reads the light-dark(light, dark) tokens, lays translucent colours over the surface
 they sit on, and fails (exit 1) when a pair is under its minimum: 4.5:1 for text,
-3:1 for icons and other non-text marks. A pair in ACCEPTED, which the user accepted
-below its minimum, prints as accepted and does not fail.
+3:1 for icons and other non-text marks. A pair in ACCEPTED, accepted below its minimum
+by the user or under the WCAG logo exemption, prints as accepted and does not fail.
 """
 import re, sys
 from pathlib import Path
@@ -15,7 +15,8 @@ CSS = [DESIGN / 'project' / 'an.css', DESIGN / 'brand' / 'brand.css']
 # (foreground, background, under, minimum, where[, opacity]): `under` is the surface a translucent
 # background sits on; `opacity` fades the foreground, as CSS opacity on the text or icon would
 TEXT, ICON = 4.5, 3.0
-# Pairs under their minimum that the user accepted, with the reason; they print as accepted, not failing
+# Pairs under their minimum that are accepted, with the reason (the user's call, or the WCAG logo exemption);
+# they print as accepted, not failing
 ACCEPTED = {
 	('on-fill', 'accent'): 'system accent fill (.borderedProminent), for consistency with macOS; Increase Contrast darkens it',
 	('brand-spark', 'surface'): 'logo, exempt from WCAG 1.4.11; the ink bubble carries the mark',
@@ -104,7 +105,7 @@ PAIRS = [
 
 
 def main():
-	tokens = read_tokens(''.join(path.read_text() for path in CSS))
+	tokens = read_all_tokens(CSS)
 	rows, failures = [], 0
 	for fg, bg, under, minimum, where, *faded in PAIRS:
 		opacity = faded[0] if faded else 1.0
@@ -137,6 +138,18 @@ def ratio_for(tokens, fg, bg, under, mode, opacity):
 	colour = resolve(tokens, fg, mode)
 	front = over(colour[:3] + (colour[3] * opacity,), back)
 	return contrast(front, back)
+
+
+def read_all_tokens(paths):
+	"""Merge the token files; a name defined in two files is an error, not a silent override."""
+	tokens = {}
+	for path in paths:
+		found = read_tokens(path.read_text())
+		clashes = tokens.keys() & found.keys()
+		if clashes:
+			sys.exit(f'contrast.py: {path.name} redefines {", ".join(sorted(clashes))}')
+		tokens |= found
+	return tokens
 
 
 def read_tokens(css):
