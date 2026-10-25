@@ -39,8 +39,9 @@ struct RowContent: Equatable {
 /// that expands it. The card contains its buttons and field.
 ///
 /// A click on a collapsed item's header expands it (and collapses the open
-/// one); a click on the expanded item's header opens its conversation and
-/// leaves it expanded, as one card is always open. ⌘-click picks a collapsed
+/// one); a click on the expanded item's header leaves it expanded, as one
+/// card is always open, and sends nothing yet (Phase 4 makes it open the
+/// agent's session). ⌘-click picks a collapsed
 /// item for a bulk Dismiss (never an `action_required` one); while any is
 /// picked, every row that can be picked shows a checkbox in place of its
 /// icon, and a click on it picks or unpicks the row.
@@ -440,11 +441,11 @@ final class InboxRowView: FlippedView {
 		}
 	}
 
-	/// A collapsed row expands; the expanded card opens its conversation.
+	/// A collapsed row expands; the expanded card stays (`InboxModel.
+	/// activateExpandedCard` says why it sends nothing yet).
 	private func activate() {
 		if content.isExpanded {
-			let message = content.message
-			Task { await inbox.openConversation(of: message) }
+			inbox.activateExpandedCard(content.message)
 		} else {
 			Interactions.untilNextFrame("Expand")
 			inbox.expand(messageId)

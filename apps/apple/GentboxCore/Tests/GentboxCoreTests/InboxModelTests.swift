@@ -155,7 +155,7 @@ struct InboxModelTests {
 		_ = service
 	}
 
-	@Test func openingTheExpandedCardOpensItsConversation() async {
+	@Test func clickingTheExpandedCardSendsNothing() async {
 		let open = action("open", .open)
 		let prompt = message(id: "prompt", type: .decisionRequired, blocking: .blocking, actions: [open])
 		let service = FakeService()
@@ -163,12 +163,12 @@ struct InboxModelTests {
 		let model = InboxModel(service: service)
 		await model.readUntilCurrent()
 		model.presentationChanged(isPresented: true)
-		await model.openConversation(of: prompt)
-		#expect(service.commands == ["action prompt open -"])
+		// Open on the hub would acknowledge the message unseen: until Open
+		// shows something, the click sends no action and the card stays.
+		model.activateExpandedCard(prompt)
+		await model.readUntilCurrent()
+		#expect(service.commands.isEmpty)
 		#expect(model.expanded == .card("prompt"))
-		// No Open on offer: nothing to send.
-		await model.openConversation(of: message(id: "done"))
-		#expect(service.commands == ["action prompt open -"])
 	}
 
 	@Test func aPickedRowThatOpensLeavesThePick() async {

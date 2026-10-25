@@ -174,11 +174,14 @@ public final class InboxModel {
 		selection.remove(messageId)
 	}
 
-	/// A click on the expanded card's header: its Open, if it offers one,
-	/// opens the conversation. The card stays expanded.
-	public func openConversation(of message: InboxMessage) async {
-		guard let open = message.offeredActions.first(where: { $0.kind == .open }) else { return }
-		await press(open, on: message)
+	/// A click on the expanded card's header (or VoiceOver's press on it).
+	/// The card stays expanded and, for now, nothing is sent: the hub's Open
+	/// acknowledges the message and stops its reminders, and until Open
+	/// shows you something (Phase 4: focusing the agent's terminal or
+	/// session) a click must not silence an agent unseen. This is the one
+	/// place to wire it.
+	public func activateExpandedCard(_ message: InboxMessage) {
+		_ = message
 	}
 
 	/// The inbox opened or closed. Opening pins the default card: from then
