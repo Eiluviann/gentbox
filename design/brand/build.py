@@ -42,6 +42,32 @@ FLAT = {
 }
 PAGE = {'light': '#FFFFFF', 'dark': '#1E1E1E'}
 
+# Every SVG carries a <title> for screen readers; a -light or -dark suffix adds the appearance
+TITLES = {
+	'icon': 'Gentbox app icon',
+	'icon-layer-background': 'Gentbox app icon background layer',
+	'icon-layer-bubble': 'Gentbox app icon bubble layer',
+	'icon-layer-spark': 'Gentbox app icon spark layer',
+	'mark': 'Gentbox mark',
+	'menubar-idle': 'Gentbox menu-bar glyph, nothing waiting',
+	'menubar-unread': 'Gentbox menu-bar glyph, unread',
+	'menubar-urgent-body': 'Gentbox menu-bar glyph, urgent body',
+	'menubar-urgent-spark': 'Gentbox menu-bar glyph, urgent spark',
+	'menubar-urgent-preview': 'Gentbox menu-bar glyph, urgent',
+	'wordmark': 'Gentbox wordmark',
+	'lockup-horizontal': 'Gentbox horizontal lockup',
+	'lockup-stacked': 'Gentbox stacked lockup',
+	'clear-space-lockup': 'Clear space around the horizontal lockup',
+	'do-clear-space': 'Mark with its clear space marked',
+	'do-dark': 'Dark mark on a dark page',
+	'dont-recolour': 'Recoloured mark',
+	'dont-stretch': 'Stretched mark',
+	'dont-rotate': 'Rotated mark',
+	'dont-fill-well': 'Mark with the well filled',
+	'dont-glyph-as-logo': 'Menu-bar glyph used as a logo',
+	'dont-effects': 'Mark with a drop shadow',
+}
+
 # The legacy icon sits on Apple's 824 px tile inside a 1024 canvas; Icon Composer layers are full bleed
 LEGACY_SCALE, LEGACY_OFFSET = 26, 200
 LAYER_SCALE = LEGACY_SCALE * 1024 / 824
@@ -76,7 +102,7 @@ def main():
 	for name, text in files.items():
 		path = HERE / name
 		path.parent.mkdir(exist_ok=True)
-		path.write_text(text)
+		path.write_text(titled(text, path.stem))
 	print(f'wrote {len(files)} SVGs')
 
 
@@ -324,6 +350,12 @@ def squircle(cx=512, cy=512, r=412, n=5.0, steps=240):
 		c, s = math.cos(t), math.sin(t)
 		points.append(f'{cx + r * math.copysign(abs(c) ** (2 / n), c):.1f} {cy + r * math.copysign(abs(s) ** (2 / n), s):.1f}')
 	return 'M' + 'L'.join(points) + 'Z'
+
+
+def titled(text, stem):
+	base, _, mode = stem.rpartition('-')
+	title = TITLES.get(stem) or f'{TITLES[base]}, {mode}'
+	return text.replace('>', f'><title>{title}</title>', 1)
 
 
 def svg(w, h, body, vb=None):
