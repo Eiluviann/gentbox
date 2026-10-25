@@ -78,7 +78,8 @@ final class InboxContentView: FlippedView {
 		var isEmpty = true
 		var expandedId: String?
 		var selection: Set<String> = []
-		var replyDraft: InboxModel.ReplyDraft?
+		/// The message the reply box is open on; its text is the field's.
+		var replyingTo: String?
 		var filter: Filter?
 		var foot = InboxFooterView.Content()
 		var moveTargets: [TopicChoice] = []
@@ -109,6 +110,12 @@ final class InboxContentView: FlippedView {
 		}
 		#endif
 		observe()
+	}
+
+	/// A row's card changed height by itself (the reply box took a line or
+	/// gave one back): the same snapshot, laid out again with motion.
+	private func refresh(_ row: InboxRowView) {
+		apply(snapshot, animated: hasApplied && window?.isVisible == true, refreshing: row)
 	}
 
 	/// Lays the content out at once, with no motion: the height on opening.
@@ -167,7 +174,7 @@ final class InboxContentView: FlippedView {
 			snapshot.isEmpty = inbox.isEmpty
 			snapshot.expandedId = inbox.expanded?.messageId
 			snapshot.selection = inbox.selection
-			snapshot.replyDraft = inbox.replyDraft
+			snapshot.replyingTo = inbox.replyDraft?.messageId
 			snapshot.filter = inbox.filter.map { Snapshot.Filter(title: $0.title, openCount: inbox.filterOpenCount) }
 			snapshot.foot = InboxFooterView.Content(
 				selectionCount: inbox.selection.count, failure: inbox.failure, muted: inboxSnapshot.muted,
@@ -179,8 +186,8 @@ final class InboxContentView: FlippedView {
 
 	// MARK: Applying a change
 
-	private func apply(_ next: Snapshot, animated: Bool) {
-		guard next != snapshot || !hasApplied || !animated else { return }
+	private func apply(_ next: Snapshot, animated: Bool, refreshing refreshed: InboxRowView? = nil) {
+		guard refreshed != nil || next != snapshot || !hasApplied || !animated else { return }
 		snapshot = next
 		hasApplied = true
 		// Captured either way: without motion, what still moves stops.
@@ -191,6 +198,7 @@ final class InboxContentView: FlippedView {
 		let sections = sectionsToShow()
 		updateSections(sections, isAnimated: animated)
 		updateRows(isAnimated: animated)
+		refreshed?.refreshLayout()
 		let visibleHeight = layOut(sections)
 		motion.commit(animated: animated)
 		if animated {
@@ -424,7 +432,7 @@ final class InboxContentView: FlippedView {
 				isExpanded: snapshot.expandedId == message.id,
 				isPicked: snapshot.selection.contains(message.id),
 				isFirst: index == 0,
-				replyDraft: snapshot.replyDraft?.messageId == message.id ? snapshot.replyDraft : nil,
+				isReplying: snapshot.replyingTo == message.id,
 				moveTargets: snapshot.moveTargets,
 			)
 			let predecessor = message.supersedes.first { unclaimed[$0] != nil && !snapshot.openIds.contains($0) }
@@ -439,6 +447,7 @@ final class InboxContentView: FlippedView {
 				kept[message.id] = row
 			} else {
 				let row = InboxRowView(content: content, inbox: inbox)
+				row.onBodyHeightChange = { [weak self] row in self?.refresh(row) }
 				list.addSubview(row)
 				if isAnimated {
 					LayerMotion.fade(row.layer, to: 1, duration: Tokens.motionDuration, from: 0)
@@ -454,7 +463,7 @@ final class InboxContentView: FlippedView {
 			}
 			switch UnclaimedRowFate.of(wasShown: rows[id] === row, isOpen: isOpen, isParked: row.isHidden) {
 			case .leave: send(row, isAnimated: isAnimated)
-			case .remove: row.removeFromSuperview()
+			case .remove: discard(row)
 			case .keep: break
 			}
 		}
@@ -472,7 +481,7 @@ final class InboxContentView: FlippedView {
 			if self.snapshot.openIds.contains(row.content.message.id) {
 				self.parkRow(row)
 			} else {
-				row.removeFromSuperview()
+				self.discard(row)
 			}
 		}
 		guard isAnimated else {
@@ -484,6 +493,14 @@ final class InboxContentView: FlippedView {
 		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration) {
 			MainActor.assumeIsolated { finish() }
 		}
+	}
+
+	/// A row that is gone for good: hidden at once, taken out of the view
+	/// tree in a quiet turn. Tearing down a row's native controls costs a
+	/// frame's worth, and its fade ends as the rest of the motion does.
+	private func discard(_ row: InboxRowView) {
+		row.isHidden = true
+		IdleWork.enqueue { [weak row] in row?.removeFromSuperview() }
 	}
 
 	/// A parked or leaving row shows again: it fades in at its place.

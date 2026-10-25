@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import GentboxCore
 import os
 
@@ -19,6 +20,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 			"NSAutoFillHeuristicsEnabled": false,
 			"NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac": true,
 		])
+		warmTextInput()
+	}
+
+	/// The first text field to take focus asks the keyboard input source for
+	/// its languages, which builds ICU's exemplar sets once per process
+	/// (13–58 ms). Asked here, at launch, the reply box's first focus no
+	/// longer stalls the frame that opens it.
+	private func warmTextInput() {
+		guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+		_ = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages)
 	}
 
 	func applicationDidFinishLaunching(_: Notification) {

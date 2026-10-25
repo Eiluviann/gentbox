@@ -212,6 +212,9 @@ class FlippedView: NSView {
 		super.init(frame: frame)
 		wantsLayer = true
 		layerContentsRedrawPolicy = .onSetNeedsDisplay
+		// Laid out by hand: a size change resizes no subview, which would
+		// lay them out again and render each control's SwiftUI graph.
+		autoresizesSubviews = false
 	}
 
 	@available(*, unavailable)
@@ -253,17 +256,27 @@ extension NSView {
 	/// meant for the card. A control's accessibility element is its cell (a
 	/// button's role and actions are the cell's); the control view stays
 	/// out, or it would be a second element, of no role, over the cell.
+	/// Only what differs is set: on macOS 26 a control's state change
+	/// renders its SwiftUI graph again in the next layout pass.
 	func setInReach(_ isInReach: Bool) {
 		guard let control = self as? NSControl, let cell = control.cell else {
-			setAccessibilityElement(isInReach)
+			if isAccessibilityElement() != isInReach {
+				setAccessibilityElement(isInReach)
+			}
 			return
 		}
-		control.refusesFirstResponder = !isInReach
+		if control.refusesFirstResponder == isInReach {
+			control.refusesFirstResponder = !isInReach
+		}
 		if !isInReach, let window, window.firstResponder === control.currentEditor() ?? control {
 			window.makeFirstResponder(nil)
 		}
-		setAccessibilityElement(false)
-		cell.setAccessibilityElement(isInReach)
+		if isAccessibilityElement() {
+			setAccessibilityElement(false)
+		}
+		if cell.isAccessibilityElement() != isInReach {
+			cell.setAccessibilityElement(isInReach)
+		}
 	}
 
 	/// Moves the view only when it isn't there already: AppKit redoes its

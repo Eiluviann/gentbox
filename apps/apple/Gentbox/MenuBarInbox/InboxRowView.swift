@@ -8,8 +8,9 @@ struct RowContent: Equatable {
 	let isPicked: Bool
 	/// The first item draws no rule above it.
 	let isFirst: Bool
-	/// The reply field's draft, when it is on this message.
-	let replyDraft: InboxModel.ReplyDraft?
+	/// The reply box is open on this message. Its text lives in the field
+	/// while it is typed, so a keystroke changes no row.
+	let isReplying: Bool
 	let moveTargets: [TopicChoice]
 }
 
@@ -115,7 +116,7 @@ final class InboxRowView: FlippedView {
 		if newContent.isExpanded, body == nil {
 			makeBody()
 		}
-		body?.show(message: message, replyDraft: newContent.replyDraft)
+		body?.show(message: message, isReplying: newContent.isReplying)
 		if newContent.isExpanded, !wasExpanded || isAnimated == false {
 			showBody(isAnimated: isAnimated && !wasExpanded)
 		} else if !newContent.isExpanded, wasExpanded {
@@ -225,7 +226,7 @@ final class InboxRowView: FlippedView {
 			moreButton = makeMoreButton()
 		}
 		makeBody()
-		body?.show(message: content.message, replyDraft: content.replyDraft)
+		body?.show(message: content.message, isReplying: content.isReplying)
 		layOut()
 	}
 
@@ -263,8 +264,21 @@ final class InboxRowView: FlippedView {
 		}
 	}
 
+	/// The card's body changed height by itself (the reply box took a line):
+	/// the row lays out again, the caller moves the rest.
+	var onBodyHeightChange: ((InboxRowView) -> Void)?
+
+	/// Lays the row out again for a body that changed height by itself.
+	func refreshLayout() {
+		layOut()
+	}
+
 	private func makeBody() {
 		let body = CardBodyView(inbox: inbox)
+		body.onHeightChange = { [weak self] in
+			guard let self else { return }
+			self.onBodyHeightChange?(self)
+		}
 		body.layer?.opacity = 0
 		addSubview(body)
 		self.body = body

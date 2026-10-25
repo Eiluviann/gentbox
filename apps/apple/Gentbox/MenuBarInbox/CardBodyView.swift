@@ -18,7 +18,13 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	private let codeBox = FlippedView()
 	private let code = Label.wrapping(font: .monospacedSystemFont(ofSize: 12, weight: .regular), maxLines: 4)
 	private(set) var message: InboxMessage?
-	private var replyDraft: InboxModel.ReplyDraft?
+	/// The reply box is open on this card. While it is typed in, the field
+	/// holds the text; the model keeps a copy, for a superseding message.
+	private var isReplyOpen = false
+	/// The lines the reply box took at the last layout.
+	private var replyLines = 1
+	/// The body changed height by itself (the reply box took a line).
+	var onHeightChange: (() -> Void)?
 	/// The action bar's controls for the message's actions, shown.
 	private var controls: ActionControls?
 	/// Controls for actions that changed (a waiter arrived), built ahead and
@@ -54,9 +60,10 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		setAccessibilityRole(.group)
 	}
 
-	func show(message: InboxMessage, replyDraft: InboxModel.ReplyDraft?) {
+	func show(message: InboxMessage, isReplying isReplyOpen: Bool) {
 		keys.show(messageId: message.id, isShown: isActive, at: CACurrentMediaTime())
-		if message != self.message {
+		let isNewMessage = message != self.message
+		if isNewMessage {
 			self.message = message
 			summary.stringValue = message.summary ?? ""
 			summary.isHidden = message.summary == nil
@@ -65,12 +72,15 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 			prepareControls(for: ActionControls.Spec(message: message))
 		}
 		let wasReplying = isReplying
-		self.replyDraft = replyDraft
+		self.isReplyOpen = isReplyOpen
 		if isReplying != wasReplying {
 			hasSent = false
+			syncReplyField()
 			showBar()
+		} else if isNewMessage {
+			// A superseding message carries the draft over.
+			syncReplyField()
 		}
-		syncReplyField()
 	}
 
 	/// Builds whatever controls are still missing now: the body is about to
@@ -104,6 +114,9 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		for bar in [controls, nextControls].compactMap({ $0 }) {
 			bar.layOut(at: y, width: width)
 		}
+		if isReplying, let field = controls?.replyField {
+			replyLines = field.lineCount(width: width)
+		}
 		return y + (controls?.height(isReplying: isReplying, width: width) ?? ActionControls.barHeight)
 	}
 
@@ -120,7 +133,7 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 	// MARK: Controls
 
 	private var isReplying: Bool {
-		replyDraft != nil && controls?.spec.reply != nil
+		isReplyOpen && controls?.spec.reply != nil
 	}
 
 	private func prepareControls(for spec: ActionControls.Spec) {
@@ -176,7 +189,10 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		for bar in [controls, nextControls].compactMap({ $0 }) {
 			for view in bar.allViews {
 				let isShown = shown.contains { $0 === view }
-				view.alphaValue = isShown ? 1 : 0
+				let alpha: CGFloat = isShown ? 1 : 0
+				if view.alphaValue != alpha {
+					view.alphaValue = alpha
+				}
 				view.setInReach(isShown)
 			}
 		}
@@ -259,9 +275,11 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 
 	/// Typing updates the model to what the field holds, so this only
 	/// changes the field when the draft came from elsewhere.
+	/// The model's draft into the field: when the box opens or closes, a
+	/// draft carries over or a new field takes the old one's place.
 	private func syncReplyField() {
 		guard let field = controls?.replyField else { return }
-		let text = replyDraft?.text ?? ""
+		let text = isReplyOpen ? inbox.replyDraft?.text ?? "" : ""
 		if field.stringValue != text {
 			field.stringValue = text
 			// The caret after the text, as if typed.
@@ -272,10 +290,17 @@ final class CardBodyView: FlippedView, NSTextFieldDelegate {
 		controls?.send?.isEnabled = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 	}
 
+	/// A keystroke: the model keeps a copy of the text, and the card lays
+	/// out again only when the box takes a line or gives one back.
 	func controlTextDidChange(_: Notification) {
 		guard let field = controls?.replyField else { return }
 		inbox.updateReply(field.stringValue)
 		controls?.send?.isEnabled = !field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+		let lines = field.lineCount(width: bounds.width)
+		if lines != replyLines {
+			replyLines = lines
+			onHeightChange?()
+		}
 	}
 
 	@objc func sendReply() {
@@ -385,7 +410,10 @@ final class ActionControls {
 	func layOut(at y: CGFloat, width: CGFloat) {
 		var buttonsTop = y
 		if let replyField {
-			replyField.frame = NSRect(x: 0, y: y, width: width, height: replyField.height(width: width))
+			let frame = NSRect(x: 0, y: y, width: width, height: replyField.height(width: width))
+			if replyField.frame != frame {
+				replyField.frame = frame
+			}
 			buttonsTop = replyField.frame.maxY + Self.replyGap
 		}
 		let bars: [(views: [NSView], top: CGFloat)] = [
@@ -395,7 +423,7 @@ final class ActionControls {
 			var x: CGFloat = 0
 			for view in bar.views {
 				let top = bar.top + ((Self.barHeight - view.frame.height) / 2).rounded()
-				view.frame = NSRect(x: x, y: top, width: view.frame.width, height: view.frame.height)
+				view.move(to: NSPoint(x: x, y: top))
 				x += view.frame.width + 6
 			}
 		}

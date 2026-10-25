@@ -44,7 +44,8 @@ final class ReplyField: NSTextField {
 
 	/// Its height `width` wide: the bezel around `lineCount(width:)` lines.
 	func height(width: CGFloat) -> CGFloat {
-		ceil(oneLineHeight(width: width) + CGFloat(lineCount(width: width) - 1) * lineHeight)
+		let metrics = measure(width: width)
+		return ceil(metrics.oneLine + CGFloat(lineCount(width: width) - 1) * metrics.line)
 	}
 
 	// MARK: Measuring
@@ -52,10 +53,10 @@ final class ReplyField: NSTextField {
 	/// The last count, for the layout pass that asks twice.
 	private var counted: (text: String, width: CGFloat, lines: Int)?
 
-	/// What each line past the first adds.
-	private var lineHeight: CGFloat {
-		NSLayoutManager().defaultLineHeight(for: font ?? .systemFont(ofSize: NSFont.systemFontSize))
-	}
+	/// The one-line height and line height last measured, for its font and
+	/// width: measuring sets the measurer's font, which on macOS 26 updates
+	/// that field's own SwiftUI graph, so it is done once per change.
+	private var measured: (font: NSFont?, width: CGFloat, oneLine: CGFloat, line: CGFloat)?
 
 	/// A field like it that is never shown, measured with one line of text:
 	/// its own cell holds the text being edited. (A bezelled cell measures
@@ -67,11 +68,19 @@ final class ReplyField: NSTextField {
 		return field
 	}()
 
-	/// The bezel around one line.
-	private func oneLineHeight(width: CGFloat) -> CGFloat {
-		Self.measurer.font = font
-		return Self.measurer.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height
+	/// The bezel around one line, and what each line past the first adds.
+	private func measure(width: CGFloat) -> (oneLine: CGFloat, line: CGFloat) {
+		if let measured, measured.font == font, measured.width == width {
+			return (measured.oneLine, measured.line)
+		}
+		if Self.measurer.font != font {
+			Self.measurer.font = font
+		}
+		let oneLine = Self.measurer.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: .greatestFiniteMagnitude)).height
 			?? fittingSize.height
+		let line = NSLayoutManager().defaultLineHeight(for: font ?? .systemFont(ofSize: NSFont.systemFontSize))
+		measured = (font, width, oneLine, line)
+		return (oneLine, line)
 	}
 
 	/// The width the text has inside the bezel.

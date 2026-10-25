@@ -127,6 +127,7 @@ class InboxPanel: NSPanel {
 		let fitted = Self.windowFrame(card: NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.topRoom - height, width: Tokens.popoverWidth, height: height))
 		if fitted != frame {
 			setFrame(fitted, display: false, animate: false)
+			fitHosts()
 		}
 	}
 
@@ -144,8 +145,18 @@ class InboxPanel: NSPanel {
 		NSRect(x: frame.minX + Self.margin, y: frame.maxY - Self.topRoom - height, width: Tokens.popoverWidth, height: height)
 	}
 
+	/// The layer hosts span the stage. The stage resizes nothing itself: a
+	/// window resize would otherwise lay out every view in it again, and on
+	/// macOS 26 render each control's SwiftUI graph again.
+	private func fitHosts() {
+		for host in [shadowHost, ringHost] where host.frame != stage.bounds {
+			host.frame = stage.bounds
+		}
+	}
+
 	private func buildCard(content: NSView) {
 		stage.wantsLayer = true
+		stage.autoresizesSubviews = false
 		stage.layer?.masksToBounds = false
 		shadow.contentsGravity = .resize
 		shadowHost.hostedLayer.addSublayer(shadow)
@@ -253,10 +264,7 @@ class InboxPanel: NSPanel {
 		resetStage(opacity: 0)
 		setFrame(Self.windowFrame(card: card), display: false, animate: false)
 		content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: maxCardHeight)
-		for host in [shadowHost, ringHost] {
-			host.frame = stage.bounds
-			host.autoresizingMask = [.width, .height]
-		}
+		fitHosts()
 		paint()
 		setCardHeight(card.height)
 	}
@@ -499,7 +507,6 @@ private final class LayerHostView: NSView {
 		hostedLayer.isGeometryFlipped = true
 		layer = hostedLayer
 		wantsLayer = true
-		autoresizingMask = [.width, .height]
 	}
 
 	@available(*, unavailable)
@@ -531,5 +538,16 @@ final class RecordingInboxPanel: InboxPanel {
 /// The card's surface: content hangs from its top while its height moves.
 @MainActor
 private final class SurfaceView: NSView {
+	override init(frame: NSRect) {
+		super.init(frame: frame)
+		// The content hangs from the top at its own size as the card grows.
+		autoresizesSubviews = false
+	}
+
+	@available(*, unavailable)
+	required init?(coder _: NSCoder) {
+		fatalError("init(coder:) is not used")
+	}
+
 	override var isFlipped: Bool { true }
 }

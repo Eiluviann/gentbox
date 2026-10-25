@@ -171,6 +171,17 @@ final class DemoDriver: NSObject {
 		backdrop = surface
 	}
 
+	/// Types `text` into the open reply box as a person would, one change
+	/// of the field editor, so the box takes its lines as it does then.
+	private func type(_ text: String) {
+		guard let editor = panel.firstResponder as? NSTextView, let field = editor.delegate as? NSTextField else {
+			inbox()?.updateReply(text)
+			return
+		}
+		editor.string = text
+		field.textDidChange(Notification(name: NSText.didChangeNotification, object: editor))
+	}
+
 	private func perform(_ command: String) async {
 		let parts = command.split(separator: " ", maxSplits: 1).map(String.init)
 		let verb = parts.first ?? ""
@@ -188,7 +199,7 @@ final class DemoDriver: NSObject {
 		case "reply":
 			if let item { model?.startReply(on: item.id) }
 		case "type":
-			model?.updateReply(argument)
+			type(argument)
 		case "close-thread":
 			if let item { _ = await model?.closeThread(of: item) }
 		case "close-filtered": await model?.closeFilteredThread()
