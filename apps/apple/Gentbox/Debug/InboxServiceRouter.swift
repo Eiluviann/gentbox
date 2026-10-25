@@ -5,13 +5,16 @@ import GentboxCore
 /// playground while it is switched on. One inbox model reads either, so the
 /// views never change model under their feet. A command goes where the
 /// item it names lives, whichever shows now, so one issued just before a
-/// switch never reaches the other side.
+/// switch never reaches the other side: the router notes every id the
+/// playground's list shows, and only those go to the playground.
 actor InboxServiceRouter: InboxService {
 	private let hub: GentboxHub
 	/// The playground once used: commands for its items reach it after a
 	/// switch back to the hub.
 	private var playground: PlaygroundInbox?
 	private var isShowingPlayground = false
+	/// The ids of every message, topic and thread the playground has shown.
+	private var playgroundIds: Set<String> = []
 
 	init(hub: GentboxHub) {
 		self.hub = hub
@@ -27,15 +30,19 @@ actor InboxServiceRouter: InboxService {
 
 	/// Where the item named `id` lives.
 	private func service(for id: String) -> any InboxService {
-		guard id.hasPrefix(PlaygroundInbox.idPrefix), let playground else { return hub }
+		guard playgroundIds.contains(id), let playground else { return hub }
 		return playground
 	}
 
 	func inbox() async throws -> Inbox {
-		if isShowingPlayground, let playground {
-			return await playground.inbox()
+		guard isShowingPlayground, let playground else {
+			return try await hub.inbox()
 		}
-		return try await hub.inbox()
+		let inbox = await playground.inbox()
+		for message in inbox.items {
+			playgroundIds.formUnion([message.id, message.topicId, message.threadId])
+		}
+		return inbox
 	}
 
 	func takeAction(messageId: String, actionId: String, value: String?) async throws {

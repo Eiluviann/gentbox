@@ -17,8 +17,8 @@ actor PlaygroundInbox: InboxService {
 		case note = "Note"
 	}
 
-	/// Every id the playground makes starts so (messages, topics, threads),
-	/// so a command reaches the playground or the hub by what it names.
+	/// Every id the playground makes starts so, to tell its items apart when
+	/// reading logs; the router tells them apart by the ids it has seen.
 	static let idPrefix = "playground-"
 
 	private var items: [InboxMessage] = []

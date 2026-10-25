@@ -105,7 +105,8 @@ jobs:
             CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= GENTBOX_ENTITLEMENTS=Signing/AdHoc.entitlements \
             GENTBOX_BUNDLE_IDENTIFIER=com.eiluviann.gentbox GENTBOX_APP_GROUP=
           binary=build/Build/Products/Release/Gentbox.app/Contents/MacOS/Gentbox
-          nm "$binary" | grep -q InboxContentView || { echo "::error::no symbols to check in $binary"; exit 1; }
+          # Not `grep -q`: it would stop reading early and break nm's pipe.
+          nm "$binary" | grep InboxContentView >/dev/null || { echo "::error::no symbols to check in $binary"; exit 1; }
           if nm "$binary" | grep -E 'DebugPanel|PlaygroundInbox|InboxServiceRouter|DemoDriver|AnimationTrace'; then
             echo "::error::the Release build carries debug hooks"
             exit 1
