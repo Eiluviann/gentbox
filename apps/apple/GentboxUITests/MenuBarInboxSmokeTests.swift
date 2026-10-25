@@ -216,8 +216,8 @@ final class MenuBarInboxSmokeTests: XCTestCase {
 	/// open card has none, and a click in its icon column picks nothing.
 	func testWhilePickingAClickOnARowsCheckboxPicksIt() throws {
 		let titles = ["Pick check one", "Pick check two", "Pick check three"]
-		for title in titles {
-			try post(["type": "task_completed", "title": title, "conversation": ["id": title]])
+		for (index, title) in titles.enumerated() {
+			try post(["type": "task_completed", "title": title, "conversation": ["id": "pick-\(index)"]])
 		}
 		openInbox()
 		XCTAssertTrue(item(titles[0]).waitForExistence(timeout: 10))
