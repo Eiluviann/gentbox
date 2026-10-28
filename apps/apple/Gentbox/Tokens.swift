@@ -63,7 +63,7 @@ enum Tokens {
 	@MainActor static var motionDuration: TimeInterval { 0.3 * motionScale }
 	/// Eased at both ends, the landing drawn out, so a card visibly settles
 	/// into place rather than stopping.
-	@MainActor static var motionCurve: CAMediaTimingFunction { CAMediaTimingFunction(controlPoints: 0.2, 0, 0, 1) }
+	@MainActor static var motionCurve: CAMediaTimingFunction { MotionCurve.standard.timingFunction }
 	/// The panel's own appearance and disappearance, quicker than a layout
 	/// change, and the card body's exit as its card collapses.
 	@MainActor static var spawnDuration: TimeInterval { 0.18 * motionScale }
@@ -72,6 +72,9 @@ enum Tokens {
 	/// How much an item grows into place as it arrives, and shrinks as it
 	/// goes.
 	static let arrivalScale: CGFloat = 0.96
+	/// How much the panel shrinks as it goes: less than it grew, so a closing
+	/// panel recedes rather than collapses.
+	static let departureScale: CGFloat = 0.98
 	#if DEBUG || GENTBOX_HOOKS
 	/// Every motion's length is multiplied by this: the debug panel slows
 	/// motion down to look at it.

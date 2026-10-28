@@ -72,6 +72,9 @@ targets:
       - path: Gentbox/MenuBarInbox/CardKeyGate.swift
       - path: Gentbox/MenuBarInbox/UnclaimedRowFate.swift
       - path: Gentbox/MenuBarInbox/RowStack.swift
+      - path: Gentbox/MenuBarInbox/StackPlan.swift
+      - path: Gentbox/MenuBarInbox/MotionTimeline.swift
+      - path: Gentbox/MenuBarInbox/MotionSpec.swift
       - path: Gentbox/MenuBarInbox/RowContent.swift
       - path: Gentbox/MenuBarInbox/ReplyField.swift
       - path: Gentbox/Tokens.swift
