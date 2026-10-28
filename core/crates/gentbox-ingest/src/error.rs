@@ -33,6 +33,9 @@ pub struct ErrorBody {
     /// The message's state, for `already_closed`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<LifecycleState>,
+    /// How many messages are still open, for `has_open_messages`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_messages: Option<u32>,
 }
 
 impl ApiError {
@@ -45,6 +48,7 @@ impl ApiError {
                 message: message.into(),
                 pointer: None,
                 state: None,
+                open_messages: None,
             },
             retry_after_seconds: None,
         }
@@ -122,7 +126,9 @@ impl From<HubError> for ApiError {
             HubError::MessageNotFound(_)
             | HubError::TopicNotFound(_)
             | HubError::ThreadNotFound(_) => Self::not_found(message),
-            HubError::NotOwner => Self::new(StatusCode::FORBIDDEN, "not_owner", message),
+            HubError::NotOwner | HubError::NoRequester => {
+                Self::new(StatusCode::FORBIDDEN, "not_owner", message)
+            }
             HubError::MessageClosed { state, .. } => {
                 let mut error = Self::new(StatusCode::CONFLICT, "already_closed", message);
                 error.body.state = Some(state);
@@ -130,6 +136,12 @@ impl From<HubError> for ApiError {
             }
             HubError::MissingCorrelationKeys => Self::schema_invalid("/correlationKeys", message),
             HubError::ImplicitGroup => Self::new(StatusCode::CONFLICT, "implicit_group", message),
+            HubError::HasOpenMessages { count } => {
+                let mut error = Self::new(StatusCode::CONFLICT, "has_open_messages", message);
+                error.body.open_messages = Some(count);
+                error
+            }
+            HubError::GeneralTopic => Self::new(StatusCode::CONFLICT, "general_topic", message),
             HubError::Conflict(_) => Self::new(StatusCode::CONFLICT, "conflict", message),
             HubError::Rejected(rejection) => rejected(&rejection),
             HubError::Grouping(grouping) => grouping_error(&grouping),

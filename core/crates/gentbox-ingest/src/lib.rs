@@ -119,14 +119,26 @@ impl IngestServer {
                 what: socket_path.display().to_string(),
                 source,
             };
-            let listener = tokio::net::UnixListener::bind(&socket_path).map_err(bind_error)?;
-            discovery::set_mode(&socket_path, 0o600).map_err(bind_error)?;
-            let router = local_router(state.clone(), Transport::UnixSocket);
-            tasks.push(tokio::spawn(serve(
-                listener,
-                router,
-                shutdown_signal.clone(),
-            )));
+            match tokio::net::UnixListener::bind(&socket_path) {
+                Ok(listener) => {
+                    discovery::set_mode(&socket_path, 0o600).map_err(bind_error)?;
+                    let router = local_router(state.clone(), Transport::UnixSocket);
+                    tasks.push(tokio::spawn(serve(
+                        listener,
+                        router,
+                        shutdown_signal.clone(),
+                    )));
+                }
+                // The Mac app's sandbox refuses a socket outside its own
+                // containers (an ad hoc build's Application Support folder).
+                // Clients fall back to TCP after the hello proof (§8).
+                Err(error) if is_refused(&error) => tracing::warn!(
+                    path = %socket_path.display(),
+                    %error,
+                    "the socket is not permitted here; serving TCP only"
+                ),
+                Err(error) => return Err(bind_error(error)),
+            }
         }
 
         let router = local_router(state, Transport::Tcp { port });
@@ -191,4 +203,27 @@ where
 fn is_socket_path_too_long(path: &Path) -> bool {
     use std::os::unix::ffi::OsStrExt;
     path.as_os_str().as_bytes().len() > MAX_SOCKET_PATH_BYTES
+}
+
+/// A bind the operating system refuses outright (a sandbox), as opposed to a
+/// failure worth stopping for.
+#[cfg(unix)]
+fn is_refused(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::PermissionDenied
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::is_refused;
+
+    #[test]
+    fn only_a_refused_bind_falls_back_to_tcp() {
+        // EPERM: the macOS sandbox; EACCES: a folder without write access.
+        assert!(is_refused(&std::io::Error::from_raw_os_error(1)));
+        assert!(is_refused(&std::io::Error::from_raw_os_error(13)));
+        // A socket already in use is a real problem: another hub.
+        assert!(!is_refused(&std::io::Error::from(
+            std::io::ErrorKind::AddrInUse
+        )));
+    }
 }

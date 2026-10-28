@@ -1,0 +1,9 @@
+# Swift binding options read by `uniffi-bindgen-swift` (library mode finds this
+# file through cargo metadata).
+[bindings.swift]
+# The C module the XCFramework exposes; the generated Swift imports it.
+ffi_module_name = "GentboxCoreFFI"
+# The Swift module the generated file is compiled into.
+module_name = "GentboxCore"
+# Records are values the models copy out of; `let` fields keep them so.
+generate_immutable_records = true

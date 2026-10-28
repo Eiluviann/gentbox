@@ -1,0 +1,22 @@
+// A build signed by a free Personal Team (an Apple ID in Xcode, no paid
+// membership). Signing.local.xcconfig includes this file after its
+// DEVELOPMENT_TEAM line; see docs/signing.md.
+//
+// Bundle ids and `group.` App Groups are unique across all teams, and Xcode
+// registers what it signs: these names stay apart from the shipped app's, so
+// the Personal Team never takes one the paid team needs.
+//
+// Free accounts get neither Time Sensitive nor Communication Notifications
+// (architecture §11): PersonalTeam.entitlements claims neither, so blocking
+// notifications are ordinary ones and Focus comes from the Shortcuts
+// automation (`gentbox focus on|off`) instead of INFocusStatusCenter.
+CODE_SIGN_IDENTITY = Apple Development
+GENTBOX_ENTITLEMENTS = Signing/PersonalTeam.entitlements
+GENTBOX_BUNDLE_IDENTIFIER = com.eiluviann.gentbox.personal
+
+// A macOS-style App Group, prefixed by the team id: never registered, and
+// macOS 15 opens its container without a prompt. With no restricted
+// entitlement left, the build needs no provisioning profile, so it does not
+// expire weekly; only the certificate does, after a year.
+GENTBOX_APP_GROUP = $(DEVELOPMENT_TEAM).com.eiluviann.gentbox
+REGISTER_APP_GROUPS = NO

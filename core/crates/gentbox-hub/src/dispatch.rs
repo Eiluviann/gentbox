@@ -1,9 +1,9 @@
 //! Dispatch to channels: the UI delegate (the Mac app through FFI, or a log
 //! in `gentboxd`) and an optional phone [`Relay`], which v1 leaves unset.
 //!
-//! The actor calls the delegate synchronously, in order, after the store has
-//! committed the change it reports. A delegate must not block: the Mac app
-//! hops to its main queue, `gentboxd` writes a log line.
+//! The actor calls the delegate synchronously, on the hub thread, in order,
+//! after the store has committed the change it reports. A delegate must not
+//! block: the Mac app hops to its main actor, `gentboxd` writes a log line.
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -27,6 +27,8 @@ pub enum HubEvent {
         plan: DeliveryPlan,
         /// The buttons to show now.
         offered_actions: Vec<Action>,
+        /// Whether a sender is waiting for the answer.
+        has_live_waiter: bool,
         /// The message whose popup and notification it takes over (same
         /// notification identifier), when it superseded one.
         replaces: Option<MessageId>,
@@ -54,6 +56,8 @@ pub enum HubEvent {
         message: Message,
         /// The buttons to show now.
         offered_actions: Vec<Action>,
+        /// Whether a sender is waiting for the answer now.
+        has_live_waiter: bool,
         /// Surfaces to take down (Defer closes the popup).
         take_down: DeliveredSurfaces,
     },
@@ -85,9 +89,22 @@ pub enum HubEvent {
 }
 
 /// Receives what the surfaces must do.
+///
+/// [`HubDelegate::on_event`] runs **on the hub thread**, inside the actor's
+/// turn, so:
+///
+/// - **Never wait on a [`crate::HubHandle`] call from it.** The actor is busy
+///   delivering this event and cannot run the command, so blocking on its
+///   reply (`block_on`, a semaphore, a synchronous FFI round trip) deadlocks
+///   the hub.
+/// - **`tokio::spawn` here lands on the hub's runtime**, a single-threaded
+///   one that also runs the actor and its timers. Anything spawned there
+///   competes with every command; hand work to a runtime or queue of your own
+///   instead (the Mac app hops to its main actor and returns at once).
+/// - Return quickly and do not panic: events after this one wait for it.
 pub trait HubDelegate: Send + Sync + Debug {
-    /// Called on the actor, in order, after the change is stored. Must not
-    /// block.
+    /// Called on the hub thread, in order, after the change is stored. Must
+    /// not block and must not wait on the hub (see the trait docs).
     fn on_event(&self, event: HubEvent);
 }
 

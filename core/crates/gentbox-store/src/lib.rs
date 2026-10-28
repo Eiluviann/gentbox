@@ -24,6 +24,8 @@ mod store;
 pub use error::{Conflict, EntityKind, StoreError};
 pub use groups::{ThreadReopened, Upserted};
 pub use migrations::latest_version;
-pub use repository::{DeliveryEvent, DeliveryRecord, MessageFilter, Repository};
+pub use repository::{
+    DeliveryEvent, DeliveryRecord, MessageFilter, Repository, SUPERSEDED_MESSAGES_LIMIT,
+};
 pub use retention::{DEFAULT_RETENTION, DEFAULT_SWEPT_ID_RETENTION, RetentionPolicy, SweepReport};
 pub use store::Store;

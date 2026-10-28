@@ -10,3 +10,8 @@ apps/apple/Signing.local.xcconfig
 
 # Generated from SF Pro and third-party brand marks; rebuild with design/tools
 design/project/sf-symbols.js
+# Built by apps/apple/scripts/build-xcframework.sh and by SwiftPM.
+apps/apple/GentboxCore/Sources/GentboxCore/Generated/
+apps/apple/GentboxCore/.xcframework-stamp
+apps/apple/GentboxCore/.build/
+apps/apple/GentboxCore/.swiftpm/

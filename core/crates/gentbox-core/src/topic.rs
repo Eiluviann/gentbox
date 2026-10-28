@@ -469,10 +469,11 @@ pub struct ThreadCreate {
 }
 
 /// Body of `POST /v1/topics/{id}/close` and `POST /v1/threads/{id}/close`
-/// (`$defs/closeRequest`). Closing never touches open messages unless
-/// `rescind_open_messages` is true; then every open message in the topic or
-/// thread is rescinded with `reason` (default `obsolete`). Closing a topic
-/// also closes its open threads.
+/// (`$defs/closeRequest`). A topic or thread closes only when nothing in it
+/// is open; with `rescind_open_messages`, the requester's own open messages
+/// are withdrawn with `reason` (default `obsolete`) first, and the close is
+/// refused, withdrawing nothing, if another sender's message stays open.
+/// Closing a topic also closes its open threads.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CloseRequest {

@@ -27,6 +27,11 @@ use crate::codec::{
 };
 use crate::error::{Conflict, EntityKind, StoreError};
 
+/// How far [`Repository::superseded_messages`] walks back: a card follows
+/// its replacement across a few supersedes between two reads, never a long
+/// chain.
+pub const SUPERSEDED_MESSAGES_LIMIT: usize = 32;
+
 /// Reads and writes against a connection or an open transaction.
 ///
 /// Obtained from [`crate::Store::repository`] (each call commits by itself) or
@@ -362,6 +367,34 @@ impl<'connection> Repository<'connection> {
             }
             chain.push(next.clone());
             current = next;
+        }
+        Ok(chain)
+    }
+
+    /// The messages `id` replaced, nearest first: its supersede chain read
+    /// backwards, at most [`SUPERSEDED_MESSAGES_LIMIT`] of them. Empty when
+    /// it replaced nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Corrupt`] when the chain loops.
+    pub fn superseded_messages(&self, id: &MessageId) -> Result<Vec<MessageId>, StoreError> {
+        let mut chain = Vec::new();
+        let mut current = id.clone();
+        while chain.len() < SUPERSEDED_MESSAGES_LIMIT {
+            let replaced: Option<String> = self
+                .connection
+                .prepare_cached("SELECT id FROM messages WHERE superseded_by = ?1")?
+                .query_row(params![current.as_str()], |row| row.get(0))
+                .optional()?;
+            let Some(replaced) = replaced.map(MessageId::new) else {
+                return Ok(chain);
+            };
+            if replaced == *id || chain.contains(&replaced) {
+                return Err(StoreError::corrupt("superseded_by", "supersede cycle"));
+            }
+            chain.push(replaced.clone());
+            current = replaced;
         }
         Ok(chain)
     }

@@ -1,0 +1,121 @@
+# XcodeGen spec for the Mac app. `xcodegen generate` in this folder writes
+# Gentbox.xcodeproj (gitignored). Run `scripts/build-xcframework.sh` first:
+# the GentboxCore package needs the XCFramework and the generated Swift.
+#
+# Signing: Signing.xcconfig signs ad hoc ("Sign to Run Locally") with the
+# reduced Signing/AdHoc.entitlements unless the gitignored
+# Signing.local.xcconfig beside it names a team and an entitlements variant;
+# docs/signing.md has the recipe for the paid team and for a free Personal
+# Team (Signing.personal-team.xcconfig). The bundle id and the App Group come
+# from Signing.xcconfig too. CI builds and tests ad hoc, with no team.
+name: Gentbox
+options:
+  bundleIdPrefix: com.eiluviann
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: false
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  GentboxCore:
+    path: GentboxCore
+targets:
+  Gentbox:
+    type: application
+    platform: macOS
+    sources:
+      - path: Gentbox
+    dependencies:
+      - package: GentboxCore
+    info:
+      path: Gentbox/Info.plist
+      properties:
+        CFBundleDisplayName: Gentbox
+        CFBundleName: Gentbox
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        # A menu-bar app: no Dock icon, no main menu.
+        LSUIElement: true
+        NSHumanReadableCopyright: ""
+        # The App Group the build is meant to claim; the app uses it only
+        # when the signature claims it too (StateFolder).
+        GentboxAppGroup: $(GENTBOX_APP_GROUP)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(GENTBOX_BUNDLE_IDENTIFIER)
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # One of Signing/*.entitlements, picked in Signing.xcconfig.
+        CODE_SIGN_ENTITLEMENTS: $(GENTBOX_ENTITLEMENTS)
+  GentboxTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: GentboxTests
+      # The app's code but its entry points: the views are driven off screen,
+      # with no hub.
+      - path: Gentbox
+        excludes:
+          - GentboxApp.swift
+          - AppDelegate.swift
+          - Info.plist
+          - Assets.xcassets
+      # The entitlement variants, checked as data.
+      - path: Signing
+        buildPhase: resources
+    dependencies:
+      - package: GentboxCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.gentbox.tests
+        GENERATE_INFOPLIST_FILE: YES
+        # Logic tests in a plain xctest process, never inside the app: the
+        # app would start a hub on the real state folder.
+        TEST_HOST: ""
+        ENABLE_HARDENED_RUNTIME: NO
+  GentboxUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: GentboxUITests
+    dependencies:
+      - target: Gentbox
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.eiluviann.gentbox.ui-tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Gentbox
+        # An ad hoc runner has no team, so under the hardened runtime's
+        # library validation it refuses to load the test bundle. The app under
+        # test keeps the hardened runtime.
+        ENABLE_HARDENED_RUNTIME: NO
+schemes:
+  Gentbox:
+    build:
+      targets:
+        Gentbox: all
+        GentboxTests: [test]
+        GentboxUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      # The GentboxCore package tests run here too, so one `xcodebuild test`
+      # covers the app's unit tests, the UI smoke and the package.
+      targets:
+        - GentboxTests
+        - GentboxUITests
+        - package: GentboxCore/GentboxCoreTests
