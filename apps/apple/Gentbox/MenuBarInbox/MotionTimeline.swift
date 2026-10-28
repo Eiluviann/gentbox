@@ -102,9 +102,6 @@ struct MotionTimeline<ID: Hashable> {
 		var height: CGFloat
 		var topTracks: [MotionTrack]
 		var heightTracks: [MotionTrack]
-		/// Bumped whenever the slot comes, goes, moves or comes back, so a
-		/// view's completion for an earlier one does nothing.
-		var generation: Int
 		/// The change whose completion ends the slot, while it leaves.
 		var leavingChange: Int?
 		/// The change whose completion drops it back among the others, while
@@ -251,7 +248,6 @@ struct MotionTimeline<ID: Hashable> {
 			var slot = slots[id] ?? Self.arriving(under: steadyAbove.flatMap { next[$0] }, before: serial)
 			if slots[id] == nil {
 				inserted.insert(id)
-				slot.generation += 1
 				addedTop[id] = slot.topTracks
 			}
 			if from.top != to.top {
@@ -272,16 +268,13 @@ struct MotionTimeline<ID: Hashable> {
 			if !listedIds.contains(id), slot.leavingChange == nil {
 				removed.insert(id)
 				slot.leavingChange = serial
-				slot.generation += 1
 			}
 			if listedIds.contains(id), slot.leavingChange != nil {
 				returned.insert(id)
 				slot.leavingChange = nil
-				slot.generation += 1
 			}
 			if plan.movers.contains(id) {
 				slot.raisingChange = serial
-				slot.generation += 1
 			} else {
 				steadyAbove = id
 			}
@@ -322,10 +315,8 @@ struct MotionTimeline<ID: Hashable> {
 		var top: CGFloat = 0
 		var next: [ID: SlotMotion] = [:]
 		for slot in listed {
-			let generation = (slots[slot.id]?.generation ?? 0) + 1
 			next[slot.id] = SlotMotion(
-				top: top, height: slot.height, topTracks: [], heightTracks: [], generation: generation,
-				leavingChange: nil, raisingChange: nil,
+				top: top, height: slot.height, topTracks: [], heightTracks: [], leavingChange: nil, raisingChange: nil,
 			)
 			top += slot.height
 		}
@@ -341,7 +332,7 @@ struct MotionTimeline<ID: Hashable> {
 	private static func arriving(under above: SlotMotion?, before serial: Int) -> SlotMotion {
 		let running = ((above?.topTracks ?? []) + (above?.heightTracks ?? [])).filter { $0.change < serial }
 		return SlotMotion(
-			top: 0, height: 0, topTracks: running, heightTracks: [], generation: 0, leavingChange: nil,
+			top: 0, height: 0, topTracks: running, heightTracks: [], leavingChange: nil,
 			raisingChange: above?.raisingChange,
 		)
 	}

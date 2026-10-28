@@ -4,6 +4,9 @@ import QuartzCore
 /// Where the list scrolls to for a change (ADR 0013, Anchor), worked out
 /// from the row stack's targets alone, so the tests read it as the views do.
 enum ListScrollTarget {
+	/// Less than a pixel: a scroll's rounding, not a scroll past the end.
+	private static let slideBackTolerance: CGFloat = 0.5
+
 	/// The first row whose place reaches below the list's top at `origin`,
 	/// and its top: the row that stays still on screen while rows above it,
 	/// out of view, open and close. None at the top, where a row inserted
@@ -46,6 +49,14 @@ enum ListScrollTarget {
 		}
 		return min(max(target, 0), max(timeline.targetHeight - viewHeight, 0))
 	}
+
+	/// Where a scroll of the user's into the room a motion made slides back
+	/// to once the motion has run: the list's end, when `origin` lies past
+	/// it by more than a rounding; nil otherwise.
+	static func slideBack(from origin: CGFloat, rowsHeight: CGFloat, viewHeight: CGFloat) -> CGFloat? {
+		let lastOrigin = max(rowsHeight - viewHeight, 0)
+		return origin > lastOrigin + slideBackTolerance ? lastOrigin : nil
+	}
 }
 
 /// The list's scroll view (ADR 0013, Offset): a change scrolls the clip
@@ -55,7 +66,9 @@ enum ListScrollTarget {
 /// user's ends that slide where it shows; the rows keep moving.
 @MainActor
 final class ListScrollView: NSScrollView, MotionStack {
-	/// Every running change's slide of the document, as the layer adds them.
+	/// Every change's slide of the document, as the layer adds them. A slide
+	/// goes once it has run, not as its change ends: a change ends before
+	/// its motion has (`InboxTransition`), and the offset shows as drawn.
 	private var tracks: [MotionTrack] = []
 	var now: () -> TimeInterval = { CACurrentMediaTime() }
 
@@ -102,11 +115,13 @@ final class ListScrollView: NSScrollView, MotionStack {
 		guard delta != 0, let layer = documentView?.layer else { return }
 		let track = MotionTrack(change: motion.change, start: motion.time, duration: motion.duration, delta: delta)
 		layer.addMotion(track, keyPath: "position.y", key: "motion.scroll.\(motion.change)")
+		tracks.removeAll { $0.end <= motion.time }
 		tracks.append(track)
 	}
 
-	func complete(_ change: Int) {
-		tracks.removeAll { $0.change == change }
+	func complete(_: Int) {
+		let time = now()
+		tracks.removeAll { $0.end <= time }
 	}
 
 	func settle() {
@@ -128,8 +143,9 @@ final class ListScrollView: NSScrollView, MotionStack {
 	/// as it shows, the document grown to hold it if it must be; the last
 	/// completion brings both back within the target.
 	private func stopSlidingWhereItShows() {
-		guard !tracks.isEmpty else { return }
-		let shown = max(shownOrigin(at: now()), 0)
+		let time = now()
+		guard tracks.contains(where: { $0.end > time }) else { return }
+		let shown = max(shownOrigin(at: time), 0)
 		CATransaction.begin()
 		CATransaction.setDisableActions(true)
 		settle()

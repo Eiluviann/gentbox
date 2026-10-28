@@ -52,6 +52,9 @@ final class InboxContentView: FlippedView {
 	private lazy var sections = SlotStack<Section>(in: self, width: Tokens.popoverWidth)
 	private let rowStack: SlotStack<Int>
 	private lazy var transition = makeTransition()
+	/// The motion's clock when a test winds it; the render server's
+	/// otherwise.
+	private let motionClock: (any MotionClock)?
 	/// The listed rows, by message.
 	private var rows: [String: InboxRowView] = [:]
 	/// Rows closing their place as they leave, by row: parked or discarded
@@ -122,8 +125,9 @@ final class InboxContentView: FlippedView {
 		let unclaimed: [String: InboxRowView]
 	}
 
-	init(app: AppModel) {
+	init(app: AppModel, clock: (any MotionClock)? = nil) {
 		self.app = app
+		motionClock = clock
 		header = InboxHeaderView(loginItem: app.loginItem)
 		let list = ListView()
 		self.list = list
@@ -269,11 +273,10 @@ final class InboxContentView: FlippedView {
 		let anchor = ListScrollTarget.anchor(in: rowStack.timeline, origin: previousOrigin)
 		updateRows(claims, in: motion)
 		refreshed?.refreshLayout(in: motion)
-		moveRows(as: motion)
 		let shown = sectionsToShow()
-		let sectionChange = moveSections(shown, as: motion)
-		if shown.contains(.list) {
-			fitList(from: previousOrigin, anchor: anchor, showingOpenCard: isOpenCardNew, as: motion)
+		moveRows(as: motion, fadingContent: !isListHandedOver(to: shown))
+		let sectionChange = moveSections(shown, as: motion) {
+			self.fitList(from: previousOrigin, anchor: anchor, showingOpenCard: isOpenCardNew, as: motion)
 		}
 		#if DEBUG || GENTBOX_HOOKS
 		moveTraceMarker(by: sectionChange?.heightTrack, as: motion)
@@ -282,7 +285,10 @@ final class InboxContentView: FlippedView {
 	}
 
 	private func makeTransition() -> InboxTransition {
-		let transition = InboxTransition(clock: LayerMotionClock(on: layer))
+		let clock = motionClock ?? LayerMotionClock(on: layer)
+		// The scroll ends its slides on the change's clock.
+		scroller.now = { [clock] in clock.now }
+		let transition = InboxTransition(clock: clock)
 		transition.add(sections)
 		transition.add(rowStack)
 		transition.add(scroller)
@@ -333,9 +339,21 @@ final class InboxContentView: FlippedView {
 		}
 	}
 
+	/// Whether the list comes or goes in this change: its section fades it
+	/// as a whole then, and its rows come and go whole within it.
+	private func isListHandedOver(to shown: [Section]) -> Bool {
+		let isListShown = sections.timeline.slots[.list].map { $0.leavingChange == nil } ?? false
+		return isListShown != shown.contains(.list)
+	}
+
 	/// Lays out every shown section's content and moves the section stack;
-	/// the list is as tall as its rows, less what the cap cuts.
-	private func moveSections(_ shown: [Section], as motion: MotionChange?) -> MotionTimeline<Section>.Change? {
+	/// the list is as tall as its rows, less what the cap cuts, and
+	/// `fitList` lays it out once the sections have their frames.
+	private func moveSections(
+		_ shown: [Section],
+		as motion: MotionChange?,
+		fitList: () -> Void,
+	) -> MotionTimeline<Section>.Change? {
 		let heights = shown.map { (section: $0, height: layOutContent(of: $0)) }
 		naturalHeight = heights.reduce(0) { $0 + $1.height }
 		isCapped = shown.contains(.list) && naturalHeight > maxHeight
@@ -345,12 +363,15 @@ final class InboxContentView: FlippedView {
 				id: section, view: slot(of: section), height: section == .list ? max(height - overflow, 0) : height,
 			)
 		}
+		let layOutList = shown.contains(.list) ? fitList : {}
 		guard let motion else {
 			sections.settle(entries)
+			layOutList()
 			return nil
 		}
 		return sections.apply(
 			entries, change: motion.change, at: motion.time, duration: motion.duration, reducesMotion: motion.reducesMotion,
+			layOut: layOutList,
 		)
 	}
 
@@ -488,7 +509,7 @@ final class InboxContentView: FlippedView {
 		return row
 	}
 
-	private func moveRows(as motion: MotionChange?) {
+	private func moveRows(as motion: MotionChange?, fadingContent fadesContent: Bool) {
 		let entries = snapshot.items.compactMap { rows[$0.id] }.map {
 			SlotStack<Int>.Entry(id: $0.rowId, view: $0, height: $0.height)
 		}
@@ -498,6 +519,7 @@ final class InboxContentView: FlippedView {
 		}
 		rowStack.apply(
 			entries, change: motion.change, at: motion.time, duration: motion.duration, reducesMotion: motion.reducesMotion,
+			fadesContent: fadesContent,
 		)
 	}
 
@@ -552,9 +574,8 @@ final class InboxContentView: FlippedView {
 	/// back first, as a change of its own: whether it did.
 	private func hasSlidBackIntoList() -> Bool {
 		guard let listHeight = sections.timeline.slots[.list]?.height else { return false }
-		let lastOrigin = max(rowStack.targetHeight - listHeight, 0)
 		let origin = scroller.origin
-		if origin > lastOrigin {
+		if let lastOrigin = ListScrollTarget.slideBack(from: origin, rowsHeight: rowStack.targetHeight, viewHeight: listHeight) {
 			let duration = Tokens.motionDuration
 			transition.run(for: duration) { [scroller] change, time in
 				let motion = MotionChange(

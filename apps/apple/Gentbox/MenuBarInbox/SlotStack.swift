@@ -26,8 +26,12 @@ final class SlotStack<ID: Hashable>: MotionStack {
 		let height: CGFloat
 	}
 
-	private static var raisedZ: CGFloat {
+	static var raisedZ: CGFloat {
 		1000
+	}
+
+	private static var holdKey: String {
+		"motion.zPosition."
 	}
 
 	private(set) var timeline = MotionTimeline<ID>()
@@ -37,11 +41,15 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	/// A slot that finished leaving, hidden and its motion dropped, for its
 	/// owner to keep or discard.
 	var onDrop: ((ID, SlotView) -> Void)?
-	private let container: NSView
+	/// Unowned: the container keeps the stack, as a card's body or the inbox
+	/// keeps its own, and outlives it.
+	private unowned let container: NSView
 	/// The timeline's serials for each of the coordinator's changes this
 	/// stack took part in: a row's parts change less often than the list,
 	/// and a row laid out twice in one change applies twice.
 	private var serials: [Int: [Int]] = [:]
+	/// Each running change's raise of its movers, over its motion.
+	private var raises: [Int: MotionTrack] = [:]
 
 	init(in container: NSView, width: CGFloat) {
 		self.container = container
@@ -54,12 +62,26 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	}
 
 	/// Moves the stack to `entries` from where it shows at `time`, as the
-	/// coordinator's change `change`.
+	/// coordinator's change `change`. `layOut` runs once every slot has its
+	/// target frame and before any content fades or zooms, so a zoom is
+	/// centred on the content's target bounds. A stack whose container comes
+	/// or goes in the same change leaves the fade to it (`fadesContent`
+	/// false): its slots come and go whole, and one taken back mid-fade
+	/// finishes it.
 	@discardableResult
-	func apply(_ entries: [Entry], change: Int, at time: TimeInterval, duration: TimeInterval, reducesMotion: Bool) -> MotionTimeline<ID>.Change {
+	func apply(
+		_ entries: [Entry],
+		change: Int,
+		at time: TimeInterval,
+		duration: TimeInterval,
+		reducesMotion: Bool,
+		fadesContent: Bool = true,
+		layOut: () -> Void = {},
+	) -> MotionTimeline<ID>.Change {
 		adopt(entries)
 		let applied = timeline.apply(entries.map(Self.slot), at: time, duration: duration)
 		serials[change, default: []].append(applied.serial)
+		raises[change] = MotionTrack(change: change, start: time, duration: duration, delta: Self.raisedZ)
 		for id in applied.plan.order {
 			guard let view = views[id], let slot = timeline.slots[id] else { continue }
 			if applied.inserted.contains(id) {
@@ -70,25 +92,36 @@ final class SlotStack<ID: Hashable>: MotionStack {
 			view.layer?.addMotions(applied.topTracks[id] ?? [], keyPath: "position.y")
 			view.layer?.addMotions(applied.heightTracks[id] ?? [], keyPath: "bounds.size.height")
 		}
-		moveContent(of: applied, at: time, reducesMotion: reducesMotion)
+		layOut()
+		moveContent(of: applied, at: time, reducesMotion: reducesMotion, fadesContent: fadesContent)
 		layerInOrder()
 		return applied
 	}
 
+	/// Ends change `change`, which ends before its motion has run
+	/// (`InboxTransition`): its movers stay drawn above the rest until then.
 	func complete(_ change: Int) {
 		guard let changeSerials = serials.removeValue(forKey: change) else { return }
+		var lowered: [ID] = []
 		for serial in changeSerials {
-			for id in timeline.complete(serial).dropped {
+			let completion = timeline.complete(serial)
+			for id in completion.dropped {
 				drop(id)
 			}
+			lowered += completion.lowered
 		}
 		layerInOrder()
+		guard let raise = raises.removeValue(forKey: change) else { return }
+		for id in lowered {
+			views[id]?.layer?.holdMotion(raise, keyPath: "zPosition", key: "\(Self.holdKey)\(change)")
+		}
 	}
 
 	/// Shows `entries` at once, every motion ended: a change without motion.
 	func settle(_ entries: [Entry]) {
 		adopt(entries)
 		serials.removeAll()
+		raises.removeAll()
 		for id in timeline.settle(entries.map(Self.slot)) {
 			drop(id)
 		}
@@ -121,15 +154,27 @@ final class SlotStack<ID: Hashable>: MotionStack {
 		}
 	}
 
-	private func moveContent(of applied: MotionTimeline<ID>.Change, at time: TimeInterval, reducesMotion: Bool) {
+	private func moveContent(
+		of applied: MotionTimeline<ID>.Change,
+		at time: TimeInterval,
+		reducesMotion: Bool,
+		fadesContent: Bool,
+	) {
 		for id in applied.inserted {
-			views[id]?.isLeaving = false
-			views[id]?.moveContent(MotionSpec.content(.insert, reducesMotion: reducesMotion), at: time)
+			guard let view = views[id] else { continue }
+			view.isLeaving = false
+			if fadesContent {
+				view.moveContent(MotionSpec.content(.insert, reducesMotion: reducesMotion), at: time)
+			} else {
+				view.content.alphaValue = 1
+			}
 		}
 		for id in applied.removed {
 			guard let view = views[id] else { continue }
 			view.isLeaving = true
-			view.moveContent(Self.fromShown(view, at: time, to: MotionSpec.content(.remove, reducesMotion: reducesMotion)), at: time)
+			if fadesContent {
+				view.moveContent(Self.fromShown(view, at: time, to: MotionSpec.content(.remove, reducesMotion: reducesMotion)), at: time)
+			}
 		}
 		for id in applied.returned {
 			guard let view = views[id] else { continue }
@@ -145,10 +190,16 @@ final class SlotStack<ID: Hashable>: MotionStack {
 		onDrop?(id, view)
 	}
 
-	/// The stack's order is the drawing order, raised slots above it.
+	/// The stack's order is the drawing order, raised slots above it, and
+	/// a mover raised again drops the hold of its last change.
 	private func layerInOrder() {
 		for (index, id) in timeline.order.enumerated() {
-			views[id]?.layer?.zPosition = CGFloat(index) + (timeline.isRaised(id) ? Self.raisedZ : 0)
+			guard let layer = views[id]?.layer else { continue }
+			let isRaised = timeline.isRaised(id)
+			layer.zPosition = CGFloat(index) + (isRaised ? Self.raisedZ : 0)
+			if isRaised {
+				layer.removeMotions(keyedFrom: Self.holdKey)
+			}
 		}
 	}
 

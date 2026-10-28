@@ -91,6 +91,12 @@ final class AppModel {
 	}
 
 	#if DEBUG || GENTBOX_HOOKS
+	/// Runs `inbox` without a hub, for tests that drive the views.
+	func run(_ inbox: InboxModel) {
+		phase = .running(inbox)
+		inbox.requestRead()
+	}
+
 	/// The inbox shows `playground` from now on, or the hub's again (`nil`).
 	func show(_ playground: PlaygroundInbox?) async {
 		await router?.route(to: playground)

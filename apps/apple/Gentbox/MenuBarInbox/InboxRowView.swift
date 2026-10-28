@@ -35,6 +35,12 @@ final class InboxRowView: SlotView, MotionStack {
 		case body
 	}
 
+	/// The mark for a message an agent waits on, and what VoiceOver reads.
+	private struct WaitingMark: Equatable {
+		let symbol: Symbol.Shown
+		let label: String
+	}
+
 	/// The row itself, for the list's stack: unlike the message it shows,
 	/// it never changes, and unlike an object identifier, never comes back.
 	let rowId: Int
@@ -49,21 +55,34 @@ final class InboxRowView: SlotView, MotionStack {
 	private let ruleSlot = SlotView()
 	private let headerSlot = SlotView()
 	private let bodySlot = SlotView()
-	private let icon = NSImageView()
-	/// In place of the icon while rows are being picked.
-	private let checkbox = NSImageView()
-	private let urgentBadge = Symbol.view("figure.walk.motion", size: 12, color: Tokens.waiting)
-	private let title = Label.line(size: 13, weight: .semibold)
-	private let context = ContextLine()
-	private let waitingMark = NSImageView()
-	/// Built ahead with the body and kept drawn at zero opacity until a
-	/// hover; it pops up the item menu, built only then.
-	private var moreButton: NSButton?
+	/// The header's leaves cross-fade to a new message's on the list's clock,
+	/// each alone, so nothing behind them flickers.
+	private let icon = Crossfading<NSImageView, Symbol.Shown>(InboxRowView.symbolView, write: Symbol.set)
+	/// In place of the icon while rows are being picked; it shows whether
+	/// the row is picked.
+	private let checkbox = Crossfading<NSImageView, Bool>(InboxRowView.symbolView) { view, isPicked in
+		Symbol.set(view, isPicked ? InboxRowView.checkboxSymbols[1] : InboxRowView.checkboxSymbols[0], size: InboxRowView.checkboxSize, color: isPicked ? .controlAccentColor : .tertiaryLabelColor)
+	}
+	/// Whether the message is urgent.
+	private let urgentBadge = Crossfading<NSImageView, Bool>({ Symbol.view("figure.walk.motion", size: 12, color: Tokens.waiting) }) { view, isUrgent in
+		view.isHidden = !isUrgent
+	}
+	private let title = CrossfadingText { Label.line(size: 13, weight: .semibold) }
+	private let context = Crossfading<ContextLine, ContextLine.Shown>({ ContextLine() }) { line, shown in line.show(shown) }
+	private let waitingMark = Crossfading<NSImageView, WaitingMark?>(InboxRowView.symbolView) { view, mark in
+		if let mark {
+			Symbol.set(view, mark.symbol)
+			view.setAccessibilityLabel(mark.label)
+		}
+		view.isHidden = mark == nil
+	}
+	/// Built with the row and drawn at zero opacity until a hover: a hover
+	/// builds nothing in its frame. It pops up the item menu, built only
+	/// then.
+	private let moreButton = MoreButton()
 	/// Built ahead (`prepareBody`) and kept while collapsed, its place
 	/// closed and transparent, so expanding only reveals it.
 	private var body: CardBodyView?
-	/// The icon's and the checkbox's fades as picking starts or ends.
-	private var leafFades: [ObjectIdentifier: ContentMotion] = [:]
 	private var isHovered = false {
 		didSet { if isHovered != oldValue { showHover() } }
 	}
@@ -94,26 +113,30 @@ final class InboxRowView: SlotView, MotionStack {
 		fill = Tokens.row
 		ruleSlot.content.fill = Tokens.line
 		ruleSlot.content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: 1)
-		icon.imageScaling = .scaleNone
 		// Decorative: `checkmark.circle` would read "Selected" and carry the
 		// Selected trait, which bulk Dismiss's picks use.
-		icon.setAccessibilityElement(false)
-		checkbox.imageScaling = .scaleNone
+		icon.leaf.setAccessibilityElement(false)
 		// The row's "Pick for Dismiss" action and Selected trait speak for it.
-		checkbox.setAccessibilityElement(false)
-		checkbox.alphaValue = 0
-		urgentBadge.setAccessibilityLabel("Urgent")
-		waitingMark.imageScaling = .scaleNone
-		for view in headerLeaves {
-			view.wantsLayer = true
-			headerSlot.content.addSubview(view)
-		}
+		checkbox.leaf.setAccessibilityElement(false)
+		checkbox.leaf.alphaValue = 0
+		urgentBadge.leaf.setAccessibilityLabel("Urgent")
+		// Their ghosts are made ahead with the card's body (`prepareBody`):
+		// a row made in a change's frame makes no more than it shows.
+		icon.add(to: headerSlot.content, ghostsAhead: 0)
+		checkbox.add(to: headerSlot.content, ghostsAhead: 0)
+		urgentBadge.add(to: headerSlot.content, ghostsAhead: 0)
+		title.add(to: headerSlot.content, ghostsAhead: 0)
+		context.add(to: headerSlot.content, ghostsAhead: 0)
+		waitingMark.add(to: headerSlot.content, ghostsAhead: 0)
+		setUpMoreButton()
 		addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
 		apply(content, in: nil)
 	}
 
-	private var headerLeaves: [NSView] {
-		[icon, checkbox, urgentBadge, title, context, waitingMark]
+	/// The header's leaves that cross-fade to a new message's; the checkbox
+	/// only fades.
+	private var crossfadingLeaves: [any CrossfadingPart] {
+		[icon, urgentBadge, title, context, waitingMark]
 	}
 
 	/// Shows `newContent`, moving its parts as change `motion`, or at once
@@ -130,14 +153,13 @@ final class InboxRowView: SlotView, MotionStack {
 		}
 		let wasExpanded = rowContent.isExpanded
 		let isNewMessage = !hasShownMessage || newContent.message != rowContent.message
-		if isNewMessage, hasShownMessage, let motion {
-			crossfadeHeader(at: motion.time)
-		}
 		rowContent = newContent
 		messageId = newContent.message.id
 		let message = newContent.message
+		// Before the header cross-fades: the mark fades in to it.
+		waitingMark.fade(to: isHovered && !newContent.isExpanded ? 0 : 1, at: nil)
 		if isNewMessage {
-			show(message)
+			show(message, crossfadingAt: hasShownMessage ? motion?.time : nil)
 		}
 		showTint()
 		showCheckbox(in: motion)
@@ -152,38 +174,37 @@ final class InboxRowView: SlotView, MotionStack {
 		if !newContent.isExpanded, isHovered {
 			showHover()
 		}
-		moreButton?.alphaValue = newContent.isExpanded || !isHovered ? 0 : 1
-		waitingMark.alphaValue = isHovered && !newContent.isExpanded ? 0 : 1
+		moreButton.alphaValue = newContent.isExpanded || !isHovered ? 0 : 1
 		listParts(in: motion, wasExpanded: wasExpanded)
 		describeForAccessibility()
 	}
 
-	private func show(_ message: InboxMessage) {
+	/// Shows `message` in the header: cross-fading from the message shown
+	/// at `time`, at once without a time.
+	private func show(_ message: InboxMessage, crossfadingAt time: TimeInterval?) {
 		hasShownMessage = true
-		Symbol.set(icon, InboxWords.typeSymbol(for: message), size: 14, color: Self.color(for: message.messageType))
-		urgentBadge.isHidden = !message.isUrgent
-		title.stringValue = message.title
-		context.show(message)
-		if let label = InboxWords.waitingLabel(for: message.blocking) {
-			Symbol.set(waitingMark, "pause.circle", size: 14, color: message.blocking == .blocking ? Tokens.waiting : Tokens.paused)
-			waitingMark.setAccessibilityLabel(label)
-			waitingMark.isHidden = false
-		} else {
-			waitingMark.isHidden = true
-		}
+		let typeSymbol = Symbol.Shown(name: InboxWords.typeSymbol(for: message), size: 14, color: Self.color(for: message.messageType))
+		icon.show(typeSymbol, crossfadingAt: time)
+		urgentBadge.show(message.isUrgent, crossfadingAt: time)
+		title.show(message.title, crossfadingAt: time)
+		context.show(ContextLine.Shown(message), crossfadingAt: time)
+		// On the line itself: a ghost fading out is no element.
+		context.leaf.setAccessibilityIdentifier("context:\(message.title)")
+		waitingMark.show(Self.waitingMark(for: message), crossfadingAt: time)
+		moreButton.setAccessibilityIdentifier("message-menu:\(message.title)")
 	}
 
-	/// A new message's header cross-fades from the old one's: its leaves
-	/// alone, so nothing behind them flickers.
-	private func crossfadeHeader(at time: TimeInterval) {
-		for layer in [icon, urgentBadge, title, context, waitingMark].compactMap(\.layer) {
-			let transition = CATransition()
-			transition.type = .fade
-			transition.beginTime = layer.convertTime(time, from: nil)
-			transition.duration = MotionSpec.crossfadeDuration
-			transition.timingFunction = Tokens.motionCurve
-			layer.add(transition, forKey: "motion.crossfade")
-		}
+	private static func waitingMark(for message: InboxMessage) -> WaitingMark? {
+		guard let label = InboxWords.waitingLabel(for: message.blocking) else { return nil }
+		let color = message.blocking == .blocking ? Tokens.waiting : Tokens.paused
+		return WaitingMark(symbol: Symbol.Shown(name: "pause.circle", size: 14, color: color), label: label)
+	}
+
+	/// An image view that draws its symbol at the symbol's size.
+	private static func symbolView() -> NSImageView {
+		let view = NSImageView()
+		view.imageScaling = .scaleNone
+		return view
 	}
 
 	/// The checkbox empty and checked, made ahead by the list.
@@ -201,33 +222,11 @@ final class InboxRowView: SlotView, MotionStack {
 	private func showCheckbox(in motion: MotionChange?) {
 		let showsCheckbox = rowContent.isSelecting && canPick
 		if showsCheckbox {
-			if rowContent.isPicked {
-				Symbol.set(checkbox, Self.checkboxSymbols[1], size: Self.checkboxSize, color: .controlAccentColor)
-			} else {
-				Symbol.set(checkbox, Self.checkboxSymbols[0], size: Self.checkboxSize, color: .tertiaryLabelColor)
-			}
+			checkbox.update(rowContent.isPicked)
 		}
-		for (view, isShown) in [(checkbox, showsCheckbox), (icon, !showsCheckbox), (urgentBadge, !showsCheckbox)] as [(NSView, Bool)] {
-			fade(view, to: isShown ? 1 : 0, in: motion)
-		}
-	}
-
-	private func fade(_ leaf: NSView, to opacity: Float, in motion: MotionChange?) {
-		let key = ObjectIdentifier(leaf)
-		guard let motion else {
-			leaf.layer?.removeAnimation(forKey: ContentMotion.opacityKey)
-			leafFades[key] = nil
-			leaf.alphaValue = CGFloat(opacity)
-			return
-		}
-		guard leaf.alphaValue != CGFloat(opacity) else { return }
-		let shown = leafFades[key]?.opacity(at: motion.time) ?? Float(leaf.alphaValue)
-		let spec = MotionSpec.Content(
-			fromOpacity: shown, toOpacity: opacity, fromScale: 1, toScale: 1, duration: MotionSpec.crossfadeDuration, delay: 0,
-		)
-		let fade = ContentMotion(spec: spec, start: motion.time)
-		fade.commit(to: leaf)
-		leafFades[key] = fade
+		checkbox.fade(to: showsCheckbox ? 1 : 0, at: motion?.time)
+		icon.fade(to: showsCheckbox ? 0 : 1, at: motion?.time)
+		urgentBadge.fade(to: showsCheckbox ? 0 : 1, at: motion?.time)
 	}
 
 	/// Where a click picks the row while rows are being picked: the icon's
@@ -238,16 +237,17 @@ final class InboxRowView: SlotView, MotionStack {
 
 	/// The minute changed: "4 min ago".
 	func refreshTime() {
-		context.show(rowContent.message)
+		context.update(ContextLine.Shown(rowContent.message))
 	}
 
 	/// Drops the row's motion and its leaves' fades: they show their model.
 	override func endMotion() {
 		super.endMotion()
-		for layer in (headerLeaves + [moreButton].compactMap { $0 }).compactMap(\.layer) {
-			layer.removeMotions(keyedFrom: "motion.")
+		for leaf in crossfadingLeaves {
+			leaf.end()
 		}
-		leafFades = [:]
+		checkbox.end()
+		moreButton.layer?.removeMotions(keyedFrom: "motion.")
 	}
 
 	// MARK: Layout
@@ -287,41 +287,41 @@ final class InboxRowView: SlotView, MotionStack {
 		let isExpanded = rowContent.isExpanded
 		let top = RowMetrics.topPadding
 		let titleHeight = RowMetrics.titleLineHeight
-		title.frame = Label.frame(x: RowMetrics.textX, y: top, width: RowMetrics.textWidth, height: titleHeight)
+		title.leaf.frame = Label.frame(x: RowMetrics.textX, y: top, width: RowMetrics.textWidth, height: titleHeight)
 		let contextTop = top + titleHeight + RowMetrics.titleGap
-		context.frame = NSRect(x: RowMetrics.textX, y: contextTop, width: RowMetrics.textWidth, height: RowMetrics.contextHeight)
-		context.layOut()
+		context.leaf.frame = NSRect(x: RowMetrics.textX, y: contextTop, width: RowMetrics.textWidth, height: RowMetrics.contextHeight)
+		context.leaf.layOut()
 
-		let iconSize = icon.image?.size ?? NSSize(width: 16, height: 16)
-		icon.frame = NSRect(
+		let iconSize = icon.leaf.image?.size ?? NSSize(width: 16, height: 16)
+		icon.leaf.frame = NSRect(
 			x: Tokens.rowHorizontalPadding + (Tokens.iconColumn - iconSize.width) / 2, y: top + 1,
 			width: iconSize.width, height: iconSize.height,
 		)
 		// A fixed box, whichever symbol it shows: a pick changes the symbol
 		// without laying the row out.
 		let box: CGFloat = 20
-		checkbox.frame = NSRect(
-			x: Tokens.rowHorizontalPadding + (Tokens.iconColumn - box) / 2, y: (icon.frame.midY - box / 2).rounded(),
+		checkbox.leaf.frame = NSRect(
+			x: Tokens.rowHorizontalPadding + (Tokens.iconColumn - box) / 2, y: (icon.leaf.frame.midY - box / 2).rounded(),
 			width: box, height: box,
 		)
-		let badgeSize = urgentBadge.image?.size ?? .zero
-		urgentBadge.frame = NSRect(
-			x: Tokens.rowHorizontalPadding + (Tokens.iconColumn - badgeSize.width) / 2, y: icon.frame.maxY + 3,
+		let badgeSize = urgentBadge.leaf.image?.size ?? .zero
+		urgentBadge.leaf.frame = NSRect(
+			x: Tokens.rowHorizontalPadding + (Tokens.iconColumn - badgeSize.width) / 2, y: icon.leaf.frame.maxY + 3,
 			width: badgeSize.width, height: badgeSize.height,
 		)
-		let iconBottom = urgentBadge.isHidden ? icon.frame.maxY : urgentBadge.frame.maxY
+		let iconBottom = urgentBadge.leaf.isHidden ? icon.leaf.frame.maxY : urgentBadge.leaf.frame.maxY
 
 		let markX = Tokens.popoverWidth - Tokens.rowHorizontalPadding - RowMetrics.markWidth
-		let markSize = waitingMark.image?.size ?? .zero
-		waitingMark.frame = NSRect(
+		let markSize = waitingMark.leaf.image?.size ?? .zero
+		waitingMark.leaf.frame = NSRect(
 			x: markX + (RowMetrics.markWidth - markSize.width) / 2, y: top + (titleHeight - markSize.height) / 2,
 			width: markSize.width, height: markSize.height,
 		)
-		moreButton?.frame = NSRect(
+		moreButton.frame = NSRect(
 			x: markX, y: top + (titleHeight - RowMetrics.markWidth) / 2, width: RowMetrics.markWidth, height: RowMetrics.markWidth,
 		)
-		let markBottom = isExpanded ? waitingMark.frame.maxY : top + max(titleHeight, RowMetrics.markWidth)
-		let headerBottom = max(context.frame.maxY, iconBottom, markBottom)
+		let markBottom = isExpanded ? waitingMark.leaf.frame.maxY : top + max(titleHeight, RowMetrics.markWidth)
+		let headerBottom = max(context.leaf.frame.maxY, iconBottom, markBottom)
 		headerSlot.content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: headerBottom)
 		return headerBottom
 	}
@@ -379,12 +379,13 @@ final class InboxRowView: SlotView, MotionStack {
 
 	/// Builds the card's body before anyone expands the row, its controls a
 	/// piece at a time (`IdleWork`, which runs no piece while anything
-	/// moves): its place, closed, is listed at once, so it draws ahead.
+	/// moves): its place, closed, is listed at once, so it draws ahead. The
+	/// header's ghosts come first, for a message that supersedes this one.
 	func prepareBody() {
-		guard body == nil else { return }
-		if moreButton == nil {
-			moreButton = makeMoreButton()
+		for leaf in crossfadingLeaves {
+			leaf.makeGhostAhead()
 		}
+		guard body == nil else { return }
 		makeBody()
 		body?.show(message: rowContent.message, isReplying: rowContent.isReplying, in: nil)
 		listParts(in: nil, wasExpanded: rowContent.isExpanded)
@@ -438,26 +439,20 @@ final class InboxRowView: SlotView, MotionStack {
 	private func showHover() {
 		showTint()
 		let showsMore = isHovered && !rowContent.isExpanded
-		if showsMore, moreButton == nil {
-			moreButton = makeMoreButton()
-			_ = layOutHeader()
-		}
-		moreButton?.alphaValue = showsMore ? 1 : 0
-		waitingMark.alphaValue = showsMore ? 0 : 1
+		moreButton.alphaValue = showsMore ? 1 : 0
+		waitingMark.fade(to: showsMore ? 0 : 1, at: nil)
 	}
 
-	private func makeMoreButton() -> NSButton {
-		let button = MoreButton { [weak self] button in
+	private func setUpMoreButton() {
+		moreButton.onPress = { [weak self] button in
 			guard let self else { return }
 			let menu = ItemMenu.make(for: self.rowContent.message, moveTargets: self.rowContent.moveTargets, inbox: self.inbox)
 			menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 2), in: button)
 		}
 		// The row's context menu is the same menu for VoiceOver.
-		button.setAccessibilityElement(false)
-		button.setAccessibilityIdentifier("message-menu:\(rowContent.message.title)")
-		button.alphaValue = 0
-		headerSlot.content.addSubview(button)
-		return button
+		moreButton.setAccessibilityElement(false)
+		moreButton.alphaValue = 0
+		headerSlot.content.addSubview(moreButton)
 	}
 
 	override func menu(for _: NSEvent) -> NSMenu? {
@@ -482,7 +477,7 @@ final class InboxRowView: SlotView, MotionStack {
 		let local = convert(point, from: superview)
 		guard bounds.contains(local) else { return nil }
 		if local.y < headerHeight {
-			if let moreButton, moreButton.alphaValue > 0, convert(moreButton.frame, from: moreButton.superview).contains(local) {
+			if moreButton.alphaValue > 0, convert(moreButton.frame, from: moreButton.superview).contains(local) {
 				return moreButton
 			}
 			return self
@@ -556,7 +551,7 @@ final class InboxRowView: SlotView, MotionStack {
 		return [
 			message.isUrgent ? "Urgent" : nil,
 			message.title,
-			context.spokenText,
+			context.leaf.spokenText,
 			InboxWords.waitingLabel(for: message.blocking),
 		].compactMap { $0 }.joined(separator: ", ")
 	}
@@ -629,6 +624,21 @@ final class ContextLine: NSView {
 	private let time = Label.line(size: 11, color: .secondaryLabelColor)
 	private var agentName = ""
 
+	/// What the line shows of a message.
+	struct Shown: Equatable {
+		let breadcrumb: String?
+		let agentMark: InboxWords.AgentMark
+		let agentName: String
+		let timeAgo: String
+
+		init(_ message: InboxMessage) {
+			breadcrumb = InboxWords.breadcrumb(for: message)
+			agentMark = InboxWords.agentMark(for: message.agent)
+			agentName = message.agentName
+			timeAgo = InboxWords.timeAgo(message.receivedAt)
+		}
+	}
+
 	override init(frame: NSRect) {
 		super.init(frame: frame)
 		agent.imageScaling = .scaleProportionallyUpOrDown
@@ -653,13 +663,12 @@ final class ContextLine: NSView {
 			.compactMap { $0 }.joined(separator: ", ")
 	}
 
-	func show(_ message: InboxMessage) {
-		let crumb = InboxWords.breadcrumb(for: message)
-		breadcrumb.stringValue = crumb ?? ""
-		breadcrumb.isHidden = crumb == nil
-		dot.isHidden = crumb == nil
-		agentName = message.agentName
-		switch InboxWords.agentMark(for: message.agent) {
+	func show(_ shown: Shown) {
+		breadcrumb.stringValue = shown.breadcrumb ?? ""
+		breadcrumb.isHidden = shown.breadcrumb == nil
+		dot.isHidden = shown.breadcrumb == nil
+		agentName = shown.agentName
+		switch shown.agentMark {
 		case .claude:
 			agent.image = NSImage(named: "AgentClaude")
 			agent.contentTintColor = Tokens.claude
@@ -670,8 +679,7 @@ final class ContextLine: NSView {
 			agent.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: nil)
 			agent.contentTintColor = .secondaryLabelColor
 		}
-		time.stringValue = InboxWords.timeAgo(message.receivedAt)
-		setAccessibilityIdentifier("context:\(message.title)")
+		time.stringValue = shown.timeAgo
 		setAccessibilityValue(spokenText)
 		layOut()
 	}
@@ -706,10 +714,9 @@ final class ContextLine: NSView {
 /// The ellipsis on a hovered row, which opens the item menu.
 @MainActor
 private final class MoreButton: NSButton {
-	private let onPress: (NSButton) -> Void
+	var onPress: ((NSButton) -> Void)?
 
-	init(onPress: @escaping (NSButton) -> Void) {
-		self.onPress = onPress
+	init() {
 		super.init(frame: .zero)
 		bezelStyle = .accessoryBarAction
 		image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: nil)
@@ -728,6 +735,6 @@ private final class MoreButton: NSButton {
 	}
 
 	@objc private func press() {
-		onPress(self)
+		onPress?(self)
 	}
 }

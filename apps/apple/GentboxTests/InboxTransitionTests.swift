@@ -32,7 +32,9 @@ final class InboxTransitionTests: XCTestCase {
 		let frames: [String: Frame]
 		/// As the motion model has it.
 		let model: [String: Frame]
+		/// Drawn above every slot in order.
 		let raised: Set<String>
+		/// As drawn: the layers' z and their holds.
 		let zPositions: [String: CGFloat]
 		let topTracks: [String: [Track]]
 		let heightTracks: [String: [Track]]
@@ -241,6 +243,30 @@ final class InboxTransitionTests: XCTestCase {
 		XCTAssertEqual(shrinks, 1, "a completion lands once")
 	}
 
+	/// The work of a change's end commits while its motion still draws: by
+	/// its last frame the display has slowed, and a commit then comes late.
+	func testAChangeEndsTwoFramesBeforeItsMotionHasRun() {
+		let clock = ManualClock(at: Self.origin)
+		let transition = InboxTransition(clock: clock)
+		var endedAt: TimeInterval?
+		transition.onLastCompletion = { endedAt = clock.now }
+		transition.run(for: duration) { _, _ in }
+		clock.advance(to: Self.origin + duration - 3 / Self.frameRate)
+		XCTAssertNil(endedAt, "not three frames early")
+		clock.advance(to: Self.origin + duration - 1 / Self.frameRate)
+		XCTAssertEqual(endedAt ?? 0, Self.origin + duration - 2 / Self.frameRate, accuracy: 1e-9, "two frames at 120 Hz early")
+	}
+
+	func testAChangeShorterThanFourFramesEndsHalfwayThrough() {
+		let clock = ManualClock(at: Self.origin)
+		let transition = InboxTransition(clock: clock)
+		var endedAt: TimeInterval?
+		transition.onLastCompletion = { endedAt = clock.now }
+		transition.run(for: 2 / Self.frameRate) { _, _ in }
+		clock.advance(to: Self.origin + 2 / Self.frameRate)
+		XCTAssertEqual(endedAt ?? 0, Self.origin + 1 / Self.frameRate, accuracy: 1e-9)
+	}
+
 	func testSettlingEndsEveryChangeAndItsCompletions() {
 		let clock = ManualClock(at: Self.origin)
 		let transition = InboxTransition(clock: clock)
@@ -330,12 +356,12 @@ final class InboxTransitionTests: XCTestCase {
 			let heights = tracks(on: view.layer, keyPath: "bounds.size.height")
 			frames[id] = Frame(top: view.frame.minY + offset(tops, at: time), height: view.frame.height + offset(heights, at: time))
 			model[id] = stack.timeline.frame(of: id, at: time)
-			zPositions[id] = view.layer?.zPosition
+			zPositions[id] = drawnZ(of: view.layer, at: time)
 			topTracks[id] = tops
 			heightTracks[id] = heights
 		}
 		return Sample(
-			time: time, order: order, frames: frames, model: model, raised: Set(order.filter(stack.timeline.isRaised)),
+			time: time, order: order, frames: frames, model: model, raised: Set(order.filter { (zPositions[$0] ?? 0) >= Stack.raisedZ }),
 			zPositions: zPositions, topTracks: topTracks, heightTracks: heightTracks,
 		)
 	}
@@ -355,6 +381,19 @@ final class InboxTransitionTests: XCTestCase {
 			XCTAssertTrue(animation.isRemovedOnCompletion, key)
 			assertTheMotionCurve(animation.timingFunction, key)
 			return Track(key: key, delta: delta, begin: animation.beginTime, duration: animation.duration)
+		}
+	}
+
+	/// A layer's z as the render server draws it at `time`: a change ends
+	/// before its motion has run, and holds its movers raised until then.
+	private func drawnZ(of layer: CALayer?, at time: TimeInterval) -> CGFloat? {
+		guard let layer else { return nil }
+		let holds = (layer.animationKeys() ?? []).filter { $0.hasPrefix("motion.zPosition.") }.compactMap { basicAnimation(layer, $0) }
+		return holds.reduce(layer.zPosition) { z, hold in
+			XCTAssertTrue(hold.isAdditive)
+			XCTAssertEqual(hold.fromValue as? NSNumber, hold.toValue as? NSNumber, "a hold, no motion")
+			guard hold.beginTime <= time, time < hold.beginTime + hold.duration, let delta = (hold.toValue as? NSNumber)?.doubleValue else { return z }
+			return z + CGFloat(delta)
 		}
 	}
 
@@ -396,13 +435,21 @@ final class InboxTransitionTests: XCTestCase {
 	}
 
 	/// Without movers each slot touches the next, top to bottom, in the
-	/// stack's order, at every frame.
+	/// stack's order, at every frame. A slot that left goes as its change
+	/// ends, before its motion has run: faded out long since, it leaves the
+	/// fraction of a point it still had to shrink as a gap until then.
 	private func assertGapless(_ playback: Playback, file: StaticString = #filePath, line: UInt = #line) {
 		assertNoOverlap(playback, file: file, line: line)
-		for sample in playback.samples {
+		var gone: [(below: String?, heights: [Track])] = []
+		for (previous, sample) in zip([nil] + playback.samples.map(Optional.some), playback.samples) {
+			for (index, id) in (previous?.order ?? []).enumerated() where !sample.order.contains(id) {
+				let below = previous?.order.dropFirst(index + 1).first(where: sample.order.contains)
+				gone.append((below, previous?.heightTracks[id] ?? []))
+			}
 			var bottom: CGFloat = 0
 			for id in sample.order {
-				XCTAssertEqual(sample.frames[id]?.top ?? -1, bottom, accuracy: Self.tolerance, "a gap above \(id) at \(sample.time)", file: file, line: line)
+				let leftAbove = gone.filter { $0.below == id }.reduce(0) { $0 + offset($1.heights, at: sample.time) }
+				XCTAssertEqual(sample.frames[id]?.top ?? -1, bottom + leftAbove, accuracy: Self.tolerance, "a gap above \(id) at \(sample.time)", file: file, line: line)
 				bottom = sample.frames[id]?.bottom ?? bottom
 			}
 		}

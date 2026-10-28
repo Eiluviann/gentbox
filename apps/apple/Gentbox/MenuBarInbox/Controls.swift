@@ -163,6 +163,13 @@ enum Label {
 /// An SF Symbol in a colour, at a point size.
 @MainActor
 enum Symbol {
+	/// A symbol as a view shows it, for a view that cross-fades its symbols.
+	struct Shown: Equatable {
+		let name: String
+		let size: CGFloat
+		let color: NSColor
+	}
+
 	static func view(_ name: String, size: CGFloat, color: NSColor) -> NSImageView {
 		let view = NSImageView()
 		set(view, name, size: size, color: color)
@@ -180,6 +187,10 @@ enum Symbol {
 		if view.contentTintColor != color {
 			view.contentTintColor = color
 		}
+	}
+
+	static func set(_ view: NSImageView, _ shown: Shown) {
+		set(view, shown.name, size: shown.size, color: shown.color)
 	}
 
 	/// Makes the images ahead, in a quiet turn, so their first use costs a

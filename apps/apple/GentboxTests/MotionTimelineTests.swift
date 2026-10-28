@@ -151,6 +151,17 @@ final class MotionTimelineTests: XCTestCase {
 		}
 	}
 
+	func testAMoverMovedAgainStaysRaisedPastItsFirstChange() {
+		var timeline = Timeline()
+		_ = timeline.settle(stack("d", "a", "b", "c"))
+		XCTAssertEqual(timeline.apply(stack("a", "b", "c", "d"), at: 0, duration: Self.duration).moved, ["d"])
+		XCTAssertEqual(timeline.apply(stack("d", "a", "b", "c"), at: 0.1, duration: Self.duration).moved, ["d"])
+		XCTAssertEqual(timeline.complete(1).lowered, [], "the second move holds it up")
+		XCTAssertTrue(timeline.isRaised("d"))
+		XCTAssertEqual(timeline.complete(2).lowered, ["d"])
+		XCTAssertFalse(timeline.isRaised("d"))
+	}
+
 	func testARowTakenBackAsItLeavesReturnsFromWhereItShows() {
 		let target = stack("a", "b", "c")
 		let playback = play(from: target, [
@@ -220,7 +231,6 @@ final class MotionTimelineTests: XCTestCase {
 	func testSettlingEndsEveryMotionAndTheirCompletions() {
 		var timeline = Timeline()
 		_ = timeline.settle(stack("d", "a", "b"))
-		let generations = timeline.slots.mapValues(\.generation)
 		_ = timeline.apply(stack("a", "d"), at: 0, duration: Self.duration)
 		let target = stack("a", "c", open: "a")
 		XCTAssertEqual(timeline.settle(target), ["b", "d"])
@@ -230,7 +240,6 @@ final class MotionTimelineTests: XCTestCase {
 		XCTAssertEqual(timeline.frame(of: "c", at: 0.1), Frame(top: 200, height: 60))
 		XCTAssertEqual(timeline.height(at: 0.1), 260)
 		XCTAssertFalse(timeline.isRaised("a"))
-		XCTAssertGreaterThan(timeline.slots["a"]?.generation ?? 0, generations["a"] ?? 0)
 		XCTAssertEqual(timeline.complete(1), Timeline.Completion(dropped: [], lowered: []), "a stale completion does nothing")
 	}
 
@@ -241,20 +250,6 @@ final class MotionTimelineTests: XCTestCase {
 		XCTAssertEqual(timeline.complete(1), Timeline.Completion(dropped: ["b"], lowered: []))
 		XCTAssertEqual(timeline.complete(1), Timeline.Completion(dropped: [], lowered: []))
 		XCTAssertEqual(timeline.order, ["a"])
-	}
-
-	/// Each time a slot comes, goes, moves or comes back, a view's
-	/// completion for the time before must find it changed.
-	func testEveryComingAndGoingBumpsTheGeneration() {
-		var timeline = Timeline()
-		_ = timeline.settle(stack("a", "b", "c"))
-		var generation = timeline.slots["b"]?.generation ?? 0
-		for listed in [stack("a", "c"), stack("a", "b", "c"), stack("a", "c", "b")] {
-			_ = timeline.apply(listed, at: 0, duration: Self.duration)
-			let next = timeline.slots["b"]?.generation ?? 0
-			XCTAssertGreaterThan(next, generation)
-			generation = next
-		}
 	}
 
 	// MARK: Playing changes

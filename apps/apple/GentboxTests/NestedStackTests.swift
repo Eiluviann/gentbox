@@ -34,6 +34,10 @@ final class NestedStackTests: XCTestCase {
 		let slot: Frame
 		/// The parts' drawn frames, top to bottom.
 		let parts: [Frame]
+		/// Above each part, what the parts that left right above it still
+		/// had to shrink: one goes as its change ends, before its motion has
+		/// run, faded out long since.
+		let leftAbove: [CGFloat]
 		let modelPartsHeight: CGFloat
 
 		var partsBottom: CGFloat {
@@ -69,8 +73,8 @@ final class NestedStackTests: XCTestCase {
 			XCTAssertEqual(sample.partsBottom, sample.slot.height, accuracy: Self.tolerance, "the parts fill the slot at \(sample.time)")
 			XCTAssertEqual(sample.partsBottom, sample.modelPartsHeight, accuracy: Self.tolerance, "drawn as modelled at \(sample.time)")
 			XCTAssertEqual(sample.parts.first?.top ?? 0, 0, accuracy: Self.tolerance, "from the slot's top at \(sample.time)")
-			for (upper, lower) in zip(sample.parts, sample.parts.dropFirst()) {
-				XCTAssertEqual(lower.top, upper.bottom, accuracy: Self.tolerance, "no gap or overlap at \(sample.time)")
+			for ((upper, lower), leftAbove) in zip(zip(sample.parts, sample.parts.dropFirst()), sample.leftAbove.dropFirst()) {
+				XCTAssertEqual(lower.top, upper.bottom + leftAbove, accuracy: Self.tolerance, "no gap or overlap at \(sample.time)")
 			}
 		}
 		// Every change's resize of the parts at once: a jump of any one
@@ -113,6 +117,8 @@ final class NestedStackTests: XCTestCase {
 		rows.settle(entries(rowSlots(start, partsHeight: parts.targetHeight), views: &rowViews))
 		fitContent(of: nestedSlot, to: parts, from: Self.origin)
 		var pending = changes[...]
+		var previous: (order: [String], heights: [String: [Track]])?
+		var gone: [(below: String?, heights: [Track])] = []
 		let end = (changes.last?.time ?? 0) + duration
 		return (0 ... Int((end * Self.frameRate).rounded(.up))).map { frame in
 			let time = Self.origin + Double(frame) / Self.frameRate
@@ -129,14 +135,21 @@ final class NestedStackTests: XCTestCase {
 				pending = pending.dropFirst()
 			}
 			clock.advance(to: time)
-			return sample(nestedSlot, parts, at: time)
+			let order = parts.timeline.order
+			for (index, id) in (previous?.order ?? []).enumerated() where !order.contains(id) {
+				gone.append((previous?.order.dropFirst(index + 1).first(where: order.contains), previous?.heights[id] ?? []))
+			}
+			previous = (order, Dictionary(uniqueKeysWithValues: order.map { ($0, tracks(on: parts.views[$0]?.layer, keyPath: "bounds.size.height")) }))
+			let leftAbove = order.map { id in gone.filter { $0.below == id }.reduce(0) { $0 + offset($1.heights, at: time) } }
+			return sample(nestedSlot, parts, leftAbove: leftAbove, at: time)
 		}
 	}
 
-	private func sample(_ nestedSlot: SlotView, _ parts: Stack, at time: TimeInterval) -> Sample {
+	private func sample(_ nestedSlot: SlotView, _ parts: Stack, leftAbove: [CGFloat], at time: TimeInterval) -> Sample {
 		let partFrames = parts.timeline.order.compactMap { id in parts.views[id].map { drawnFrame(of: $0, at: time) } }
 		return Sample(
-			time: time, slot: drawnFrame(of: nestedSlot, at: time), parts: partFrames, modelPartsHeight: parts.timeline.height(at: time),
+			time: time, slot: drawnFrame(of: nestedSlot, at: time), parts: partFrames, leftAbove: leftAbove,
+			modelPartsHeight: parts.timeline.height(at: time),
 		)
 	}
 

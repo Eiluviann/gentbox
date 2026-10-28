@@ -102,6 +102,23 @@ final class ListScrollTests: XCTestCase {
 		XCTAssertEqual(ListScrollTarget.origin(from: 290, anchor: anchor, in: short, showing: nil, viewHeight: Self.viewHeight), 0)
 	}
 
+	func testAScrollPastTheEndSlidesBackButNotARoundingOfIt() {
+		let lastOrigin = Self.rowHeight * 10 - Self.viewHeight
+		let rowsHeight = Self.rowHeight * 10
+		XCTAssertEqual(
+			ListScrollTarget.slideBack(from: lastOrigin + 40, rowsHeight: rowsHeight, viewHeight: Self.viewHeight), lastOrigin,
+		)
+		XCTAssertNil(ListScrollTarget.slideBack(from: lastOrigin, rowsHeight: rowsHeight, viewHeight: Self.viewHeight))
+		XCTAssertNil(
+			ListScrollTarget.slideBack(from: lastOrigin + 0.3, rowsHeight: rowsHeight, viewHeight: Self.viewHeight),
+			"a rounding of the scroll is no slide",
+		)
+		XCTAssertEqual(
+			ListScrollTarget.slideBack(from: 40, rowsHeight: Self.rowHeight * 2, viewHeight: Self.viewHeight), 0,
+			"a list shorter than its view ends at the top",
+		)
+	}
+
 	// MARK: The scroll, frame by frame
 
 	func testTheAnchorStaysStillOnScreenThroughABurst() {
@@ -174,6 +191,7 @@ final class ListScrollTests: XCTestCase {
 			clock = ManualClock(at: ListScrollTests.origin)
 			transition = InboxTransition(clock: clock)
 			self.duration = duration
+			scroller.now = { [clock] in clock.now }
 			scroller.wantsLayer = true
 			scroller.documentView = document
 			stack = Stack(in: document, width: ListScrollTests.width)

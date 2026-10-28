@@ -65,21 +65,14 @@ targets:
     platform: macOS
     sources:
       - path: GentboxTests
-      - path: Gentbox/MenuBar/MenuBarMark.swift
-      - path: Gentbox/MenuBar/InboxPanel.swift
-      - path: Gentbox/MenuBarInbox/Controls.swift
-      - path: Gentbox/MenuBarInbox/CardKeyGate.swift
-      - path: Gentbox/MenuBarInbox/StackPlan.swift
-      - path: Gentbox/MenuBarInbox/MotionTimeline.swift
-      - path: Gentbox/MenuBarInbox/MotionSpec.swift
-      - path: Gentbox/MenuBarInbox/SlotView.swift
-      - path: Gentbox/MenuBarInbox/CrossfadingText.swift
-      - path: Gentbox/MenuBarInbox/SlotStack.swift
-      - path: Gentbox/MenuBarInbox/InboxTransition.swift
-      - path: Gentbox/MenuBarInbox/ListScrollView.swift
-      - path: Gentbox/MenuBarInbox/RowContent.swift
-      - path: Gentbox/MenuBarInbox/ReplyField.swift
-      - path: Gentbox/Tokens.swift
+      # The app's code but its entry points: the views are driven off screen,
+      # with no hub.
+      - path: Gentbox
+        excludes:
+          - GentboxApp.swift
+          - AppDelegate.swift
+          - Info.plist
+          - Assets.xcassets
       # The entitlement variants, checked as data.
       - path: Signing
         buildPhase: resources
