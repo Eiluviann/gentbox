@@ -75,6 +75,9 @@ targets:
       - path: Gentbox/MenuBarInbox/StackPlan.swift
       - path: Gentbox/MenuBarInbox/MotionTimeline.swift
       - path: Gentbox/MenuBarInbox/MotionSpec.swift
+      - path: Gentbox/MenuBarInbox/SlotView.swift
+      - path: Gentbox/MenuBarInbox/SlotStack.swift
+      - path: Gentbox/MenuBarInbox/InboxTransition.swift
       - path: Gentbox/MenuBarInbox/RowContent.swift
       - path: Gentbox/MenuBarInbox/ReplyField.swift
       - path: Gentbox/Tokens.swift
