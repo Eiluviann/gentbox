@@ -16,3 +16,4 @@ One file per decision: context, decision, consequences, alternatives. A supersed
 | [0010](0010-descriptive-titles.md) | Descriptive titles: the hub guard moves commands and raw input into the body | Accepted |
 | [0011](0011-action-plans.md) | action_required messages carry ordered steps; the hub requires and checks them, and redacts secrets | Accepted |
 | [0012](0012-menu-bar-inbox-appkit.md) | Menu-bar inbox in AppKit and Core Animation: snapshot diffs, native controls built ahead, a card-sized surface | Accepted |
+| [0013](0013-inbox-motion-system.md) | One motion system for the menu-bar inbox: a keyed stack diff, one layout, one spec per operation, additive retargets | Proposed |
