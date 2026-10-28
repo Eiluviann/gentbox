@@ -66,8 +66,9 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	/// target frame and before any content fades or zooms, so a zoom is
 	/// centred on the content's target bounds. A stack whose container comes
 	/// or goes in the same change leaves the fade to it (`fadesContent`
-	/// false): its slots come and go whole, and one taken back mid-fade
-	/// finishes it.
+	/// false): its slots come and go whole, but one taken back mid-fade
+	/// finishes its own fade from where it shows, under the container's:
+	/// ending it at once would jump.
 	@discardableResult
 	func apply(
 		_ entries: [Entry],

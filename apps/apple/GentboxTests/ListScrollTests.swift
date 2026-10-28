@@ -171,6 +171,25 @@ final class ListScrollTests: XCTestCase {
 		XCTAssertEqual(list.shownTop(of: "r2", at: Self.origin + duration) - list.shownOrigin(at: Self.origin + duration), 260 - shown, accuracy: 1e-4)
 	}
 
+	func testAScrollAfterTheLastChangeEndedLeavesTheGeometryAtItsTarget() throws {
+		let list = List(start: rows(0 ..< 10), origin: 300, duration: duration)
+		list.apply(rows(0 ..< 9), at: Self.origin)
+		// The change ended two frames short of its motion, and the content
+		// view shrank the geometry to its target, as at the last completion.
+		let time = Self.origin + duration - 1 / Self.frameRate
+		list.clock.advance(to: time)
+		list.document.setFrameSize(NSSize(width: Self.width, height: list.stack.targetHeight))
+		let shown = list.shownOrigin(at: time)
+		XCTAssertGreaterThan(shown, list.scroller.origin + Self.tolerance, "the slide back from the end has not run out")
+		let event = try XCTUnwrap(
+			CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 0, wheel2: 0, wheel3: 0).flatMap(NSEvent.init(cgEvent:)),
+		)
+		list.scroller.scrollWheel(with: event)
+		XCTAssertEqual(list.document.frame.height, list.stack.targetHeight, "the document at its target")
+		XCTAssertEqual(list.scroller.origin, 240, "the clip view within it")
+		XCTAssertEqual(list.shownOrigin(at: time), shown, accuracy: Self.tolerance, "no jump: the slide runs out")
+	}
+
 	// MARK: Helpers
 
 	/// The list as the content view drives it: the row stack in the scroll

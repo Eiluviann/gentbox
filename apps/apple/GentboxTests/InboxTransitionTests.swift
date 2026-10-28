@@ -160,6 +160,20 @@ final class InboxTransitionTests: XCTestCase {
 		XCTAssertFalse(playback.views["b"]?.isLeaving ?? true)
 	}
 
+	func testARowTakenBackAsItsContainerComesBackFinishesItsOwnFade() {
+		let (stack, views) = settledStack(slots("a", "b", "c"))
+		stack.apply(entries(slots("a", "c"), views: views), change: 1, at: Self.origin, duration: duration, reducesMotion: false)
+		stack.apply(
+			entries(slots("a", "b", "c"), views: views), change: 2, at: Self.origin + 0.06, duration: duration, reducesMotion: false,
+			fadesContent: false,
+		)
+		let fade = basicAnimation(views["b"]?.content.layer, ContentMotion.opacityKey)
+		let shown = 1 - Float(MotionCurve.standard.value(at: 0.06 / Tokens.despawnDuration))
+		XCTAssertEqual((fade?.fromValue as? NSNumber)?.floatValue ?? -1, shown, accuracy: 1e-6, "from where it shows: ending its fade would jump")
+		XCTAssertEqual((fade?.toValue as? NSNumber)?.floatValue, 1)
+		XCTAssertFalse(views["b"]?.isLeaving ?? true)
+	}
+
 	// MARK: Content
 
 	func testArrivalsFadeInAndZoomUpAndDeparturesFadeOutAndHoldTheirZoom() throws {

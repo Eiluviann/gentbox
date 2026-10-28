@@ -70,6 +70,8 @@ final class ListScrollView: NSScrollView, MotionStack {
 	/// goes once it has run, not as its change ends: a change ends before
 	/// its motion has (`InboxTransition`), and the offset shows as drawn.
 	private var tracks: [MotionTrack] = []
+	/// The changes with a slide that have not ended yet.
+	private var runningChanges: Set<Int> = []
 	var now: () -> TimeInterval = { CACurrentMediaTime() }
 
 	override init(frame: NSRect) {
@@ -117,16 +119,18 @@ final class ListScrollView: NSScrollView, MotionStack {
 		layer.addMotion(track, keyPath: "position.y", key: "motion.scroll.\(motion.change)")
 		tracks.removeAll { $0.end <= motion.time }
 		tracks.append(track)
+		runningChanges.insert(motion.change)
 	}
 
-	func complete(_: Int) {
+	func complete(_ change: Int) {
+		runningChanges.remove(change)
 		let time = now()
 		tracks.removeAll { $0.end <= time }
 	}
 
 	func settle() {
-		tracks.removeAll()
-		documentView?.layer?.removeMotions(keyedFrom: "motion.scroll.")
+		runningChanges.removeAll()
+		endSlides()
 	}
 
 	override func scrollWheel(with event: NSEvent) {
@@ -141,20 +145,27 @@ final class ListScrollView: NSScrollView, MotionStack {
 
 	/// The user scrolls from what they see: the clip view takes the offset
 	/// as it shows, the document grown to hold it if it must be; the last
-	/// completion brings both back within the target.
+	/// completion brings both back within the target. Once every change of
+	/// the slides has ended, nothing would: the slides run out their last
+	/// frames under the scroll instead.
 	private func stopSlidingWhereItShows() {
 		let time = now()
-		guard tracks.contains(where: { $0.end > time }) else { return }
+		guard tracks.contains(where: { $0.end > time && runningChanges.contains($0.change) }) else { return }
 		let shown = max(shownOrigin(at: time), 0)
 		CATransaction.begin()
 		CATransaction.setDisableActions(true)
-		settle()
+		endSlides()
 		if let documentView, documentView.frame.height < shown + contentView.bounds.height {
 			documentView.setFrameSize(NSSize(width: documentView.frame.width, height: shown + contentView.bounds.height))
 		}
 		contentView.scroll(to: NSPoint(x: 0, y: shown))
 		reflectScrolledClipView(contentView)
 		CATransaction.commit()
+	}
+
+	private func endSlides() {
+		tracks.removeAll()
+		documentView?.layer?.removeMotions(keyedFrom: "motion.scroll.")
 	}
 }
 
