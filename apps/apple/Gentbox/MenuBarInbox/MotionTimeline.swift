@@ -21,8 +21,22 @@ struct MotionCurve: Equatable {
 	func value(at progress: Double) -> Double {
 		guard progress > 0 else { return 0 }
 		guard progress < 1 else { return 1 }
-		// x rises with the curve's parameter while x1 and x2 lie in 0…1:
-		// halving finds the parameter whose x is the progress.
+		return Self.bezier(parameter(at: progress), y1, y2)
+	}
+
+	/// The curve's parameter whose x is `progress`. x rises with it while x1
+	/// and x2 lie in 0…1: Newton's method lands in a few steps where x is
+	/// steep, and halving finds it where Newton strays.
+	private func parameter(at progress: Double) -> Double {
+		var parameter = progress
+		for _ in 0 ..< 8 {
+			let miss = Self.bezier(parameter, x1, x2) - progress
+			if abs(miss) < 1e-12 { return parameter }
+			let slope = Self.slope(parameter, x1, x2)
+			guard slope > 1e-6 else { break }
+			parameter -= miss / slope
+			guard (0 ... 1).contains(parameter) else { break }
+		}
 		var low = 0.0
 		var high = 1.0
 		for _ in 0 ..< 40 {
@@ -33,12 +47,17 @@ struct MotionCurve: Equatable {
 				high = middle
 			}
 		}
-		return Self.bezier((low + high) / 2, y1, y2)
+		return (low + high) / 2
 	}
 
 	private static func bezier(_ parameter: Double, _ first: Double, _ second: Double) -> Double {
 		let rest = 1 - parameter
 		return 3 * rest * rest * parameter * first + 3 * rest * parameter * parameter * second + parameter * parameter * parameter
+	}
+
+	private static func slope(_ parameter: Double, _ first: Double, _ second: Double) -> Double {
+		let rest = 1 - parameter
+		return 3 * rest * rest * first + 6 * rest * parameter * (second - first) + 3 * parameter * parameter * (1 - second)
 	}
 }
 
@@ -128,6 +147,38 @@ struct MotionTimeline<ID: Hashable> {
 		let lowered: [ID]
 	}
 
+	/// A span of time and the most a value can show in it.
+	/// What a value's tracks add at one moment: the falling ones, which show
+	/// it above its target, and the rising ones, which show it below.
+	private struct Offsets {
+		let falling: CGFloat
+		let rising: CGFloat
+
+		var sum: CGFloat {
+			falling + rising
+		}
+	}
+
+	/// A span of a motion and the most it can show there: the falling
+	/// tracks as at its start, the rising ones as at its end.
+	private struct BoundedSpan {
+		let start: TimeInterval
+		let end: TimeInterval
+		let fallingAtStart: CGFloat
+		let risingAtEnd: CGFloat
+
+		var bound: CGFloat {
+			fallingAtStart + risingAtEnd
+		}
+
+		init(from start: (time: TimeInterval, offsets: Offsets), to end: (time: TimeInterval, offsets: Offsets)) {
+			self.start = start.time
+			self.end = end.time
+			fallingAtStart = start.offsets.falling
+			risingAtEnd = end.offsets.rising
+		}
+	}
+
 	let curve: MotionCurve
 	/// Top to bottom, slots still leaving included: the drawing order,
 	/// raised slots aside.
@@ -164,15 +215,18 @@ struct MotionTimeline<ID: Hashable> {
 		slots[id]?.raisingChange != nil
 	}
 
-	/// The tallest the stack shows from `time` to the end of its motion: a
-	/// window or scroll view sized to it once holds every frame of it.
+	/// The tallest the stack shows from `time` to the end of its motion, half
+	/// a point at most over: a window or scroll view sized to it once
+	/// holds every frame of it.
 	func tallest(from time: TimeInterval) -> CGFloat {
-		guard let end, end > time else { return height(at: time) }
-		// A millisecond is far finer than a frame; the ends count too.
-		let steps = Int(((end - time) * 1000).rounded(.up))
-		return (0 ... steps).reduce(height(at: end)) { tallest, step in
-			max(tallest, height(at: min(time + Double(step) / 1000, end)))
-		}
+		Self.largest(of: targetHeight, movedBy: heightTracks, from: time, curve: curve)
+	}
+
+	/// The tallest slot `id` shows from `time` to the end of its motion, half
+	/// a point at most over.
+	func tallest(of id: ID, from time: TimeInterval) -> CGFloat {
+		guard let slot = slots[id] else { return 0 }
+		return Self.largest(of: slot.height, movedBy: slot.heightTracks, from: time, curve: curve)
 	}
 
 	/// Moves the stack to `listed` from where it shows at `time`, over
@@ -290,6 +344,62 @@ struct MotionTimeline<ID: Hashable> {
 			top: 0, height: 0, topTracks: running, heightTracks: [], generation: 0, leavingChange: nil,
 			raisingChange: above?.raisingChange,
 		)
+	}
+
+	/// The most `target` moved by `tracks` shows from `time` on: never less,
+	/// at most `tallestSlack` more. Each track's offset only falls toward 0 or
+	/// only rises, so over any span the falling ones show most at its start
+	/// and the rising ones at its end: the span whose bound is highest is
+	/// halved until no bound tops the most found by more than the slack, each
+	/// halving one sum of the tracks at the middle. A motion that only grows
+	/// or only shrinks takes two sums; one that peaks between, a few dozen.
+	/// The change's commit waits on it, so it must be quick: sampling every
+	/// millisecond took milliseconds.
+	private static func largest(
+		of target: CGFloat,
+		movedBy tracks: [MotionTrack],
+		from time: TimeInterval,
+		curve: MotionCurve,
+	) -> CGFloat {
+		func offsets(at moment: TimeInterval) -> (time: TimeInterval, offsets: Offsets) {
+			let split = tracks.reduce(into: (falling: CGFloat(0), rising: CGFloat(0))) { split, track in
+				let offset = track.offset(at: moment, curve: curve)
+				if track.delta > 0 { split.falling += offset } else { split.rising += offset }
+			}
+			return (moment, Offsets(falling: split.falling, rising: split.rising))
+		}
+		let first = offsets(at: time)
+		guard let end = tracks.map(\.end).max(), end > time else { return target + first.offsets.sum }
+		let last = offsets(at: end)
+		var largest = max(first.offsets.sum, last.offsets.sum)
+		var spans = [BoundedSpan(from: first, to: last)]
+		// Motions that nearly cancel keep every bound high: the budget ends
+		// the halving there, a few points over at most.
+		for _ in 0 ..< halvingBudget {
+			guard let highest = spans.indices.max(by: { spans[$0].bound < spans[$1].bound }),
+			      spans[highest].bound > largest + tallestSlack
+			else { break }
+			let halved = spans.remove(at: highest)
+			let middle = offsets(at: (halved.start + halved.end) / 2)
+			largest = max(largest, middle.offsets.sum)
+			let halves = [
+				BoundedSpan(from: (halved.start, Offsets(falling: halved.fallingAtStart, rising: 0)), to: middle),
+				BoundedSpan(from: middle, to: (halved.end, Offsets(falling: 0, rising: halved.risingAtEnd))),
+			]
+			spans += halves.filter { $0.bound > largest }
+		}
+		return target + max(largest, spans.map(\.bound).max() ?? largest)
+	}
+
+	/// How far over the tallest may be. Past what it draws, the card's window
+	/// is clear and the list's scroll view clipped, so half a point never
+	/// shows; a tenth took twice the halvings.
+	private static var tallestSlack: CGFloat {
+		0.5
+	}
+
+	private static var halvingBudget: Int {
+		128
 	}
 
 	private mutating func dropTracks(endedBy time: TimeInterval) {

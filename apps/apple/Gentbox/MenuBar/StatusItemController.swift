@@ -40,7 +40,7 @@ final class StatusItemController: NSObject {
 		#endif
 		super.init()
 		Interactions.panel = panel
-		content.onHeightChange = { [weak self] height, animated in self?.fitPanel(height: height, animated: animated) }
+		content.onCardChange = { [weak self] change in self?.fitPanel(to: change) }
 		NotificationCenter.default.addObserver(
 			self, selector: #selector(screensChanged(_:)),
 			name: NSApplication.didChangeScreenParametersNotification, object: nil,
@@ -246,12 +246,22 @@ final class StatusItemController: NSObject {
 		}
 	}
 
-	/// The content's height changed: the card follows in the same Core
-	/// Animation transaction, on the same curve, so its bottom edge stays on
+	/// The content changed: the card follows in the same Core Animation
+	/// transaction, on the same curve and clock, so its bottom edge stays on
 	/// the content's. The content has already stopped at the screen's height.
-	private func fitPanel(height: CGFloat, animated: Bool) {
+	private func fitPanel(to change: CardChange) {
 		guard panel.isVisible, placement != nil else { return }
-		panel.setCardHeight(devicePixelCeiling(height), animated: animated)
+		switch change {
+		case .settled(let height):
+			panel.setCardHeight(devicePixelCeiling(height))
+		case .moving(let motion):
+			panel.moveCard(CardMotion(
+				height: devicePixelCeiling(motion.height), tallest: devicePixelCeiling(motion.tallest),
+				change: motion.change, start: motion.start, duration: motion.duration,
+			))
+		case .motionEnded:
+			panel.fitWindowToCard()
+		}
 	}
 
 	/// Up to the next device pixel, so the card ends where the content does.

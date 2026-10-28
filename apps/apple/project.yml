@@ -67,17 +67,16 @@ targets:
       - path: GentboxTests
       - path: Gentbox/MenuBar/MenuBarMark.swift
       - path: Gentbox/MenuBar/InboxPanel.swift
-      - path: Gentbox/MenuBar/LayerMotion.swift
       - path: Gentbox/MenuBarInbox/Controls.swift
       - path: Gentbox/MenuBarInbox/CardKeyGate.swift
-      - path: Gentbox/MenuBarInbox/UnclaimedRowFate.swift
-      - path: Gentbox/MenuBarInbox/RowStack.swift
       - path: Gentbox/MenuBarInbox/StackPlan.swift
       - path: Gentbox/MenuBarInbox/MotionTimeline.swift
       - path: Gentbox/MenuBarInbox/MotionSpec.swift
       - path: Gentbox/MenuBarInbox/SlotView.swift
+      - path: Gentbox/MenuBarInbox/CrossfadingText.swift
       - path: Gentbox/MenuBarInbox/SlotStack.swift
       - path: Gentbox/MenuBarInbox/InboxTransition.swift
+      - path: Gentbox/MenuBarInbox/ListScrollView.swift
       - path: Gentbox/MenuBarInbox/RowContent.swift
       - path: Gentbox/MenuBarInbox/ReplyField.swift
       - path: Gentbox/Tokens.swift

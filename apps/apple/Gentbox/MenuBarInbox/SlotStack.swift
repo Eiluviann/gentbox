@@ -38,9 +38,10 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	/// owner to keep or discard.
 	var onDrop: ((ID, SlotView) -> Void)?
 	private let container: NSView
-	/// The timeline's serial for each of the coordinator's changes this
-	/// stack took part in: a row's parts change less often than the list.
-	private var serials: [Int: Int] = [:]
+	/// The timeline's serials for each of the coordinator's changes this
+	/// stack took part in: a row's parts change less often than the list,
+	/// and a row laid out twice in one change applies twice.
+	private var serials: [Int: [Int]] = [:]
 
 	init(in container: NSView, width: CGFloat) {
 		self.container = container
@@ -58,7 +59,7 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	func apply(_ entries: [Entry], change: Int, at time: TimeInterval, duration: TimeInterval, reducesMotion: Bool) -> MotionTimeline<ID>.Change {
 		adopt(entries)
 		let applied = timeline.apply(entries.map(Self.slot), at: time, duration: duration)
-		serials[change] = applied.serial
+		serials[change, default: []].append(applied.serial)
 		for id in applied.plan.order {
 			guard let view = views[id], let slot = timeline.slots[id] else { continue }
 			if applied.inserted.contains(id) {
@@ -66,8 +67,8 @@ final class SlotStack<ID: Hashable>: MotionStack {
 				view.isHidden = false
 			}
 			view.frame = NSRect(x: 0, y: slot.top, width: width, height: slot.height)
-			Self.add(applied.topTracks[id] ?? [], to: view.layer, keyPath: "position.y")
-			Self.add(applied.heightTracks[id] ?? [], to: view.layer, keyPath: "bounds.size.height")
+			view.layer?.addMotions(applied.topTracks[id] ?? [], keyPath: "position.y")
+			view.layer?.addMotions(applied.heightTracks[id] ?? [], keyPath: "bounds.size.height")
 		}
 		moveContent(of: applied, at: time, reducesMotion: reducesMotion)
 		layerInOrder()
@@ -75,10 +76,11 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	}
 
 	func complete(_ change: Int) {
-		guard let serial = serials.removeValue(forKey: change) else { return }
-		let completion = timeline.complete(serial)
-		for id in completion.dropped {
-			drop(id)
+		guard let changeSerials = serials.removeValue(forKey: change) else { return }
+		for serial in changeSerials {
+			for id in timeline.complete(serial).dropped {
+				drop(id)
+			}
 		}
 		layerInOrder()
 	}
@@ -147,25 +149,6 @@ final class SlotStack<ID: Hashable>: MotionStack {
 	private func layerInOrder() {
 		for (index, id) in timeline.order.enumerated() {
 			views[id]?.layer?.zPosition = CGFloat(index) + (timeline.isRaised(id) ? Self.raisedZ : 0)
-		}
-	}
-
-	/// Each change's tracks on one property, summed into one additive
-	/// animation: a slot inserted mid-motion can take two of one change from
-	/// the slot above it, its top's and its height's.
-	private static func add(_ tracks: [MotionTrack], to layer: CALayer?, keyPath: String) {
-		guard let layer else { return }
-		for (change, tracks) in Dictionary(grouping: tracks, by: \.change) {
-			guard let first = tracks.first else { continue }
-			let animation = CABasicAnimation(keyPath: keyPath)
-			animation.isAdditive = true
-			animation.fromValue = tracks.reduce(0) { $0 + $1.delta }
-			animation.toValue = 0
-			animation.beginTime = layer.convertTime(first.start, from: nil)
-			animation.duration = first.duration
-			animation.fillMode = .backwards
-			animation.timingFunction = Tokens.motionCurve
-			layer.add(animation, forKey: "motion.\(keyPath).\(change)")
 		}
 	}
 

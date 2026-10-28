@@ -6,11 +6,15 @@ import GentboxCore
 /// Collapsed, it is a two-line row: type icon, title, breadcrumb, and the
 /// waiting mark, which the ellipsis menu replaces on hover. Expanded, the
 /// same header, with the same padding, has the body and buttons revealed
-/// below it, inside the row's own clipped bounds, which Core Animation
-/// grows: one view throughout. Its text keeps the row's sizes (the user's
-/// decision): expanding adds content and actions and enlarges nothing. Only
-/// the expanded item has buttons, so ↩, ⌘⌫ and R act on it alone. A message
+/// below it. Its text keeps the row's sizes (the user's decision):
+/// expanding adds content and actions and enlarges nothing. Only the
+/// expanded item has buttons, so ↩, ⌘⌫ and R act on it alone. A message
 /// that replaces the one shown cross-fades into its place.
+///
+/// A slot of the list (ADR 0013) and a stack of its own: the rule above it,
+/// its header and its body are its parts, so a row that grows into a card
+/// opens its body's place on the list's clock, and the body fades in once
+/// the place is made.
 ///
 /// For VoiceOver a collapsed item is one element: its title, breadcrumb,
 /// agent and waiting mark in one label, "Muted" as its value, and a press
@@ -24,16 +28,27 @@ import GentboxCore
 /// picked, every row that can be picked shows a checkbox in place of its
 /// icon, and a click on it picks or unpicks the row.
 @MainActor
-final class InboxRowView: FlippedView {
+final class InboxRowView: SlotView, MotionStack {
+	enum Part: Hashable {
+		case rule
+		case header
+		case body
+	}
+
 	/// The row itself, for the list's stack: unlike the message it shows,
 	/// it never changes, and unlike an object identifier, never comes back.
 	let rowId: Int
 	private static var rowsMade = 0
 	/// The message it shows; a message that supersedes it takes the row over.
 	private(set) var messageId: String
-	private(set) var content: RowContent
+	private(set) var rowContent: RowContent
 	private let inbox: InboxModel
-	private let rule = CALayer()
+	/// The rule above every row but the first, the header and the card's
+	/// body, moved on the list's clock.
+	private lazy var parts = SlotStack<Part>(in: content, width: Tokens.popoverWidth)
+	private let ruleSlot = SlotView()
+	private let headerSlot = SlotView()
+	private let bodySlot = SlotView()
 	private let icon = NSImageView()
 	/// In place of the icon while rows are being picked.
 	private let checkbox = NSImageView()
@@ -44,34 +59,41 @@ final class InboxRowView: FlippedView {
 	/// Built ahead with the body and kept drawn at zero opacity until a
 	/// hover; it pops up the item menu, built only then.
 	private var moreButton: NSButton?
-	/// Built ahead (`prepareBody`) and kept while collapsed, transparent and
-	/// clipped away, so expanding only reveals it.
+	/// Built ahead (`prepareBody`) and kept while collapsed, its place
+	/// closed and transparent, so expanding only reveals it.
 	private var body: CardBodyView?
+	/// The icon's and the checkbox's fades as picking starts or ends.
+	private var leafFades: [ObjectIdentifier: ContentMotion] = [:]
 	private var isHovered = false {
 		didSet { if isHovered != oldValue { showHover() } }
 	}
 
 	private var isPressInHeader = false
 	private var hasShownMessage = false
-	/// Fading out after it left the list, or parked: no clicks or keys.
-	var isLeaving = false {
+	/// The row's height once its parts' motion has run.
+	private(set) var height: CGFloat = 0
+	/// From the row's top to the header's bottom, the rule included.
+	private(set) var headerHeight: CGFloat = 0
+
+	/// Leaving, or parked while the hub confirms an answer: its card takes
+	/// no clicks, keys or VoiceOver.
+	override var isLeaving: Bool {
 		didSet {
-			// Leaving or parked, its card takes no clicks, keys or VoiceOver.
-			body?.isActive = !isLeaving && content.isExpanded
+			body?.isActive = !isLeaving && rowContent.isExpanded
+			setAccessibilityElement(!isLeaving)
 		}
 	}
-	private(set) var headerHeight: CGFloat = 0
 
 	init(content: RowContent, inbox: InboxModel) {
 		Self.rowsMade += 1
 		rowId = Self.rowsMade
 		messageId = content.message.id
-		self.content = content
+		rowContent = content
 		self.inbox = inbox
 		super.init(frame: NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: 0))
-		layer?.masksToBounds = true
-		rule.anchorPoint = .zero
-		layer?.addSublayer(rule)
+		fill = Tokens.row
+		ruleSlot.content.fill = Tokens.line
+		ruleSlot.content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: 1)
 		icon.imageScaling = .scaleNone
 		// Decorative: `checkmark.circle` would read "Selected" and carry the
 		// Selected trait, which bulk Dismiss's picks use.
@@ -82,68 +104,57 @@ final class InboxRowView: FlippedView {
 		checkbox.alphaValue = 0
 		urgentBadge.setAccessibilityLabel("Urgent")
 		waitingMark.imageScaling = .scaleNone
-		for view in [icon, checkbox, urgentBadge, title, context, waitingMark] as [NSView] {
+		for view in headerLeaves {
 			view.wantsLayer = true
-			addSubview(view)
+			headerSlot.content.addSubview(view)
 		}
 		addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
-		apply(content, isAnimated: false)
+		apply(content, in: nil)
 	}
 
-	/// The row's height for its content.
-	var height: CGFloat {
-		frame.height
+	private var headerLeaves: [NSView] {
+		[icon, checkbox, urgentBadge, title, context, waitingMark]
 	}
 
-	/// Notes where its moving parts show now, before a change.
-	func capture(into motion: inout LayerMotion) {
-		motion.capture(layer, ["position", "bounds"])
-		for view in [icon, checkbox, urgentBadge, title, context, waitingMark, moreButton, body] as [NSView?] {
-			motion.capture(view?.layer, ["position"])
-		}
-		body?.capture(into: &motion)
-	}
-
-	/// Shows `content`, laying out its parts; the caller places the row and
-	/// commits the motion.
-	func apply(_ newContent: RowContent, isAnimated: Bool) {
-		if hasShownMessage, newContent.differsOnlyInPicking(from: content) {
+	/// Shows `newContent`, moving its parts as change `motion`, or at once
+	/// without one; the caller places the row.
+	func apply(_ newContent: RowContent, in motion: MotionChange?) {
+		if hasShownMessage, newContent.differsOnlyInPicking(from: rowContent) {
 			// A pick changes the tint and the checkbox, nothing laid out: the
 			// first pick touches every row in its click's frame.
-			content = newContent
-			fill = background
-			showCheckbox(isAnimated: isAnimated)
+			rowContent = newContent
+			showTint()
+			showCheckbox(in: motion)
 			describeForAccessibility()
 			return
 		}
-		let wasExpanded = content.isExpanded
-		let isNewMessage = !hasShownMessage || newContent.message != content.message
-		if isNewMessage, hasShownMessage, isAnimated {
-			LayerMotion.crossfade([icon.layer, urgentBadge.layer, title.layer, context.layer, waitingMark.layer], duration: Tokens.motionDuration)
+		let wasExpanded = rowContent.isExpanded
+		let isNewMessage = !hasShownMessage || newContent.message != rowContent.message
+		if isNewMessage, hasShownMessage, let motion {
+			crossfadeHeader(at: motion.time)
 		}
-		content = newContent
+		rowContent = newContent
 		messageId = newContent.message.id
 		let message = newContent.message
 		if isNewMessage {
 			show(message)
 		}
-		fill = background
-		showCheckbox(isAnimated: isAnimated)
+		showTint()
+		showCheckbox(in: motion)
 		if newContent.isExpanded, body == nil {
 			makeBody()
 		}
-		body?.show(message: message, isReplying: newContent.isReplying, isAnimated: isAnimated)
-		if newContent.isExpanded, !wasExpanded || isAnimated == false {
-			showBody(isAnimated: isAnimated && !wasExpanded)
-		} else if !newContent.isExpanded, wasExpanded {
-			hideBody(isAnimated: isAnimated)
+		body?.show(message: message, isReplying: newContent.isReplying, in: motion)
+		if newContent.isExpanded {
+			body?.finishControls()
 		}
+		body?.isActive = newContent.isExpanded && !isLeaving
 		if !newContent.isExpanded, isHovered {
 			showHover()
 		}
 		moreButton?.alphaValue = newContent.isExpanded || !isHovered ? 0 : 1
 		waitingMark.alphaValue = isHovered && !newContent.isExpanded ? 0 : 1
-		layOut()
+		listParts(in: motion, wasExpanded: wasExpanded)
 		describeForAccessibility()
 	}
 
@@ -162,34 +173,61 @@ final class InboxRowView: FlippedView {
 		}
 	}
 
+	/// A new message's header cross-fades from the old one's: its leaves
+	/// alone, so nothing behind them flickers.
+	private func crossfadeHeader(at time: TimeInterval) {
+		for layer in [icon, urgentBadge, title, context, waitingMark].compactMap(\.layer) {
+			let transition = CATransition()
+			transition.type = .fade
+			transition.beginTime = layer.convertTime(time, from: nil)
+			transition.duration = MotionSpec.crossfadeDuration
+			transition.timingFunction = Tokens.motionCurve
+			layer.add(transition, forKey: "motion.crossfade")
+		}
+	}
+
 	/// The checkbox empty and checked, made ahead by the list.
 	static let checkboxSymbols = ["circle", "checkmark.circle.fill"]
 	static let checkboxSize: CGFloat = 15
 
 	/// Whether this row can be picked for a bulk Dismiss now.
 	private var canPick: Bool {
-		!content.isExpanded && inbox.canSelect(content.message)
+		!rowContent.isExpanded && inbox.canSelect(rowContent.message)
 	}
 
 	/// While rows are being picked: an empty circle in place of the type
-	/// icon, filled with a check once picked.
-	private func showCheckbox(isAnimated: Bool) {
-		let showsCheckbox = content.isSelecting && canPick
+	/// icon, filled with a check once picked. The icon and the checkbox
+	/// cross-fade as picking starts or ends; a pick shows at once.
+	private func showCheckbox(in motion: MotionChange?) {
+		let showsCheckbox = rowContent.isSelecting && canPick
 		if showsCheckbox {
-			if content.isPicked {
+			if rowContent.isPicked {
 				Symbol.set(checkbox, Self.checkboxSymbols[1], size: Self.checkboxSize, color: .controlAccentColor)
 			} else {
 				Symbol.set(checkbox, Self.checkboxSymbols[0], size: Self.checkboxSize, color: .tertiaryLabelColor)
 			}
 		}
 		for (view, isShown) in [(checkbox, showsCheckbox), (icon, !showsCheckbox), (urgentBadge, !showsCheckbox)] as [(NSView, Bool)] {
-			let alpha: CGFloat = isShown ? 1 : 0
-			guard view.alphaValue != alpha else { continue }
-			view.alphaValue = alpha
-			if isAnimated {
-				LayerMotion.fade(view.layer, to: Float(alpha), duration: Tokens.motionDuration)
-			}
+			fade(view, to: isShown ? 1 : 0, in: motion)
 		}
+	}
+
+	private func fade(_ leaf: NSView, to opacity: Float, in motion: MotionChange?) {
+		let key = ObjectIdentifier(leaf)
+		guard let motion else {
+			leaf.layer?.removeAnimation(forKey: ContentMotion.opacityKey)
+			leafFades[key] = nil
+			leaf.alphaValue = CGFloat(opacity)
+			return
+		}
+		guard leaf.alphaValue != CGFloat(opacity) else { return }
+		let shown = leafFades[key]?.opacity(at: motion.time) ?? Float(leaf.alphaValue)
+		let spec = MotionSpec.Content(
+			fromOpacity: shown, toOpacity: opacity, fromScale: 1, toScale: 1, duration: MotionSpec.crossfadeDuration, delay: 0,
+		)
+		let fade = ContentMotion(spec: spec, start: motion.time)
+		fade.commit(to: leaf)
+		leafFades[key] = fade
 	}
 
 	/// Where a click picks the row while rows are being picked: the icon's
@@ -200,15 +238,54 @@ final class InboxRowView: FlippedView {
 
 	/// The minute changed: "4 min ago".
 	func refreshTime() {
-		context.show(content.message)
+		context.show(rowContent.message)
+	}
+
+	/// Drops the row's motion and its leaves' fades: they show their model.
+	override func endMotion() {
+		super.endMotion()
+		for layer in (headerLeaves + [moreButton].compactMap { $0 }).compactMap(\.layer) {
+			layer.removeMotions(keyedFrom: "motion.")
+		}
+		leafFades = [:]
 	}
 
 	// MARK: Layout
 
-	private func layOut() {
-		let isExpanded = content.isExpanded
-		let ruleHeight: CGFloat = content.isFirst ? 0 : 1
-		let top = ruleHeight + RowMetrics.topPadding
+	/// Lays the parts out and lists them: the rule, the header and, once
+	/// built, the body, whose place is closed while the row is collapsed.
+	private func listParts(in motion: MotionChange?, wasExpanded: Bool) {
+		let headerSlotHeight = layOutHeader()
+		let bodyHeight = layOutBody(in: motion)
+		let ruleHeight: CGFloat = rowContent.isFirst ? 0 : 1
+		headerHeight = ruleHeight + headerSlotHeight
+		var entries: [SlotStack<Part>.Entry] = []
+		if !rowContent.isFirst {
+			entries.append(SlotStack.Entry(id: .rule, view: ruleSlot, height: ruleHeight))
+		}
+		entries.append(SlotStack.Entry(id: .header, view: headerSlot, height: headerSlotHeight))
+		if body != nil {
+			entries.append(SlotStack.Entry(id: .body, view: bodySlot, height: rowContent.isExpanded ? bodyHeight : 0))
+		}
+		if let motion {
+			let applied = parts.apply(
+				entries, change: motion.change, at: motion.time, duration: motion.duration, reducesMotion: motion.reducesMotion,
+			)
+			fadeBody(wasExpanded: wasExpanded, isInserted: applied.inserted.contains(.body), in: motion)
+		} else {
+			parts.settle(entries)
+			bodySlot.content.alphaValue = rowContent.isExpanded ? 1 : 0
+		}
+		// Up to the device pixel, as SwiftUI laid rows out.
+		let pixels = window?.backingScaleFactor ?? 2
+		height = ((parts.targetHeight + RowMetrics.bottomPadding) * pixels).rounded(.up) / pixels
+		content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: height)
+	}
+
+	/// The header's leaves from the header's top; its height.
+	private func layOutHeader() -> CGFloat {
+		let isExpanded = rowContent.isExpanded
+		let top = RowMetrics.topPadding
 		let titleHeight = RowMetrics.titleLineHeight
 		title.frame = Label.frame(x: RowMetrics.textX, y: top, width: RowMetrics.textWidth, height: titleHeight)
 		let contextTop = top + titleHeight + RowMetrics.titleGap
@@ -245,101 +322,106 @@ final class InboxRowView: FlippedView {
 		)
 		let markBottom = isExpanded ? waitingMark.frame.maxY : top + max(titleHeight, RowMetrics.markWidth)
 		let headerBottom = max(context.frame.maxY, iconBottom, markBottom)
-		headerHeight = headerBottom
-		var height = headerBottom
-		if let body {
-			let bodyHeight = body.layOut(width: RowMetrics.bodyWidth)
-			body.frame = NSRect(x: RowMetrics.textX, y: headerBottom, width: RowMetrics.bodyWidth, height: bodyHeight)
-			if isExpanded {
-				height += bodyHeight
-			}
+		headerSlot.content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: headerBottom)
+		return headerBottom
+	}
+
+	/// The body at its natural height, from its slot's top, its own parts
+	/// moved as change `motion`; that height.
+	private func layOutBody(in motion: MotionChange?) -> CGFloat {
+		guard let body else { return 0 }
+		let bodyHeight = body.layOut(width: RowMetrics.bodyWidth, in: motion)
+		body.frame = NSRect(x: RowMetrics.textX, y: 0, width: RowMetrics.bodyWidth, height: bodyHeight)
+		bodySlot.content.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: bodyHeight)
+		return bodyHeight
+	}
+
+	/// Expanded, the body fades in over the second half of the motion, once
+	/// its place is made, so it never draws over a moving header; collapsed,
+	/// it fades out at once, before the rows below slide up, and waits
+	/// transparent for the next expand. Turned back mid-fade, it starts
+	/// from what it shows.
+	private func fadeBody(wasExpanded: Bool, isInserted: Bool, in motion: MotionChange) {
+		let isExpanded = rowContent.isExpanded
+		guard isExpanded != wasExpanded || isInserted else { return }
+		let shown = bodySlot.shownContent(at: motion.time).opacity
+		let isFading = bodySlot.contentMotion.map { fade in
+			motion.time < fade.start + fade.spec.delay + fade.spec.duration
+		} ?? false
+		let spec: MotionSpec.Content
+		switch (isExpanded, isFading) {
+		case (true, false):
+			spec = MotionSpec.content(.expand, reducesMotion: motion.reducesMotion)
+		case (true, true):
+			spec = MotionSpec.Content(
+				fromOpacity: shown, toOpacity: 1, fromScale: 1, toScale: 1, duration: Tokens.motionDuration / 2, delay: 0,
+			)
+		case (false, _):
+			let collapse = MotionSpec.content(.collapse, reducesMotion: motion.reducesMotion)
+			// A body built collapsed waits transparent from the start.
+			spec = MotionSpec.Content(
+				fromOpacity: isInserted && !wasExpanded ? 0 : shown, toOpacity: 0, fromScale: 1, toScale: 1,
+				duration: collapse.duration, delay: 0,
+			)
 		}
-		height += RowMetrics.bottomPadding
-		// Up to the device pixel, as SwiftUI laid rows out.
-		let pixels = window?.backingScaleFactor ?? 2
-		frame.size = NSSize(width: Tokens.popoverWidth, height: (height * pixels).rounded(.up) / pixels)
-		CATransaction.begin()
-		CATransaction.setDisableActions(true)
-		rule.isHidden = content.isFirst
-		rule.frame = NSRect(x: 0, y: 0, width: Tokens.popoverWidth, height: 1)
-		CATransaction.commit()
+		bodySlot.moveContent(spec, at: motion.time)
 	}
 
-	override func updateLayer() {
-		super.updateLayer()
-		rule.backgroundColor = Tokens.line.cgColor
-	}
-
-	private var background: NSColor {
-		if content.isPicked { return RowMetrics.pickedFill }
-		return isHovered && !content.isExpanded ? RowMetrics.hoverFill : Tokens.row
+	private func showTint() {
+		if rowContent.isPicked {
+			content.fill = RowMetrics.pickedFill
+		} else {
+			content.fill = isHovered && !rowContent.isExpanded ? RowMetrics.hoverFill : nil
+		}
 	}
 
 	// MARK: The card's body
 
 	/// Builds the card's body before anyone expands the row, its controls a
-	/// piece at a time (`IdleWork`).
+	/// piece at a time (`IdleWork`, which runs no piece while anything
+	/// moves): its place, closed, is listed at once, so it draws ahead.
 	func prepareBody() {
 		guard body == nil else { return }
 		if moreButton == nil {
 			moreButton = makeMoreButton()
 		}
 		makeBody()
-		body?.show(message: content.message, isReplying: content.isReplying, isAnimated: false)
-		layOut()
+		body?.show(message: rowContent.message, isReplying: rowContent.isReplying, in: nil)
+		listParts(in: nil, wasExpanded: rowContent.isExpanded)
 	}
 
 	var hasBody: Bool {
 		body != nil
 	}
 
-	/// Expanded: the body shows below the header. Revealed by the row's
-	/// growth, it fades in over the second half of the motion, so it never
-	/// draws over a moving header.
-	private func showBody(isAnimated: Bool) {
-		guard let body else { return }
-		body.finishControls()
-		body.isActive = true
-		if isAnimated {
-			let half = Tokens.motionDuration / 2
-			let isFadingOut = body.layer?.animation(forKey: "motion.opacity") != nil
-			LayerMotion.fade(body.layer, to: 1, duration: half, delay: isFadingOut ? 0 : half, from: isFadingOut ? nil : 0)
-		} else {
-			body.layer?.removeAnimation(forKey: "motion.opacity")
-			body.layer?.opacity = 1
-		}
+	/// The card's body changed by itself (its bar swapped in, the reply box
+	/// took a line): the caller lays the row out again as a change of the
+	/// list.
+	var onBodyChange: ((InboxRowView) -> Void)?
+
+	/// Lists the parts again for a body that changed by itself.
+	func refreshLayout(in motion: MotionChange?) {
+		listParts(in: motion, wasExpanded: rowContent.isExpanded)
 	}
 
-	/// Collapsed: the body fades out at once, before the rows slide up, and
-	/// stays, clipped away, for the next expand.
-	private func hideBody(isAnimated: Bool) {
-		guard let body else { return }
-		body.isActive = false
-		if isAnimated {
-			LayerMotion.fade(body.layer, to: 0, duration: Tokens.quickFadeDuration)
-		} else {
-			body.layer?.removeAnimation(forKey: "motion.opacity")
-			body.layer?.opacity = 0
-		}
+	/// The row's parts and its body's, one stack to the coordinator.
+	func complete(_ change: Int) {
+		parts.complete(change)
+		body?.complete(change)
 	}
 
-	/// The card's body changed height by itself (the reply box took a line):
-	/// the row lays out again, the caller moves the rest.
-	var onBodyHeightChange: ((InboxRowView) -> Void)?
-
-	/// Lays the row out again for a body that changed height by itself.
-	func refreshLayout() {
-		layOut()
+	func settle() {
+		parts.settle()
+		body?.settle()
 	}
 
 	private func makeBody() {
 		let body = CardBodyView(inbox: inbox)
-		body.onHeightChange = { [weak self] in
+		body.onChange = { [weak self] in
 			guard let self else { return }
-			self.onBodyHeightChange?(self)
+			self.onBodyChange?(self)
 		}
-		body.layer?.opacity = 0
-		addSubview(body)
+		bodySlot.content.addSubview(body)
 		self.body = body
 	}
 
@@ -354,11 +436,11 @@ final class InboxRowView: FlippedView {
 	}
 
 	private func showHover() {
-		fill = background
-		let showsMore = isHovered && !content.isExpanded
+		showTint()
+		let showsMore = isHovered && !rowContent.isExpanded
 		if showsMore, moreButton == nil {
 			moreButton = makeMoreButton()
-			layOut()
+			_ = layOutHeader()
 		}
 		moreButton?.alphaValue = showsMore ? 1 : 0
 		waitingMark.alphaValue = showsMore ? 0 : 1
@@ -367,19 +449,19 @@ final class InboxRowView: FlippedView {
 	private func makeMoreButton() -> NSButton {
 		let button = MoreButton { [weak self] button in
 			guard let self else { return }
-			let menu = ItemMenu.make(for: self.content.message, moveTargets: self.content.moveTargets, inbox: self.inbox)
+			let menu = ItemMenu.make(for: self.rowContent.message, moveTargets: self.rowContent.moveTargets, inbox: self.inbox)
 			menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 2), in: button)
 		}
 		// The row's context menu is the same menu for VoiceOver.
 		button.setAccessibilityElement(false)
-		button.setAccessibilityIdentifier("message-menu:\(content.message.title)")
+		button.setAccessibilityIdentifier("message-menu:\(rowContent.message.title)")
 		button.alphaValue = 0
-		addSubview(button)
+		headerSlot.content.addSubview(button)
 		return button
 	}
 
 	override func menu(for _: NSEvent) -> NSMenu? {
-		ItemMenu.make(for: content.message, moveTargets: content.moveTargets, inbox: inbox)
+		ItemMenu.make(for: rowContent.message, moveTargets: rowContent.moveTargets, inbox: inbox)
 	}
 
 	override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
@@ -390,7 +472,7 @@ final class InboxRowView: FlippedView {
 	/// keeps its card's controls but answers no keys: ↩ belongs to the card
 	/// that shows.
 	override func performKeyEquivalent(with event: NSEvent) -> Bool {
-		guard !isLeaving, content.isExpanded else { return false }
+		guard !isLeaving, rowContent.isExpanded else { return false }
 		return super.performKeyEquivalent(with: event)
 	}
 
@@ -400,7 +482,7 @@ final class InboxRowView: FlippedView {
 		let local = convert(point, from: superview)
 		guard bounds.contains(local) else { return nil }
 		if local.y < headerHeight {
-			if let moreButton, moreButton.alphaValue > 0, moreButton.frame.contains(local) {
+			if let moreButton, moreButton.alphaValue > 0, convert(moreButton.frame, from: moreButton.superview).contains(local) {
 				return moreButton
 			}
 			return self
@@ -416,10 +498,10 @@ final class InboxRowView: FlippedView {
 		let location = convert(event.locationInWindow, from: nil)
 		guard isPressInHeader, bounds.contains(location), location.y < headerHeight else { return }
 		isPressInHeader = false
-		let isOnCheckbox = content.isSelecting && canPick && checkboxTarget.contains(location)
+		let isOnCheckbox = rowContent.isSelecting && canPick && checkboxTarget.contains(location)
 		if isOnCheckbox || (canPick && event.modifierFlags.contains(.command)) {
 			Interactions.untilNextFrame("Select")
-			inbox.toggleSelection(of: content.message)
+			inbox.toggleSelection(of: rowContent.message)
 		} else {
 			activate()
 		}
@@ -428,8 +510,8 @@ final class InboxRowView: FlippedView {
 	/// A collapsed row expands; the expanded card stays (`InboxModel.
 	/// activateExpandedCard` says why it sends nothing yet).
 	private func activate() {
-		if content.isExpanded {
-			inbox.activateExpandedCard(content.message)
+		if rowContent.isExpanded {
+			inbox.activateExpandedCard(rowContent.message)
 		} else {
 			Interactions.untilNextFrame("Expand")
 			inbox.expand(messageId)
@@ -439,20 +521,20 @@ final class InboxRowView: FlippedView {
 	// MARK: Accessibility
 
 	private func describeForAccessibility() {
-		let message = content.message
-		setAccessibilityElement(true)
-		setAccessibilityRole(content.isExpanded ? .group : .button)
-		setAccessibilityIdentifier(content.isExpanded ? "card:\(message.title)" : "message:\(message.title)")
+		let message = rowContent.message
+		setAccessibilityElement(!isLeaving)
+		setAccessibilityRole(rowContent.isExpanded ? .group : .button)
+		setAccessibilityIdentifier(rowContent.isExpanded ? "card:\(message.title)" : "message:\(message.title)")
 		// An expanded card's title is read by its own label inside it.
-		setAccessibilityLabel(content.isExpanded ? nil : collapsedLabel)
+		setAccessibilityLabel(rowContent.isExpanded ? nil : collapsedLabel)
 		setAccessibilityValue(InboxWords.isMuted(message) ? "Muted" : "")
-		setAccessibilitySelected(content.isPicked)
+		setAccessibilitySelected(rowContent.isPicked)
 		// ⌘-click picks a row for bulk Dismiss; VoiceOver picks it here.
 		setAccessibilityCustomActions(canPick ? [
-			NSAccessibilityCustomAction(name: content.isPicked ? "Unpick" : "Pick for Dismiss") { [weak self] in
+			NSAccessibilityCustomAction(name: rowContent.isPicked ? "Unpick" : "Pick for Dismiss") { [weak self] in
 				MainActor.assumeIsolated {
 					guard let self else { return false }
-					self.inbox.toggleSelection(of: self.content.message)
+					self.inbox.toggleSelection(of: self.rowContent.message)
 					return true
 				}
 			},
@@ -462,7 +544,7 @@ final class InboxRowView: FlippedView {
 	/// VoiceOver's "show menu": the item menu the ellipsis and a right-click
 	/// open.
 	override func accessibilityPerformShowMenu() -> Bool {
-		let menu = ItemMenu.make(for: content.message, moveTargets: content.moveTargets, inbox: inbox)
+		let menu = ItemMenu.make(for: rowContent.message, moveTargets: rowContent.moveTargets, inbox: inbox)
 		menu.popUp(positioning: nil, at: NSPoint(x: RowMetrics.textX, y: headerHeight), in: self)
 		return true
 	}
@@ -470,7 +552,7 @@ final class InboxRowView: FlippedView {
 	/// Title, breadcrumb, agent, time and waiting mark, as VoiceOver reads a
 	/// combined row.
 	private var collapsedLabel: String {
-		let message = content.message
+		let message = rowContent.message
 		return [
 			message.isUrgent ? "Urgent" : nil,
 			message.title,
@@ -480,7 +562,7 @@ final class InboxRowView: FlippedView {
 	}
 
 	override func accessibilityChildren() -> [Any]? {
-		content.isExpanded ? super.accessibilityChildren() : []
+		rowContent.isExpanded && !isLeaving ? super.accessibilityChildren() : []
 	}
 
 	override func accessibilityPerformPress() -> Bool {
@@ -497,6 +579,7 @@ final class InboxRowView: FlippedView {
 		}
 	}
 }
+
 
 /// A row's measures, from the design's `.pp-line` and `.pp-hero`.
 @MainActor

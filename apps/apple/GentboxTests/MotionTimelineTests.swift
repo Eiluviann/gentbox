@@ -198,6 +198,25 @@ final class MotionTimelineTests: XCTestCase {
 		XCTAssertEqual(playback.samples.last?.tallest ?? 0, 440, accuracy: Self.tolerance)
 	}
 
+	/// A growth overtaken by a shrink peaks between frames: the tallest
+	/// still holds the peak, half a point at most over it.
+	func testTheTallestHoldsThePeakOfAGrowthOvertakenByAShrink() {
+		var timeline = Timeline()
+		_ = timeline.settle(stack("a", "b"))
+		_ = timeline.apply(stack("a", "b", "c", "d"), at: 0, duration: Self.duration)
+		_ = timeline.apply(stack("a"), at: 0.05, duration: Self.duration)
+		assertTallestHoldsEveryValue(from: 0, to: 0.35) { timeline.height(at: $0) } tallest: { timeline.tallest(from: $0) }
+	}
+
+	/// The same of one slot, opened and closed before it is open.
+	func testTheTallestSlotHoldsThePeakOfAnOpeningOvertakenByAClosing() {
+		var timeline = Timeline()
+		_ = timeline.settle(stack("a", "b"))
+		_ = timeline.apply(stack("a", "b", open: "a"), at: 0, duration: Self.duration)
+		_ = timeline.apply(stack("a", "b"), at: 0.05, duration: Self.duration)
+		assertTallestHoldsEveryValue(from: 0, to: 0.35) { timeline.frame(of: "a", at: $0)?.height ?? 0 } tallest: { timeline.tallest(of: "a", from: $0) }
+	}
+
 	func testSettlingEndsEveryMotionAndTheirCompletions() {
 		var timeline = Timeline()
 		_ = timeline.settle(stack("d", "a", "b"))
@@ -382,6 +401,32 @@ final class MotionTimelineTests: XCTestCase {
 			top += slot.height
 		}
 		XCTAssertEqual(timeline.height(at: end), top, file: file, line: line)
+	}
+
+	/// At every frame from `start`, `tallest` is at least every `value`
+	/// still to come through `end`, sampled every 10 µs, and at most half a
+	/// point over the most of them.
+	private func assertTallestHoldsEveryValue(
+		from start: TimeInterval,
+		to end: TimeInterval,
+		file: StaticString = #filePath,
+		line: UInt = #line,
+		_ value: (TimeInterval) -> CGFloat,
+		tallest: (TimeInterval) -> CGFloat,
+	) {
+		let step = 1e-5
+		let values = (0 ... Int(((end - start) / step).rounded(.up))).map { value(min(start + Double($0) * step, end)) }
+		// The most to come from each sample on.
+		let mostToCome = values.reversed().reduce(into: [CGFloat]()) { most, value in most.append(max(value, most.last ?? value)) }.reversed()
+		let peakFrames = (0 ... Int(((end - start) * Self.frameRate).rounded(.up)))
+		for frame in peakFrames {
+			let time = start + Double(frame) / Self.frameRate
+			let most = max(value(time), mostToCome.dropFirst(Int(((time - start) / step).rounded(.up))).first ?? 0)
+			let held = tallest(time)
+			XCTAssertGreaterThanOrEqual(held, most - Self.tolerance, "the tallest misses a value to come at \(time)", file: file, line: line)
+			XCTAssertLessThanOrEqual(held, most + 0.5, "the tallest is too tall at \(time)", file: file, line: line)
+		}
+		XCTAssertGreaterThan(values.max() ?? 0, max(values.first ?? 0, values.last ?? 0) + 5, "the motion peaks between its ends", file: file, line: line)
 	}
 
 	private func assertEqual(_ frame: Frame?, _ expected: Frame?, _ message: String, file: StaticString, line: UInt) {

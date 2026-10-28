@@ -95,29 +95,41 @@ final class InboxPanelTests: XCTestCase {
 		}
 	}
 
-	/// The card's height moves in Core Animation from where it shows, on the
-	/// content's curve; without motion it jumps, dropping any motion left.
-	func testTheCardsHeightAnimatesFromWhereItShows() throws {
+	/// The card's height moves in Core Animation as one additive animation
+	/// per change, on the content's curve and clock; without motion it jumps,
+	/// dropping any motion left.
+	func testTheCardsHeightMovesAdditivelyOnTheContentsClock() throws {
 		let panel = InboxPanel(content: NSView())
 		panel.place(card: NSRect(x: 900, y: 700, width: 380, height: 300), maxCardHeight: 700)
 		// Shadow, surface, ring: the ring's own view stays on top.
 		let ring = try XCTUnwrap(panel.contentView?.subviews.last?.layer?.sublayers?.first)
 		XCTAssertEqual(ring.borderWidth, 0.5)
 		XCTAssertEqual(panel.contentView?.subviews.count, 3)
-		panel.setCardHeight(400, animated: true)
+		let start = CACurrentMediaTime()
+		panel.moveCard(Self.motion(to: 400, change: 1, at: start))
 		XCTAssertEqual(panel.cardHeight, 400)
-		let grow = try XCTUnwrap(ring.animation(forKey: "motion.bounds") as? CABasicAnimation)
-		XCTAssertEqual((grow.fromValue as? NSValue)?.rectValue.height ?? 0, 300)
-		XCTAssertEqual((grow.toValue as? NSValue)?.rectValue.height ?? 0, 400)
+		XCTAssertEqual(ring.bounds.height, 400, "the model is at the target at once")
+		let grow = try XCTUnwrap(ring.animation(forKey: "motion.bounds.size.height.1") as? CABasicAnimation)
+		XCTAssertTrue(grow.isAdditive)
+		XCTAssertEqual((grow.fromValue as? CGFloat) ?? 0, -100)
+		XCTAssertEqual((grow.toValue as? CGFloat) ?? 1, 0)
+		XCTAssertEqual(grow.beginTime, ring.convertTime(start, from: nil), accuracy: 0.001)
 		XCTAssertEqual(grow.duration, Tokens.motionDuration, accuracy: 0.001)
 		var first = [Float](repeating: 0, count: 2)
 		var second = [Float](repeating: 0, count: 2)
 		grow.timingFunction?.getControlPoint(at: 1, values: &first)
 		grow.timingFunction?.getControlPoint(at: 2, values: &second)
 		XCTAssertEqual(first + second, [0.2, 0, 0, 1], "eased at both ends, the landing drawn out")
+		let centre = try XCTUnwrap(ring.animation(forKey: "motion.position.y.1") as? CABasicAnimation)
+		XCTAssertEqual((centre.fromValue as? CGFloat) ?? 0, -50, "the centre moves half as far")
 
-		panel.setCardHeight(250, animated: false)
-		XCTAssertNil(ring.animation(forKey: "motion.bounds"))
+		panel.moveCard(Self.motion(to: 350, change: 2, at: start + 0.1))
+		XCTAssertNotNil(ring.animation(forKey: "motion.bounds.size.height.1"), "a change mid-motion leaves the one before")
+		XCTAssertNotNil(ring.animation(forKey: "motion.bounds.size.height.2"))
+
+		panel.setCardHeight(250)
+		XCTAssertNil(ring.animation(forKey: "motion.bounds.size.height.1"))
+		XCTAssertNil(ring.animation(forKey: "motion.bounds.size.height.2"))
 		XCTAssertEqual(ring.bounds.height, 250)
 	}
 
@@ -162,19 +174,18 @@ final class InboxPanelTests: XCTestCase {
 		XCTAssertEqual(panel.frame.height, 300 + InboxPanel.topRoom + InboxPanel.bottomRoom)
 		XCTAssertEqual(panel.cardFrameOnScreen, card)
 
-		panel.setCardHeight(400, animated: true)
+		let start = CACurrentMediaTime()
+		panel.moveCard(Self.motion(to: 400, change: 1, at: start))
 		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.topRoom)
 		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.topRoom + InboxPanel.bottomRoom, "grown before the motion")
 
-		panel.setCardHeight(250, animated: true)
+		panel.moveCard(Self.motion(to: 250, change: 2, at: start))
 		XCTAssertEqual(panel.frame.height, 400 + InboxPanel.topRoom + InboxPanel.bottomRoom, "kept while the card shrinks")
-		let settled = expectation(description: "shrunk once the motion is over")
-		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration + 0.1) { settled.fulfill() }
-		wait(for: [settled], timeout: 2)
-		XCTAssertEqual(panel.frame.height, 250 + InboxPanel.topRoom + InboxPanel.bottomRoom)
+		panel.fitWindowToCard()
+		XCTAssertEqual(panel.frame.height, 250 + InboxPanel.topRoom + InboxPanel.bottomRoom, "shrunk once the motion is over")
 		XCTAssertEqual(panel.frame.maxY, card.maxY + InboxPanel.topRoom)
 
-		panel.setCardHeight(180, animated: false)
+		panel.setCardHeight(180)
 		XCTAssertEqual(panel.frame.height, 180 + InboxPanel.topRoom + InboxPanel.bottomRoom)
 	}
 
@@ -211,15 +222,16 @@ final class InboxPanelTests: XCTestCase {
 		}
 	}
 
-	/// A shrink that a later growth overtakes never cuts the card short.
+	/// A growth mid-shrink grows the window to the tallest card on the way,
+	/// never cutting the card short.
 	func testAGrowthOvertakesAPendingShrink() {
 		let panel = InboxPanel(content: NSView())
 		panel.place(card: NSRect(x: 900, y: 400, width: 380, height: 300), maxCardHeight: 700)
-		panel.setCardHeight(200, animated: true)
-		panel.setCardHeight(350, animated: true)
-		let settled = expectation(description: "past the first motion")
-		DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration + 0.1) { settled.fulfill() }
-		wait(for: [settled], timeout: 2)
+		let start = CACurrentMediaTime()
+		panel.moveCard(Self.motion(to: 200, change: 1, at: start))
+		panel.moveCard(CardMotion(height: 350, tallest: 380, change: 2, start: start + 0.1, duration: Tokens.motionDuration))
+		XCTAssertEqual(panel.frame.height, 380 + InboxPanel.topRoom + InboxPanel.bottomRoom)
+		panel.fitWindowToCard()
 		XCTAssertEqual(panel.frame.height, 350 + InboxPanel.topRoom + InboxPanel.bottomRoom)
 	}
 
@@ -264,5 +276,11 @@ final class InboxPanelTests: XCTestCase {
 		))
 		hit.mouseDown(with: click)
 		XCTAssertEqual(closes, 1)
+	}
+
+	/// A change of the card, as the content reports it, with no growth of
+	/// its own on the way.
+	private static func motion(to height: CGFloat, change: Int, at start: TimeInterval) -> CardMotion {
+		CardMotion(height: height, tallest: height, change: change, start: start, duration: Tokens.motionDuration)
 	}
 }

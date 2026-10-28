@@ -68,4 +68,12 @@ final class MotionSpecTests: XCTestCase {
 			XCTAssertEqual(tokens, model)
 		}
 	}
+
+	func testSlowMotionLengthensEveryMotion() {
+		let real = Tokens.motionDuration
+		Tokens.motionScale = 4
+		defer { Tokens.motionScale = 1 }
+		XCTAssertEqual(Tokens.motionDuration, real * 4, accuracy: 0.0001)
+		XCTAssertEqual(Tokens.spawnDuration, 0.18 * 4, accuracy: 0.0001)
+	}
 }

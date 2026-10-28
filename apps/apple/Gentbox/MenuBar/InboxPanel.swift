@@ -78,44 +78,67 @@ class InboxPanel: NSPanel {
 		contentView = stage
 	}
 
-	/// The card's height: the surface, the ring and the shadow move
-	/// together, with no view layout. Animated, they move in the transaction
-	/// that moves the content (`InboxContentView`), on its curve, from where
-	/// they show.
-	func setCardHeight(_ height: CGFloat, animated: Bool = false) {
-		cardHeight = height
-		let card = NSRect(x: Self.margin, y: Self.topRoom, width: Tokens.popoverWidth, height: height)
-		var motion = LayerMotion()
-		motion.capture(surface.layer, ["position", "bounds"])
-		motion.capture(ring, ["position", "bounds"])
-		motion.capture(shadow, ["position", "bounds"])
+	/// Shows the card at `height` at once, every motion of it dropped: the
+	/// surface, the ring and the shadow move together, with no view layout,
+	/// and the window fits the card.
+	func setCardHeight(_ height: CGFloat) {
 		CATransaction.begin()
 		CATransaction.setDisableActions(true)
-		surface.frame = card
-		ring.frame = card
-		shadow.frame = card.offsetBy(dx: 0, dy: Self.shadowOffset).insetBy(dx: -Self.shadowPadding, dy: -Self.shadowPadding)
-		// Grown first, so the card never shows cut; shrunk only once it has.
-		fitWindow(cardHeight: animated ? max(height, windowCardHeight) : height)
-		motion.commit(animated: animated)
+		for layer in cardLayers {
+			layer.removeMotions(keyedFrom: "motion.")
+		}
+		setCardFrames(height: height)
+		fitWindow(cardHeight: height)
 		CATransaction.commit()
-		// Clicks reach the card as it will be: the motion is a quarter second.
-		stage.card = card
-		windowFitGeneration += 1
-		if animated, windowCardHeight > height {
-			let generation = windowFitGeneration
-			DispatchQueue.main.asyncAfter(deadline: .now() + Tokens.motionDuration) { [weak self] in
-				MainActor.assumeIsolated {
-					guard let self, self.windowFitGeneration == generation else { return }
-					self.fitWindow(cardHeight: self.cardHeight)
-				}
+	}
+
+	/// Moves the card to `motion.height` from where it shows, in the
+	/// transaction of the content's change (ADR 0013): one additive animation
+	/// per layer and change, on the motion curve, so a change mid-motion adds
+	/// to the ones before it and nothing jumps. The window grows at once to
+	/// the tallest card on the way, so the card never shows cut, and shrinks
+	/// only at `fitWindowToCard()`, once every motion has run.
+	func moveCard(_ motion: CardMotion) {
+		let heightDelta = cardHeight - motion.height
+		setCardFrames(height: motion.height)
+		if heightDelta != 0, let surfaceLayer = surface.layer {
+			// The surface hangs from its top; the ring and the shadow are
+			// anchored at their centres, which move half as far.
+			Self.add(heightDelta, to: surfaceLayer, keyPath: "bounds.size.height", of: motion)
+			for layer in [ring, shadow] {
+				Self.add(heightDelta / 2, to: layer, keyPath: "position.y", of: motion)
+				Self.add(heightDelta, to: layer, keyPath: "bounds.size.height", of: motion)
 			}
 		}
+		fitWindow(cardHeight: max(windowCardHeight, motion.tallest))
+	}
+
+	/// Shrinks the window to the card, once every motion has run.
+	func fitWindowToCard() {
+		fitWindow(cardHeight: cardHeight)
 	}
 
 	// MARK: The window around the card
 
-	/// Each shrink waits for the motion before it; a later change cancels it.
-	private var windowFitGeneration = 0
+	private var cardLayers: [CALayer] {
+		[surface.layer, ring, shadow].compactMap(\.self)
+	}
+
+	/// The card's model frames at `height`; clicks reach the card as it will
+	/// be, the motion being a quarter second.
+	private func setCardFrames(height: CGFloat) {
+		cardHeight = height
+		let card = NSRect(x: Self.margin, y: Self.topRoom, width: Tokens.popoverWidth, height: height)
+		surface.frame = card
+		ring.frame = card
+		shadow.frame = card.offsetBy(dx: 0, dy: Self.shadowOffset).insetBy(dx: -Self.shadowPadding, dy: -Self.shadowPadding)
+		stage.card = card
+	}
+
+	private static func add(_ delta: CGFloat, to layer: CALayer, keyPath: String, of motion: CardMotion) {
+		let track = MotionTrack(change: motion.change, start: motion.start, duration: motion.duration, delta: delta)
+		layer.addMotion(track, keyPath: keyPath, key: "motion.\(keyPath).\(motion.change)")
+	}
 
 	/// The card height the window has room for now.
 	private var windowCardHeight: CGFloat {
@@ -289,10 +312,11 @@ class InboxPanel: NSPanel {
 		despawnGeneration += 1
 		isDespawning = false
 		ignoresMouseEvents = false
+		let spec = MotionSpec.content(.open, reducesMotion: reduceMotion)
 		let presentation = layer.presentation()
-		let fromOpacity = isVisible ? (presentation?.opacity ?? layer.opacity) : 0
-		let fromScale = isVisible ? Self.scale(of: presentation?.transform ?? layer.transform) : (reduceMotion ? 1 : 0.96)
-		animate(layer, opacity: (fromOpacity, 1), scale: (fromScale, 1), duration: Tokens.spawnDuration, timing: .easeOut, completion: nil)
+		let fromOpacity = isVisible ? (presentation?.opacity ?? layer.opacity) : spec.fromOpacity
+		let fromScale = isVisible ? Self.scale(of: presentation?.transform ?? layer.transform) : spec.fromScale
+		animate(layer, opacity: (fromOpacity, spec.toOpacity), scale: (fromScale, spec.toScale), duration: spec.duration, completion: nil)
 	}
 
 	/// Fades and scales out (fade only with Reduce Motion), ignoring input,
@@ -303,11 +327,12 @@ class InboxPanel: NSPanel {
 		ignoresMouseEvents = true
 		despawnGeneration += 1
 		let generation = despawnGeneration
+		let spec = MotionSpec.content(.close, reducesMotion: reduceMotion)
 		let presentation = layer.presentation()
 		animate(
-			layer, opacity: (presentation?.opacity ?? layer.opacity, 0),
-			scale: (Self.scale(of: presentation?.transform ?? layer.transform), reduceMotion ? 1 : 0.98),
-			duration: Tokens.despawnDuration, timing: .easeIn,
+			layer, opacity: (presentation?.opacity ?? layer.opacity, spec.toOpacity),
+			scale: (Self.scale(of: presentation?.transform ?? layer.transform), spec.toScale),
+			duration: spec.duration,
 		) { [weak self] in
 			guard let self, self.despawnGeneration == generation else { return }
 			self.isDespawning = false
@@ -334,11 +359,12 @@ class InboxPanel: NSPanel {
 		CATransaction.commit()
 	}
 
-	/// The scale and fade in one Core Animation transaction: the render
-	/// server runs it, no frame of it touches the main thread.
+	/// The scale and fade in one Core Animation transaction, on the motion
+	/// curve: the render server runs it, no frame of it touches the main
+	/// thread.
 	private func animate(
 		_ layer: CALayer, opacity: (Float, Float), scale: (CGFloat, CGFloat), duration: CFTimeInterval,
-		timing: CAMediaTimingFunctionName, completion: (() -> Void)?,
+		completion: (() -> Void)?,
 	) {
 		let fade = CABasicAnimation(keyPath: "opacity")
 		fade.fromValue = opacity.0
@@ -349,7 +375,7 @@ class InboxPanel: NSPanel {
 		let group = CAAnimationGroup()
 		group.animations = [fade, grow]
 		group.duration = duration
-		group.timingFunction = CAMediaTimingFunction(name: timing)
+		group.timingFunction = Tokens.motionCurve
 		CATransaction.begin()
 		CATransaction.setCompletionBlock { completion?() }
 		CATransaction.setDisableActions(true)

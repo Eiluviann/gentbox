@@ -10,6 +10,72 @@ protocol MotionClock: AnyObject {
 	func whenEnded(at time: TimeInterval, _ work: @escaping @MainActor () -> Void)
 }
 
+/// One change of the window's card, moved in the transaction that moves the
+/// content: the card's height once the change has run, the tallest it shows
+/// on the way, and the change's clock.
+struct CardMotion: Equatable {
+	let height: CGFloat
+	let tallest: CGFloat
+	let change: Int
+	let start: TimeInterval
+	let duration: TimeInterval
+}
+
+/// One change of the coordinator, as a view's parts take it: the number its
+/// stacks end it by, its clock, and whether zooms give way to fades.
+struct MotionChange: Equatable {
+	let change: Int
+	let time: TimeInterval
+	let duration: TimeInterval
+	let reducesMotion: Bool
+}
+
+/// How the content's card changes, for the window around it.
+enum CardChange: Equatable {
+	/// At once, every motion dropped.
+	case settled(height: CGFloat)
+	case moving(CardMotion)
+	/// Every motion has run: the window may shrink to the card.
+	case motionEnded
+}
+
+extension CALayer {
+	/// Adds `track` as an additive animation of `keyPath` under `key`: the
+	/// value shows `delta` away from its model as the track starts and
+	/// reaches it on the motion's curve, held at `delta` until then.
+	@MainActor
+	func addMotion(_ track: MotionTrack, keyPath: String, key: String) {
+		let animation = CABasicAnimation(keyPath: keyPath)
+		animation.isAdditive = true
+		animation.fromValue = track.delta
+		animation.toValue = 0
+		animation.beginTime = convertTime(track.start, from: nil)
+		animation.duration = track.duration
+		animation.fillMode = .backwards
+		animation.timingFunction = Tokens.motionCurve
+		add(animation, forKey: key)
+	}
+
+	/// Each change's tracks of `keyPath`, summed into one additive animation
+	/// keyed by the change: a slot inserted mid-motion can take two of one
+	/// change from the slot above it, its top's and its height's.
+	@MainActor
+	func addMotions(_ tracks: [MotionTrack], keyPath: String) {
+		for (change, tracks) in Dictionary(grouping: tracks, by: \.change) {
+			guard let first = tracks.first else { continue }
+			let summed = MotionTrack(change: change, start: first.start, duration: first.duration, delta: tracks.reduce(0) { $0 + $1.delta })
+			addMotion(summed, keyPath: keyPath, key: "motion.\(keyPath).\(change)")
+		}
+	}
+
+	/// Drops every animation whose key starts with `prefix`.
+	func removeMotions(keyedFrom prefix: String) {
+		for key in animationKeys() ?? [] where key.hasPrefix(prefix) {
+			removeAnimation(forKey: key)
+		}
+	}
+}
+
 /// Core Animation's clock: a completion rides an animation of its own, which
 /// changes nothing it is drawn on and ends at the motion's end, so it lands
 /// on the render server's frame rather than on a timer's.

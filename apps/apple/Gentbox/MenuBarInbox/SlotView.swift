@@ -109,9 +109,7 @@ class SlotView: FlippedView {
 	/// Drops every motion of the slot and its content: both show their model.
 	func endMotion() {
 		for layer in [layer, content.layer].compactMap({ $0 }) {
-			for key in layer.animationKeys() ?? [] where key.hasPrefix("motion.") {
-				layer.removeAnimation(forKey: key)
-			}
+			layer.removeMotions(keyedFrom: "motion.")
 		}
 		contentMotion = nil
 	}
